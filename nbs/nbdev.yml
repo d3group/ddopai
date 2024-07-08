@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "ddopnew"
+  site-url: "https://opimwue.github.io/ddopnew"
+  description: "A completely new version of ddop. New name to be specificed."
+  repo-branch: main
+  repo-url: "https://github.com/opimwue/ddopnew"
