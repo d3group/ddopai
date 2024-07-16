@@ -5,4 +5,7 @@ d = { 'settings': { 'branch': 'main',
                 'doc_host': 'https://opimwue.github.io',
                 'git_url': 'https://github.com/opimwue/ddopnew',
                 'lib_path': 'ddopnew'},
-  'syms': {'ddopnew.core': {'ddopnew.core.foo': ('core.html#foo', 'ddopnew/core.py')}}}
+  'syms': { 'ddopnew.core': {'ddopnew.core.foo': ('core.html#foo', 'ddopnew/core.py')},
+            'ddopnew.envs.inventory': { 'ddopnew.envs.inventory.foo': ( '01_envs_inventory/single_period_envs.html#foo',
+                                                                        'ddopnew/envs/inventory.py')},
+            'ddopnew.utils': {'ddopnew.utils.set_env_parameter': ('00_utils/utils.html#set_env_parameter', 'ddopnew/utils.py')}}}
