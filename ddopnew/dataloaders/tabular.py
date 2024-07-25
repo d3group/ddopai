@@ -16,8 +16,8 @@ class XYDataLoader(BaseDataLoader):
     def __init__(self,
         X: np.ndarray,
         Y: np.ndarray,
-        val_index_start: Union[int, None] = None,
-        test_index_start: Union[int, None] = None,
+        val_index_start: Union[int, None] = None, # give list
+        test_index_start: Union[int, None] = None, # give list
     ):
         self.X = X
         self.Y = Y
@@ -42,27 +42,28 @@ class XYDataLoader(BaseDataLoader):
 
         assert len(X) == len(Y), 'X and Y must have the same length'
 
-        self.num_SKUs = Y.shape[1]
+        self.num_units = Y.shape[1] # shape 0 is alsways time, shape 1 is the number of units (e.g., SKUs)
 
         super().__init__()
     
     def __getitem__(self, idx): 
 
         if self.dataset_type == "train":
+
             if idx > self.train_index_end:
-                raise IndexError('index out of range')
+                raise IndexError(f'index{idx} out of range{self.train_index_end}')
             idx = idx
         elif self.dataset_type == "val":
             idx = idx + self.val_index_start
             
             if idx >= self.test_index_start:
-                raise IndexError('index out of range')
+                raise IndexError(f'index{idx} out of range{self.test_index_start}')
             
         elif self.dataset_type == "test":
             idx = idx + self.test_index_start
             
             if idx >= len(self.X):
-                raise IndexError('index out of range')
+                raise IndexError(f'index{idx} out of range{len(self.X)}')
         
         else:
             raise ValueError('dataset_type not set')
@@ -96,26 +97,16 @@ class XYDataLoader(BaseDataLoader):
             raise ValueError('no test set defined')
         return len(self.X)-self.test_index_start
 
-    def val(self):
+    def get_all_X(self):
 
-        if self.val_index_start is None:
-            raise ValueError('no validation set defined')
-        else:
-            self.dataset_type = "val"
+        """
+        Returns the entire features dataset. If no X data is available, return None.
+        """
+        return self.X.copy() if self.X is not None else None
 
-        return self
-    
-    def test(self):
+    def get_all_Y(self):
 
-        if self.test_index_start is None:
-            raise ValueError('no test set defined')
-        else:
-            self.dataset_type = "test"
-
-        return self
-    
-    def train(self):
-
-        self.dataset_type = "train"
-
-        return self
+        """
+        Returns the entire target dataset. If no Y data is available, return None.
+        """
+        return self.Y.copy()if self.Y is not None else None

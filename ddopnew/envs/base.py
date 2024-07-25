@@ -6,13 +6,19 @@ __all__ = ['BaseEnvironment']
 # %% ../../nbs/20_base_env/10_base_env.ipynb 3
 import gymnasium as gym
 from abc import ABC, abstractmethod
+from typing import Union
+import numpy as np
 
 from ..utils import MDPInfo
+from ..utils import Parameter
 
 # %% ../../nbs/20_base_env/10_base_env.ipynb 4
 class BaseEnvironment(gym.Env, ABC):
 
-    def __init__(self, mdp_info: MDPInfo) -> None:
+    def __init__(self,
+                    mdp_info: MDPInfo,
+                    mode: str = "train",
+                    ) -> None:
         """
         Constructor.
 
@@ -22,8 +28,17 @@ class BaseEnvironment(gym.Env, ABC):
         """
         super().__init__()
 
-        self.index = 0
+        self._mode = mode
         self.mdp_info = mdp_info
+        
+        if mode == "train": 
+            self.train()
+        elif mode == "val":
+            self.val()
+        elif mode == "test":
+            self.test()
+        else:
+            raise ValueError("mode must be 'train', 'val', or 'test'")
 
     @property
     def info(self):
@@ -33,6 +48,15 @@ class BaseEnvironment(gym.Env, ABC):
 
         """
         return self._mdp_info
+
+    @property
+    def mode(self):
+        """
+        Returns:
+             An object containing the mode of the environment.
+
+        """
+        return self._mode
 
     @abstractmethod
     def set_action_space(self):
@@ -58,13 +82,140 @@ class BaseEnvironment(gym.Env, ABC):
         """
         pass
     
-    def handle_index(self):
+    def set_index(self, index=None):
         """
         Handle the index of the environment.
 
         """
 
-        self.index += 1
+        if index is not None:
+            self.index = index
+        else:
+            self.index += 1
         truncated = True if self.index >= self.mdp_info.horizon else False
         
         return truncated
+
+    def train(self, update_mdp_info=True):
+        """
+        Set the environment in training mode.
+
+        """
+        self._mode = "train"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.train()
+
+            if hasattr(self, "horizon_train"):
+                if self.horizon_train == "use_all_data":
+                    horizon = self.dataloader.len_train
+                else:
+                    horizon = self.horizon_train
+        else:
+            horizon = self.mdp_info.horizon
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
+
+        self.reset()
+    
+    def val(self, update_mdp_info=True):
+        """
+        Set the environment in validation mode.
+
+        """
+        self._mode = "val"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.val()
+            horizon = self.dataloader.len_val
+        else:
+            horizon = self.mdp_info.horizon
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
+
+        self.reset()
+
+    def test(self, update_mdp_info=True):
+        """
+        Set the environment in testing mode.
+
+        """
+        self._mode = "test"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.test()
+            horizon = self.dataloader.len_test
+        else:
+            horizon = self.mdp_info.horizon
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
+
+        self.reset()
+
+    def reset_index(self,
+        start_index: Union[int,str]):
+ 
+        if start_index=="random":
+            truncated = self.set_index(np.random.randint(0, self.dataloader.len_train)) # assuming we only start randomly during training.
+        elif isinstance(start_index, int):
+            truncated = self.set_index(start_index)
+        else:
+            raise ValueError("start_index must be an integer or 'random'")
+        
+        return truncated
+        
+    def update_mdp_info(self, gamma=None, horizon=None):
+        """
+        Update the MDP info of the environment.
+
+        Args:
+            gamma (float): the discount factor.
+            horizon (int): the horizon of the environment.
+
+        """
+        if gamma is not None:
+            self.mdp_info.gamma = gamma
+        if horizon is not None:
+            self.mdp_info.horizon = horizon
+
+    def set_param(self,
+                        name: str, 
+                        input: Union[Parameter, float, np.ndarray],
+                        shape: tuple = (1,),
+                        new: bool = False) -> None:
+        
+        """
+        Set a parameter for the environment.
+        """
+
+        # check if input is a valid type
+        if isinstance(input, Parameter):
+            if input.shape != shape:
+                raise ValueError("Parameter shape must be equal to the shape specified for this environment parameter")
+            param = input
+        
+        elif isinstance(input, (int, float)):
+            param = np.full(shape, input)
+
+        elif isinstance(input, np.ndarray):
+            if input.shape == shape:
+                param = input
+            elif input.size == 1:  # Handle single-element arrays correctly
+                param = np.full(shape, input.item())
+            else:
+                raise ValueError("Input array must match the specified shape or be a single-element array")
+        else:
+            raise TypeError("Input must be a Parameter, scalar, or numpy array")
+
+        # set the parameter
+        if new:
+            setattr(self, name, param)
+        else:
+            # check if parameter already exists
+            if not hasattr(self, name):
+                raise AttributeError(f"Parameter {name} does not exist in this environment")
+            else:
+                getattr(self, name).set(param)

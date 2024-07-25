@@ -59,3 +59,37 @@ class BaseDataLoader(ABC):
         generated from a distribtition, n_samples should be set to 1.
         """
         pass
+
+    @abstractmethod   
+    def get_all_X(self):
+
+        """
+        Returns the entire features dataset. If no X data is available, return None.
+        """
+        pass    
+
+    @abstractmethod   
+    def get_all_Y(self):
+
+        """
+        Returns the entire target dataset. If no Y data is available, return None.
+        """
+        pass  
+
+    def val(self):
+
+        if self.val_index_start is None:
+            raise ValueError('no validation set defined')
+        else:
+            self.mode = "val"
+
+    def test(self):
+
+        if self.test_index_start is None:
+            raise ValueError('no test set defined')
+        else:
+            self.mode = "test"
+    
+    def train(self):
+
+        self.mode = "train"
