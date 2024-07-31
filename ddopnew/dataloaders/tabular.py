@@ -142,18 +142,43 @@ class XYDataLoader(BaseDataLoader):
     def len_test(self):
         if self.test_index_start is None:
             raise ValueError('no test set defined')
-        return len(self.X)-self.test_index_start
+        return len(self.Y)-self.test_index_start
 
-    def get_all_X(self):
+    def get_all_X(self,
+                dataset_type: str = 'train' # can be 'train', 'val', 'test', 'all'
+                ): 
 
         """
         Returns the entire features dataset. If no X data is available, return None.
         """
-        return self.X.copy() if self.X is not None else None
 
-    def get_all_Y(self):
+        if dataset_type == 'train':
+            return self.X[:self.val_index_start].copy() if self.X is not None else None
+        elif dataset_type == 'val':
+            return self.X[self.val_index_start:self.test_index_start].copy() if self.X is not None else None
+        elif dataset_type == 'test':
+            return self.X[self.test_index_start:].copy() if self.X is not None else None
+        elif dataset_type == 'all':
+            return self.X.copy() if self.X is not None else None
+        else:
+            raise ValueError('dataset_type not recognized')
+
+    def get_all_Y(self,
+                dataset_type: str = 'train' # can be 'train', 'val', 'test', 'all'
+                ): 
 
         """
         Returns the entire target dataset. If no Y data is available, return None.
         """
-        return self.Y.copy()if self.Y is not None else None
+
+        if dataset_type == 'train':
+            return self.Y[:self.val_index_start].copy() if self.Y is not None else None
+        elif dataset_type == 'val':
+            return self.Y[self.val_index_start:self.test_index_start].copy() if self.Y is not None else None
+        elif dataset_type == 'test':
+            return self.Y[self.test_index_start:].copy() if self.Y is not None else None
+        elif dataset_type == 'all':
+            return self.Y.copy() if self.Y is not None else None
+        else:
+            raise ValueError('dataset_type not recognized')
+        

@@ -186,9 +186,9 @@ def run_test_episode(   env: BaseEnvironment,
         step += 1
         sys.stdout.write(f"\rStep {step}")
         sys.stdout.flush()
+    
     print()
 
-    
     return dataset
 
 def run_experiment( agent: BaseAgent,
@@ -198,6 +198,7 @@ def run_experiment( agent: BaseAgent,
 
                     early_stopping_handler: Union[EarlyStoppingHandler, None] = None,
                     save_best: bool = True,
+                    performance_criterion: str = "J", # other: "R"
 
                     tracking: Union[str, None]  = None, # other: "wandb"
 
@@ -205,10 +206,9 @@ def run_experiment( agent: BaseAgent,
 
                     run_id: Union[str, None] = None,
 
-                    logging_level =  logging.WARNING
+                    print_freq: int = 10,
                 ):
 
-    logging.basicConfig(level=logging_level)
 
     # use start_time as id if no run_id is given
     if run_id is None:
@@ -240,7 +240,7 @@ def run_experiment( agent: BaseAgent,
     if agent.train_mode == "direct_fit":
         
         logging.info("Starting training with direct fit")
-        agent.fit(X=env.dataloader.get_all_X(), Y=env.dataloader.get_all_Y())
+        agent.fit(X=env.dataloader.get_all_X("train"), Y=env.dataloader.get_all_Y("train"))
         logging.info("Finished training with direct fit")
 
         env.val()
@@ -256,17 +256,22 @@ def run_experiment( agent: BaseAgent,
         logging.info("Starting training with epochs fit")
         for epoch in range(n_epochs):
 
-            agent.fit_epoch(X=env.dataloader.get_X_train(), Y=env.dataloader.get_Y_train())
+            agent.fit_epoch(X=env.dataloader.get_all_X("train"), Y=env.dataloader.get_all_Y("train"))
 
             env.val()
             agent.eval()
 
             R, J = test_agent(agent, env, tracking = tracking)
+
+            if ((epoch+1) % print_freq) == 0:
+                logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
             
             best_J, best_R = update_best(R, J, best_R, best_J)
-            save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criteria)
+            save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
             if early_stopping_handler is not None:
-                stop = early_stopping_handler(J, R)
+                stop = early_stopping_handler.add_result(J, R)
+            else:
+                stop = False
 
             if stop:
                 logging.info(f"Early stopping after {epoch+1} epochs")

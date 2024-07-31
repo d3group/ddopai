@@ -131,7 +131,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         super().__init__(mdp_info=MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train))
 
     def step(self, action):
-
+        
         if self.print:
             print(action)
         
@@ -157,7 +157,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
                 print("##################")
                 print("observation:", observation)
                 print("next demand:", self.demand)
-                time.sleep(5)
+                time.sleep(3)
 
             return observation, reward, terminated, truncated, info
 
