@@ -15,6 +15,7 @@ from ..loss_functions import pinball_loss
 import gymnasium as gym
 
 import numpy as np
+import time
 
 # %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 4
 class BaseInventoryEnv(BaseEnvironment):
@@ -124,13 +125,18 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         
         self.set_observation_space(dataloader.X_shape)
         self.set_action_space(dataloader.Y_shape)
+
+        self.print=False
         
         super().__init__(mdp_info=MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train))
 
     def step(self, action):
+
+        if self.print:
+            print(action)
         
-        cost_per_SKU = -pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
-        reward = -np.sum(cost_per_SKU)
+        cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
+        reward = -np.sum(cost_per_SKU) # negative because we want to minimize the cost
 
         terminated = False # in this problem there is no termination condition
         
@@ -140,16 +146,20 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             cost_per_SKU=cost_per_SKU.copy()
         )
 
-
         truncated = self.set_index()
 
         if truncated:
             return None, reward, terminated, truncated, info
         else:
             observation, self.demand = self.get_observation()
+
+            if self.print:
+                print("##################")
+                print("observation:", observation)
+                print("next demand:", self.demand)
+                time.sleep(5)
+
             return observation, reward, terminated, truncated, info
-        
-        
 
     def reset(self,
         start_index: Union[int,str] = None):

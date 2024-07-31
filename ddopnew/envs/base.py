@@ -81,6 +81,15 @@ class BaseEnvironment(gym.Env, ABC):
 
         """
         pass
+
+    @abstractmethod
+    def reset(self):
+        """
+        Reset the environment.
+        For index use self.reset_index().
+
+        """
+        pass
     
     def set_index(self, index=None):
         """

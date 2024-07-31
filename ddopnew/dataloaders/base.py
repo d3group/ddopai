@@ -19,7 +19,7 @@ class BaseDataLoader(ABC):
     """
 
     def __init__(self):
-        pass
+        self.dataset_type = "train"
 
     @abstractmethod
     def __len__(self):
@@ -81,15 +81,15 @@ class BaseDataLoader(ABC):
         if self.val_index_start is None:
             raise ValueError('no validation set defined')
         else:
-            self.mode = "val"
+            self.dataset_type = "val"
 
     def test(self):
 
         if self.test_index_start is None:
             raise ValueError('no test set defined')
         else:
-            self.mode = "test"
+            self.dataset_type = "test"
     
     def train(self):
 
-        self.mode = "train"
+        self.dataset_type = "train"
