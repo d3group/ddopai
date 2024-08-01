@@ -228,8 +228,6 @@ def run_experiment( agent: BaseAgent,
     env.train()
     agent.train()
 
-    core = Core(agent, env)
-
     # initial evaluation
     env.val()
     agent.eval()
