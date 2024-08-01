@@ -104,6 +104,7 @@ def update_best(R, J, best_R, best_J):
     return best_R, best_J
 
 def save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, criteria="J"):
+
     if save_best:
         if criteria == "R":
             if R == best_R:
@@ -118,6 +119,7 @@ def test_agent(agent: BaseAgent,
             env: BaseEnvironment,
             return_dataset = False,
             tracking = None, # other: "wandb",
+            eval_step_info = False,
 ):
 
     """
@@ -128,7 +130,7 @@ def test_agent(agent: BaseAgent,
     """
 
     # Run the test episode
-    dataset = run_test_episode(env, agent)
+    dataset = run_test_episode(env, agent, eval_step_info)
 
     # Calculate the score
     R, J = calculate_score(dataset, env)
@@ -145,6 +147,7 @@ def test_agent(agent: BaseAgent,
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 8
 def run_test_episode(   env: BaseEnvironment,
                         agent: BaseAgent,
+                        eval_step_info: bool = False,
                 ):
 
     """
@@ -183,11 +186,12 @@ def run_test_episode(   env: BaseEnvironment,
 
         finished = terminated or truncated
 
-        step += 1
-        sys.stdout.write(f"\rStep {step}")
-        sys.stdout.flush()
-    
-    print()
+        if eval_step_info:
+            step += 1
+            sys.stdout.write(f"\rStep {step}")
+            sys.stdout.flush()
+    if eval_step_info:
+        print()
 
     return dataset
 
@@ -207,6 +211,8 @@ def run_experiment( agent: BaseAgent,
                     run_id: Union[str, None] = None,
 
                     print_freq: int = 10,
+
+                    eval_step_info = False,
                 ):
 
 
@@ -246,8 +252,12 @@ def run_experiment( agent: BaseAgent,
         env.val()
         agent.eval()
 
-        R, J = test_agent(agent, env, tracking = tracking)
-        best_J, best_R = update_best(R, J, best_R, best_J)
+        R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
+        best_R, best_J = update_best(R, J, best_R, best_J)
+
+        print("results")
+        print(R, J, best_R, best_J)
+        save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
 
         log_info(R, J, n_epochs-1, logging, "val")
 
@@ -261,12 +271,12 @@ def run_experiment( agent: BaseAgent,
             env.val()
             agent.eval()
 
-            R, J = test_agent(agent, env, tracking = tracking)
+            R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
 
             if ((epoch+1) % print_freq) == 0:
                 logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
             
-            best_J, best_R = update_best(R, J, best_R, best_J)
+            best_R, best_J = update_best(R, J, best_R, best_J)
             save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
             if early_stopping_handler is not None:
                 stop = early_stopping_handler.add_result(J, R)

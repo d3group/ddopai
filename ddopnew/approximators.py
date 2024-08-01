@@ -32,29 +32,23 @@ class LinearModel(nn.Module):
 
 # %% ../nbs/60_approximators/11_approximators.ipynb 6
 class MLP(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_hidden_layers=3, drop_prob=0.0, batch_norm=False, relu_output=False, ):
+    def __init__(self, input_size, output_size, hidden_layers, drop_prob=0.0, batch_norm=False, relu_output=False):
         super().__init__()
 
         # List of layers
         layers = []
 
-        # Input layer
-        layers.append(nn.Linear(input_size, hidden_size))
-        layers.append(nn.ReLU())
-        layers.append(nn.Dropout(p=drop_prob))
-        if batch_norm:
-            layers.append(nn.BatchNorm1d(hidden_size))
-
-        # Hidden layers
-        for _ in range(num_hidden_layers-1): 
-            layers.append(nn.Linear(hidden_size, hidden_size))
+        last_size = input_size
+        for num_neurons in hidden_layers:
+            layers.append(nn.Linear(last_size, num_neurons))
             layers.append(nn.ReLU())
             layers.append(nn.Dropout(p=drop_prob))
             if batch_norm:
-                layers.append(nn.BatchNorm1d(hidden_size))
+                layers.append(nn.BatchNorm1d(num_neurons))
+            last_size = num_neurons
 
         # Output layer
-        layers.append(nn.Linear(hidden_size, output_size))
+        layers.append(nn.Linear(last_size, output_size))
         if relu_output:
             layers.append(nn.ReLU()) # output is non-negative
         else:

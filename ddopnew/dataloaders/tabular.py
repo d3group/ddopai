@@ -18,8 +18,10 @@ class XYDataLoader(BaseDataLoader):
         Y: np.ndarray,
         val_index_start: Union[int, None] = None, # give list
         test_index_start: Union[int, None] = None, # give list
-        lag_window_params: Union[dict] = {'lag_window': None, 'include_y': False, 'pre-calc': False} # give list
+        lag_window_params: Union[dict] = None # default: {'lag_window': None, 'include_y': False, 'pre-calc': False}
     ):
+
+
 
         self.X = X
         self.Y = Y
@@ -36,6 +38,7 @@ class XYDataLoader(BaseDataLoader):
 
         self.dataset_type = "train"
 
+        lag_window_params = lag_window_params or {'lag_window': None, 'include_y': False, 'pre-calc': False}
 
         self.prep_lag_features(lag_window_params)
 

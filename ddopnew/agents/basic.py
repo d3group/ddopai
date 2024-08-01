@@ -3,27 +3,34 @@
 # %% auto 0
 __all__ = ['RandomAgent']
 
-# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 3
+# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 4
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional, List
 import numpy as np
 
 from ..envs.base import BaseEnvironment
 from .base import BaseAgent
+from ..utils import MDPInfo
 
-# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 4
+# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 5
 class RandomAgent(BaseAgent):
-    
-    train_mode = "direct_fit"
 
-    def __init__(self, environment_info):
+    def __init__(self,
+                 environment_info: MDPInfo,
+                 preprocessors: Optional[List[object]] = None,
+                 postprocessors: Optional[List[object]] = None):
 
-        self.mode = "train"
-        super().__init__(environment_info)
+        super().__init__(environment_info, preprocessors, postprocessors)
 
-    def draw_action(self, observation):
+    def draw_action_(self, observation):
         return self.environment_info.action_space.sample()
 
     def fit(self, X, Y):
         assert self.mode == "train"
+        pass
+
+    def save(self, path):
+        pass
+
+    def load(self, path):
         pass

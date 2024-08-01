@@ -5,10 +5,11 @@ __all__ = ['BaseAgent']
 
 # %% ../../nbs/40_base_agents/10_base_agents.ipynb 4
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional, List
 import numpy as np
 
 from ..envs.base import BaseEnvironment
+from ..utils import MDPInfo
 
 # # TEMPORARY
 # from sklearn.utils.validation import check_array
@@ -19,21 +20,77 @@ class BaseAgent():
 
     train_mode = "direct_fit" # or "epochs_fit" or "env_interaction"
     
-    def __init__(self, environment_info):
+    def __init__(self,
+                 environment_info: MDPInfo,
+                 preprocessors: Optional[List[object]] = None, # default is empty list
+                 postprocessors: Optional[List[object]] = None # default is empty list
+                 ):
+        
+        """
+        Initialize a BaseAgent.
+
+        Args:
+            environment_info (MDPInfo): Information about the environment (MDP).
+            preprocessors (Optional[List[object]]): A list of preprocessors to apply to input data.
+            postprocessors (Optional[List[object]]): A list of postprocessors to apply to output data.
+        """
+
+        self.preprocessors = preprocessors or []
+        self.postprocessors = postprocessors or []
+
         self.environment_info = environment_info
         self.mode = "train"
-        self.print = False # can be used for debugging
+        self.print = False  # Can be used for debugging
+        self.receive_batch_dim = False
 
     @abstractmethod
-    def draw_action(self, observation):
+    def draw_action_(self, observation):
         pass
+
+    def draw_action(self, observation):
+
+        observation = self.add_batch_dim(observation)
+
+        for preprocessor in self.preprocessors:
+            observation = preprocessor(observation)
+
+        action = self.draw_action_(observation)
+        
+        for postprocessor in self.postprocessors:
+            action = postprocessor(action)
+        return action
+
+    def add_preprocessor(self, preprocessor):
+        self.preprocessors.append(preprocessor)
+    
+    def add_postprocessor(self, postprocessor):
+        self.postprocessors.append(postprocessor)
 
     def train(self):
         self.mode = "train"
         
     def eval(self):
         self.mode = "eval"
+    
+    def add_batch_dim(self, input: np.ndarray) -> np.ndarray:
+        
+        """
+        Add a batch dimension to the input array if it doesn't already have one.
 
+        Args:
+            input (np.ndarray): The input array that may need a batch dimension added.
+
+        Returns:
+            np.ndarray: The input array with an added batch dimension, if required.
+        """
+
+        if self.receive_batch_dim:
+            # If the batch dimension is expected, return the input as is
+            return input
+        else:
+            # Add a batch dimension by expanding the dimensions of the input
+            return np.expand_dims(input, axis=0)
+        
     def flatten_X(self, X):
 
         """
@@ -49,10 +106,14 @@ class BaseAgent():
             _type_: _description_
         """
 
-
-
         if X.ndim == 3:
             return X.reshape(X.shape[0], -1)
         else:
             return X
+        
+    def save(self):
+        raise NotImplementedError("This agent does not have a save method implemented.")
+
+    def load(self):
+        raise NotImplementedError("This agent does not have a load method implemented.")
         

@@ -97,10 +97,10 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
     """
 
     def __init__(self,
-        underage_cost: Union[np.ndarray, Parameter] = np.array([1]),
-        overage_cost: Union[np.ndarray, Parameter] = np.array([1]),
-        q_bound_low: Union[np.ndarray, Parameter] = np.array([0]),
-        q_bound_high: Union[np.ndarray, Parameter] = np.array([np.inf]),
+        underage_cost: Union[np.ndarray, Parameter, int, float] = 1,
+        overage_cost: Union[np.ndarray, Parameter, int, float] = 1,
+        q_bound_low: Union[np.ndarray, Parameter, int, float] = 0,
+        q_bound_high: Union[np.ndarray, Parameter, int, float] = np.inf,
         dataloader: BaseDataLoader = None,
         num_SKUs: Union[int] = None, # if None it will be inferred from the DataLoader
         gamma: float = 1,

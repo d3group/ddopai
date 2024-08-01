@@ -5,11 +5,14 @@ __all__ = ['BaseSAAagent', 'NewsvendorSAAagent', 'BasewSAAagent', 'NewsvendorRFw
 
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 4
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Optional, List
 import numpy as np
+import joblib
+import os
 
 from ...envs.base import BaseEnvironment
 from ..base import BaseAgent
+from ...utils import MDPInfo
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils.validation import check_array
@@ -17,8 +20,13 @@ from sklearn.utils.validation import check_array
 
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 5
 class BaseSAAagent(BaseAgent):
-    def __init__(self, environment_info):
-        super().__init__(environment_info)
+
+    def __init__(self,
+                 environment_info: MDPInfo,
+                 preprocessors: Optional[List[object]] = None,
+                 postprocessors: Optional[List[object]] = None):
+
+        super().__init__(environment_info, preprocessors, postprocessors)
 
     def find_weighted_quantiles(self, weights, weightPosIndices, sl, y):
         
@@ -47,7 +55,7 @@ class BaseSAAagent(BaseAgent):
         for i in range(n_outputs):
             
             indicesYSort = np.argsort(yWeightPos[:, i])
-
+            
             ySorted = yWeightPos[indicesYSort, i]
             
             distributionFunction = np.cumsum(weights[indicesYSort, i])
@@ -55,6 +63,8 @@ class BaseSAAagent(BaseAgent):
             decisionIndex = np.where(distributionFunction >= sl)[0][0]
             
             q.append(ySorted[decisionIndex])
+
+        q = np.array(q)
         
         return q
     
@@ -73,18 +83,26 @@ class BaseSAAagent(BaseAgent):
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 6
 class NewsvendorSAAagent(BaseSAAagent):
 
-    def __init__(self, environment_info, cu, co):
-        self.cu = cu
-        self.co = co
+    def __init__(self,
+                environment_info: MDPInfo,
+                cu: Union[float, np.ndarray],
+                co: Union[float, np.ndarray],
+                preprocessors: Optional[List[object]] = None,
+                postprocessors: Optional[List[object]] = None):
+
+        # if float, convert to array
+        self.cu = np.array([cu]) if isinstance(cu, float) else cu
+        self.co = np.array([co]) if isinstance(co, float) else co
 
         self.sl = cu / (cu + co)
+        self.fitted = False
 
-        self.quantiles = np.array([0])
+        super().__init__(environment_info, preprocessors, postprocessors)
 
-        super().__init__(environment_info)
+    def fit(self,
+            X: np.ndarray,
+            Y: np.ndarray):
 
-    def fit(self, X, Y):
-        
         # # potential line:
         # X, y = self._validate_data(X, y, multi_output=True)
 
@@ -93,23 +111,94 @@ class NewsvendorSAAagent(BaseSAAagent):
         
         self.quantiles = self.find_weighted_quantiles(weights, weightPosIndices, self.sl, Y)
 
-    def draw_action(self, observation):
+        self.fitted = True
+
+    def draw_action_(self, 
+                    observation: np.ndarray) -> np.ndarray:
+
+        if self.fitted == False:
+            return np.array([0.0])
+
         return self.quantiles
+
+
+    def save(self, path: str, overwrite=True):
+        
+        """
+        Save the quantiles to a file in the specified directory.
+
+        Parameters:
+        - path (str): The directory where the file will be saved.
+        - overwrite (bool): If True, the file will be overwritten if it already exists. 
+                            If False, a FileExistsError will be raised if the file exists.
+
+        Raises:
+        - ValueError: If the agent has not been fitted.
+        - FileExistsError: If the file already exists and overwrite is set to False.
+        """
+
+        if not self.fitted:
+            raise ValueError("Agent has not been fitted yet")
+
+        os.makedirs(path, exist_ok=True)
+        
+        full_path = os.path.join(path, "saa_quantiles.npy")
+        
+        if os.path.exists(full_path):
+            if not overwrite:
+                raise FileExistsError(f"The file {full_path} already exists and will not be overwritten.")
+            else:
+                logging.warning(f"Overwriting file {full_path}")
+                
+        np.save(full_path, self.quantiles)
+
+    def load(self, path: str):
+
+        """
+        Load the quantiles from a file.
+        
+        Parameters:
+        - path (str): The directory where the file is located.
+        
+        Raises:
+        - FileNotFoundError: If the file does not exist.
+        - ValueError: If the loaded data is not valid.
+        """
+
+        full_path = os.path.join(path, "saa_quantiles.npy")
+        
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"The file {full_path} does not exist.")
+        
+        try:
+            self.quantiles = np.load(full_path)
+            self.fitted = True  # Assuming that loading the quantiles means the agent is now 'fitted'
+            logging.info(f"Quantiles loaded successfully from {full_path}")
+        except Exception as e:
+            raise ValueError(f"An error occurred while loading the file: {e}")
 
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 7
 class BasewSAAagent(BaseSAAagent):
 
-    def __init__(self, environment_info, cu, co):
-        self.cu = cu
-        self.co = co
+    def __init__(self,
+                environment_info: MDPInfo,
+                cu: Union[float, np.ndarray],
+                co: Union[float, np.ndarray],
+                preprocessors: Optional[List[object]] = None,
+                postprocessors: Optional[List[object]] = None):
+
+        # if float, convert to array
+        self.cu = np.array([cu]) if isinstance(cu, float) else cu
+        self.co = np.array([co]) if isinstance(co, float) else co
 
         self.sl = cu / (cu + co)
-
-        super().__init__(environment_info)
-
         self.fitted = False
 
-    def fit(self, X, Y):
+        super().__init__(environment_info, preprocessors, postprocessors)
+
+    def fit(self,
+            X: np.ndarray,
+            Y: np.ndarray):
         
         # # potential line:
         # X, y = self._validate_data(X, y, multi_output=True)
@@ -135,15 +224,14 @@ class BasewSAAagent(BaseSAAagent):
 
         self.fitted=True
 
-    def draw_action(self, observation):
+    def draw_action_(self, 
+                    observation: np.ndarray) -> np.ndarray:
 
         if self.fitted == False:
             return np.array([0.0])
-            
-        observation = observation.reshape(1, -1)
 
         observation = self.flatten_X(observation) # remove time dimension, if any
-
+        
         return self.predict(observation)
     
     @abstractmethod
@@ -154,7 +242,9 @@ class BasewSAAagent(BaseSAAagent):
     def _calc_weights(self, sample):
         """Calculate the sample weights"""
 
-    def predict(self, X):
+    def predict(self, 
+                X: np.ndarray
+    ) -> np.ndarray:
         """Predict value for X.
 
         Parameters
@@ -189,31 +279,94 @@ class BasewSAAagent(BaseSAAagent):
 
         return pred
 
+    def save(self, path: str, overwrite=True):
+        """
+        Save the scikit-learn model to a file in the specified directory.
+
+        Parameters:
+        - path (str): The directory where the model file will be saved.
+        - overwrite (bool): If True, the file will be overwritten if it already exists. 
+                            If False, a FileExistsError will be raised if the file exists.
+
+        Raises:
+        - ValueError: If the model has not been fitted.
+        - FileExistsError: If the file already exists and overwrite is set to False.
+        """
+
+        if not self.fitted:
+            raise ValueError("Agent has not been fitted yet")
+
+        if not hasattr(self, 'model_') or self.model_ is None:
+            raise ValueError("Agent has no model to save.")
+
+        # Create directory if it does not exist
+        os.makedirs(path, exist_ok=True)
+        
+        # Construct the file path using os.path.join for better cross-platform compatibility
+        full_path = os.path.join(path, "model.joblib")
+        
+        if os.path.exists(full_path):
+            if not overwrite:
+                raise FileExistsError(f"The file {full_path} already exists and will not be overwritten.")
+            else:
+                logging.warning(f"Overwriting file {full_path}")
+        
+        # Save the model using joblib
+        joblib.dump(self.model_, full_path)
+
+    def load(self, path: str):
+        """
+        Load the scikit-learn model from a file.
+
+        Parameters:
+        - path (str): The directory where the model file is located.
+
+        Raises:
+        - FileNotFoundError: If the file does not exist.
+        - ValueError: If an error occurs during loading.
+        """
+        
+        # Construct the file path
+        full_path = os.path.join(path, "model.joblib")
+        
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"The file {full_path} does not exist.")
+        
+        try:
+            # Load the model using joblib
+            self.model_ = joblib.load(full_path)
+            self.fitted = True  # Assuming that loading the model means the agent is now 'fitted'
+            logging.info(f"Model loaded successfully from {full_path}")
+        except Exception as e:
+            raise ValueError(f"An error occurred while loading the model: {e}")
+
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 8
 class NewsvendorRFwSAAagent(BasewSAAagent):
 
     def __init__(self,
-                environment_info,
-                cu,
-                co,
-                n_estimators=100,
-                criterion="squared_error",
-                max_depth=None,
-                min_samples_split=2,
-                min_samples_leaf=1,
-                min_weight_fraction_leaf=0.0,
-                max_features=1.0,
-                max_leaf_nodes=None,
-                min_impurity_decrease=0.0,
-                bootstrap=True,
-                oob_score=False,
-                n_jobs=None,
-                random_state=None,
-                verbose=0,
-                warm_start=False,
-                ccp_alpha=0.0,
-                max_samples=None,
-                monotonic_cst=None
+                environment_info: MDPInfo,
+                cu: Union[float, np.ndarray],
+                co: Union[float, np.ndarray], 
+                preprocessors: Optional[List[object]] = None,
+                postprocessors: Optional[List[object]] = None,
+                n_estimators: int = 100,
+                criterion: str = "squared_error",
+                max_depth: Optional[int] = None,
+                min_samples_split: int = 2,
+                min_samples_leaf: int = 1,
+                min_weight_fraction_leaf: float = 0.0,
+                max_features: Union[int, float, str, None] = 1.0,
+                max_leaf_nodes: Optional[int] = None,
+                min_impurity_decrease: float = 0.0,
+                bootstrap: bool = True,
+                oob_score: bool = False,
+                n_jobs: Optional[int] = None,
+                random_state: Optional[Union[int, np.random.RandomState]] = None,
+                verbose: int = 0,
+                warm_start: bool = False,
+                ccp_alpha: float = 0.0,
+                max_samples: Optional[Union[int, float]] = None,
+                monotonic_cst: Optional[np.ndarray] = None
                 ):
         self.criterion = criterion
         self.n_estimators = n_estimators
@@ -235,9 +388,12 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
         self.monotonic_cst = monotonic_cst
         self.weight_function = "w1"
 
-        super().__init__(environment_info, cu, co)
+        super().__init__(environment_info, cu, co, preprocessors, postprocessors)
 
-    def _get_fitted_model(self, X, y):
+    def _get_fitted_model(self,
+                            X: np.ndarray,
+                            Y: np.ndarray):
+
         model = RandomForestRegressor(
             criterion=self.criterion,
             n_estimators=self.n_estimators,
@@ -259,7 +415,7 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
             monotonic_cst = self.monotonic_cst
         )
 
-        self.model_ = model.fit(X, y)
+        self.model_ = model.fit(X, Y)
         self.train_leaf_indices_ = model.apply(X)
 
     def _calc_weights(self, sample):
