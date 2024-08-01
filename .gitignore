@@ -16,6 +16,13 @@ tags
 
 # dataset files
 *.pkl
+*.pt
+*.pth
+*.joblib
+*.npy
+
+
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
