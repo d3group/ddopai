@@ -1,0 +1,40 @@
+website:
+  sidebar:
+    contents:
+      - index.ipynb
+      - 00_core.ipynb
+      - section: utils
+        contents:
+          - utils/00_utils.ipynb
+          - utils/01_loss_functions.ipynb
+          - utils/02_postprocessors.ipynb
+          - utils/10_torch_loss_functions.ipynb
+          - utils/11_torch_pre_processors.ipynb
+      - section: dataloaders
+        contents:
+          - dataloaders/10_base_dataloader.ipynb
+          - dataloaders/11_distribution_loaders.ipynb
+          - dataloaders/12_tabular_dataloaders.ipynb
+      - section: base_env
+        contents:
+          - base_env/10_base_env.ipynb
+      - section: envs_inventory
+        contents:
+          - envs_inventory/10_single_period_envs.ipynb
+      - section: experiment_functions
+        contents:
+          - experiment_functions/10_experiment_functions.ipynb
+      - section: base_agents
+        contents:
+          - base_agents/10_base_agents.ipynb
+          - base_agents/11_basic_agents.ipynb
+      - section: NV_agents
+        contents:
+          - NV_agents/10_NV_saa_agents.ipynb
+          - NV_agents/11_NV_erm_agents.ipynb
+      - section: datasets
+        contents:
+          - datasets/datasets.ipynb
+      - section: approximators
+        contents:
+          - approximators/11_approximators.ipynb
