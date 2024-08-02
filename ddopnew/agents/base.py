@@ -118,4 +118,11 @@ class BaseAgent():
     def load(self):
         """Load the agent's parameters from a file."""
         raise NotImplementedError("This agent does not have a load method implemented.")
+
+    @staticmethod
+    def update_model_params(default_params: dict, custom_params: dict) -> dict: #
+        """ override default parameters with custom parameters in a dictionary"""
+        updated_params = default_params.copy()
+        updated_params.update(custom_params)
+        return updated_params
         

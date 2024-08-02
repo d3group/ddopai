@@ -25,6 +25,10 @@ import torch
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 4
 class SGDBaseAgent(BaseAgent):
 
+    """
+    Base class for Agents that are trained using Stochastic Gradient Descent (SGD) on PyTorch models.
+    """
+
     train_mode = "epochs_fit"
     
     def __init__(self, 
@@ -54,19 +58,31 @@ class SGDBaseAgent(BaseAgent):
 
         super().__init__(environment_info, preprocessors, postprocessors)
 
-    def set_dataloader(self, dataloader, dataloader_params):
+    def set_dataloader(self,
+                        dataloader: BaseDataLoader,
+                        dataloader_params: dict, # dict with keys: batch_size, shuffle
+                        ) -> None: 
+
+        """
+        Set the dataloader for the agent by wrapping it into a Torch Dataset
+        
+        """
         dataset = DatasetWrapper(dataloader)
         self.dataloader = torch.utils.data.DataLoader(dataset, **dataloader_params)
 
     @abstractmethod
     def set_loss_function(self):
+        """ Set loss function for the model """
         pass
 
     @abstractmethod
     def set_model(self):
+        """ Set the model for the agent """
         pass
 
-    def set_optimizer(self, optimizer_params):
+    def set_optimizer(self, optimizer_params: dict): # dict with keys: optimizer, lr, weight_decay
+        
+        """ Set the optimizer for the model """
         optimizer = optimizer_params["optimizer"]
         optimizer_params_copy = optimizer_params.copy()
         del optimizer_params_copy["optimizer"]
@@ -80,13 +96,16 @@ class SGDBaseAgent(BaseAgent):
         else:
             raise ValueError(f"Optimizer {optimizer} not supported")
         
-    def set_learning_rate_scheduler(self, learning_rate_scheduler):
+    def set_learning_rate_scheduler(self, learning_rate_scheduler: None = None): #
+        """ Set learning rate scheudler (can be None) """
         if learning_rate_scheduler is not None:
             raise NotImplementedError("Learning rate scheduler not implemented yet")
         else:
             self.learning_rate_scheduler = None
 
     def fit_epoch(self):
+
+        """ Fit the model for one epoch using the dataloader """
 
         device = next(self.model.parameters()).device
         self.model.train()
@@ -123,13 +142,18 @@ class SGDBaseAgent(BaseAgent):
         
         return total_loss
 
-    def draw_action_(self, observation):
+    def draw_action_(self, observation: np.ndarray) -> np.ndarray: #
+        
+        """ 
+        Draw an action based on the fitted model (see predict method)
+        """
         
         action = self.predict(observation)
         
         return action
 
-    def predict(self, X):
+    def predict(self, X: np.ndarray) -> np.ndarray: #
+        """ Do one forward pass of the model and return the prediction """
 
         # TODO handle if X is larger than some size, then split into batches
 
@@ -151,32 +175,26 @@ class SGDBaseAgent(BaseAgent):
         return y_pred
 
     def train(self):
+        """set the internal state of the agent and its model to train"""
+        self.mode = "train"
         self.model.train()
 
     def eval(self):
+        """set the internal state of the agent and its model to eval"""
+        self.mode = "eval"
         self.model.eval()
 
-    def to(self, device):
+    def to(self, device: str): #
+        """Move the model to the specified device"""
         self.model.to(device)
 
-    @staticmethod
-    def update_model_params(default_params, custom_params):
-        updated_params = default_params.copy()
-        updated_params.update(custom_params)
-        return updated_params
-
-    def save(self, path: str, overwrite=True):
+    def save(self,
+                path: str, # The directory where the file will be saved.
+                overwrite: bool=True): # Allow overwriting; if False, a FileExistsError will be raised if the file exists.
+        
         """
         Save the PyTorch model to a file in the specified directory.
 
-        Parameters:
-        - path (str): The directory where the model file will be saved.
-        - overwrite (bool): If True, the file will be overwritten if it already exists. 
-                            If False, a FileExistsError will be raised if the file exists.
-
-        Raises:
-        - AttributeError: If the model attribute is not set.
-        - FileExistsError: If the file already exists and overwrite is set to False.
         """
         
         if not hasattr(self, 'model') or self.model is None:
@@ -198,17 +216,10 @@ class SGDBaseAgent(BaseAgent):
         torch.save(self.model.state_dict(), full_path)
         logging.info(f"Model saved successfully to {full_path}")
 
-    def load(self, path: str):
+    def load(self, path: str): # Only the path to the folder is needed, not the file itself
+ 
         """
         Load the PyTorch model from a file.
-
-        Parameters:
-        - path (str): The directory where the model file is located.
-
-        Raises:
-        - FileNotFoundError: If the file does not exist.
-        - AttributeError: If the model attribute is not set.
-        - RuntimeError: If the model state cannot be loaded due to shape or parameter mismatch.
         """
         
         if not hasattr(self, 'model') or self.model is None:
@@ -228,22 +239,29 @@ class SGDBaseAgent(BaseAgent):
             raise RuntimeError(f"An error occurred while loading the model: {e}")
     
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 5
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 20
 class NVBaseAgent(SGDBaseAgent):
 
+    """
+    Base agent for the Newsvendor problem implementing
+    the loss function for the Empirical Risk Minimization (ERM) approach
+    based on quantile loss.
+    """
+
     def __init__(self, 
-        environment_info: MDPInfo,
-        dataloader: BaseDataLoader,
-        cu: Union[np.ndarray, Parameter],
-        co: Union[np.ndarray, Parameter],
-        optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-        learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
-        dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
-        preprocessors: Optional[List] = None,     # default: []
-        postprocessors: Optional[List] = None,     # default: []
-        torch_preprocessors: Optional[List] = None,     # default: []
-        device: str = "cpu"  # "cuda" or "cpu"
-        ):
+                environment_info: MDPInfo,
+                dataloader: BaseDataLoader,
+                cu: np.ndarray | Parameter,
+                co: np.ndarray | Parameter,
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                preprocessors: list | None = None,      # default: []
+                postprocessors: list | None = None,     # default: []
+                torch_preprocessors: list | None = None,  # default: []
+                device: str = "cpu"  # "cuda" or "cpu"
+                ):
+
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
@@ -252,29 +270,39 @@ class NVBaseAgent(SGDBaseAgent):
 
     def set_loss_function(self):
 
+        """Set the loss function for the model to the quantile loss. For training
+        the model uses quantile loss and not the pinball loss with specific cu and 
+        co values to ensure similar scale of the feedback signal during training."""
+
         self.loss_function_params = {"quantile": self.sl}
         self.loss_function = TorchQuantileLoss(reduction="mean")
         
         logging.debug(f"Loss function set to {self.loss_function}")
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 6
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 23
 class NewsvendorlERMAgent(NVBaseAgent):
 
-    def __init__(self, 
-        environment_info: MDPInfo,
-        dataloader: BaseDataLoader,
-        cu: Union[np.ndarray, Parameter],
-        co: Union[np.ndarray, Parameter],
-        optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-        learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
-        model_params: Optional[dict] = None,      # default: {"input_size": 1, "output_size": 1, "relu_output": False}
-        dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
-        preprocessors: Optional[List] = None,     # default: 
-        postprocessors: Optional[List] = None,     # default: []
-        torch_preprocessors: Optional[List] = None,     # default: [FlattenTimeDim(allow_2d=False)]
-        device: str = "cpu"  # "cuda" or "cpu"
-        ):
+    """
+    Newsvendor agent implementing Empirical Risk Minimization (ERM) approach 
+    based on a linear (regression) model. Note that this implementation finds
+    the optimal regression parameters via SGD.
 
+    """
+
+    def __init__(self, 
+                environment_info: MDPInfo,
+                dataloader: BaseDataLoader,
+                cu: np.ndarray | Parameter,
+                co: np.ndarray | Parameter,
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                model_params: dict | None = None,  # default: {"input_size": 1, "output_size": 1, "relu_output": False}
+                dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                preprocessors: list | None = None,  # default: []
+                postprocessors: list | None = None,  # default: []
+                torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
+                device: str = "cpu"  # "cuda" or "cpu"
+                ):
 
         # Handle mutable defaults unique to this class
         default_model_params = {
@@ -285,31 +313,40 @@ class NewsvendorlERMAgent(NVBaseAgent):
 
         self.model_params = self.update_model_params(default_model_params, model_params or {})
 
+        # By default automatically flatten the time dimension of data, if it is not already 2D
         torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
 
         super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device)
     
     def set_model(self):
+
+        """Set the model for the agent to a linear model"""
+
         from ddopnew.approximators import LinearModel
         self.model = LinearModel(**self.model_params)
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 9
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 29
 class NewsvendorDLAgent(NVBaseAgent):
 
+    """
+    Newsvendor agent implementing Empirical Risk Minimization (ERM) approach 
+    based on a deep learning model. 
+    """
+
     def __init__(self, 
-        environment_info: MDPInfo,
-        dataloader: BaseDataLoader,
-        cu: Union[np.ndarray, Parameter],
-        co: Union[np.ndarray, Parameter],
-        optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-        learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
-        model_params: Optional[dict] = None,      # default: {"input_size": 1, "output_size": 1, "relu_output": False}
-        dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
-        preprocessors: Optional[List] = None,     # default: 
-        postprocessors: Optional[List] = None,     # default: []
-        torch_preprocessors: Optional[List] = None,     # default: [FlattenTimeDim(allow_2d=False)]
-        device: str = "cpu"  # "cuda" or "cpu"
-        ):
+                environment_info: MDPInfo,
+                dataloader: BaseDataLoader,
+                cu: np.ndarray | Parameter,
+                co: np.ndarray | Parameter,
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                model_params: dict | None = None,  # default: {"input_size": 1, "output_size": 1, "relu_output": False}
+                dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                preprocessors: list | None = None,  # default: []
+                postprocessors: list | None = None,  # default: []
+                torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
+                device: str = "cpu"  # "cuda" or "cpu"
+                ):
 
         # Handle mutable defaults unique to this class
         default_model_params = {
@@ -328,5 +365,8 @@ class NewsvendorDLAgent(NVBaseAgent):
         super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device)
     
     def set_model(self):
+        
+        """Set the model for the agent to an MLP"""
+
         from ddopnew.approximators import MLP
         self.model = MLP(**self.model_params)
