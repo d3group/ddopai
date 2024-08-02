@@ -17,7 +17,12 @@ import time
 
 # %% ../nbs/60_approximators/11_approximators.ipynb 5
 class LinearModel(nn.Module):
-    def __init__(self, input_size, output_size, relu_output=False):
+    """Linear regression model"""
+
+    def __init__(self, 
+            input_size: int, # number of features
+            output_size: int, # number of outputs/actions
+            relu_output: bool = False): # whether to apply ReLU activation to the output
         super().__init__()
         self.l1=nn.Linear(input_size, output_size)
         if relu_output:
@@ -25,14 +30,23 @@ class LinearModel(nn.Module):
         else:
             self.final_activation = nn.Identity()
             
-    def forward(self, x):
+    def forward(self,x):
         out=self.l1(x)
         out=self.final_activation(out)
         return out
 
 # %% ../nbs/60_approximators/11_approximators.ipynb 6
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_layers, drop_prob=0.0, batch_norm=False, relu_output=False):
+
+    """ Multilayer perceptron model"""
+
+    def __init__(self,
+                    input_size: int, # number of features
+                    output_size: int, # number of outputs/actions
+                    hidden_layers: list, # list of number of neurons in each hidden layer
+                    drop_prob: float = 0.0, # dropout probability
+                    batch_norm: bool = False, # whether to apply batch normalization
+                    relu_output: bool = False): # whether to apply ReLU activation to the output
         super().__init__()
 
         # List of layers

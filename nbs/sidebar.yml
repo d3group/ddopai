@@ -30,27 +30,13 @@ website:
             contents:
               - 41_NV_agents/10_NV_saa_agents.ipynb
               - 41_NV_agents/11_NV_erm_agents.ipynb
+      - section: Approximators
+        contents:  
+          - 60_approximators/11_approximators.ipynb            
       - section: Experiment functions
         contents:
           - 30_experiment_functions/10_experiment_functions.ipynb
       - section: Datasets
         contents:
           - 80_datasets/datasets.ipynb
-
-      # - section: experiment_functions
-      #   contents:
-      #     - experiment_functions/10_experiment_functions.ipynb
-      # - section: base_agents
-      #   contents:
-      #     - base_agents/10_base_agents.ipynb
-      #     - base_agents/11_basic_agents.ipynb
-      # - section: NV_agents
-      #   contents:
-      #     - NV_agents/10_NV_saa_agents.ipynb
-      #     - NV_agents/11_NV_erm_agents.ipynb
-
-      #     - datasets/datasets.ipynb
-      # - section: approximators
-      #   contents:
-      #     - approximators/11_approximators.ipynb
 
