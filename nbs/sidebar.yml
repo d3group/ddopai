@@ -8,11 +8,6 @@ website:
       - 010_utils_postprocessors.ipynb
       - 020_utils_torch_loss_functions.ipynb
       - 021_utils_torch_pre_processors.ipynb
-      - section: dataloaders
-        contents:
-          - dataloaders/10_base_dataloader.ipynb
-          - dataloaders/11_distribution_loaders.ipynb
-          - dataloaders/12_tabular_dataloaders.ipynb
       - section: base_env
         contents:
           - base_env/10_base_env.ipynb
