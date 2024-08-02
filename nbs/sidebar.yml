@@ -23,6 +23,9 @@ website:
       - section: Experiment functions
         contents:
           - 30_experiment_functions/10_experiment_functions.ipynb
+      - section: Datasets
+        contents:
+          - 80_datasets/datasets.ipynb
 
       # - section: experiment_functions
       #   contents:
@@ -35,8 +38,7 @@ website:
       #   contents:
       #     - NV_agents/10_NV_saa_agents.ipynb
       #     - NV_agents/11_NV_erm_agents.ipynb
-      # - section: datasets
-      #   contents:
+
       #     - datasets/datasets.ipynb
       # - section: approximators
       #   contents:
