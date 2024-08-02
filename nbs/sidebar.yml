@@ -2,12 +2,13 @@ website:
   sidebar:
     contents:
       - index.ipynb
-      - 000_utils_utils.ipynb
-      - 001_utils_loss_functions.ipynb
-      - 00_core.ipynb
-      - 010_utils_postprocessors.ipynb
-      - 020_utils_torch_loss_functions.ipynb
-      - 021_utils_torch_pre_processors.ipynb
+      - section: Utils
+        contents:
+          - 00_utils/00_utils.ipynb
+          - 00_utils/01_loss_functions.ipynb
+          - 00_utils/10_postprocessors.ipynb
+          - 00_utils/20_torch_loss_functions.ipynb
+          - 00_utils/21_torch_pre_processors.ipynb
       - section: base_env
         contents:
           - base_env/10_base_env.ipynb
@@ -31,3 +32,8 @@ website:
       - section: approximators
         contents:
           - approximators/11_approximators.ipynb
+      - section: f_10_dataloaders
+        contents:
+          - f_10_dataloaders/10_base_dataloader.ipynb
+          - f_10_dataloaders/11_distribution_loaders.ipynb
+          - f_10_dataloaders/12_tabular_dataloaders.ipynb
