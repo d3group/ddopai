@@ -86,7 +86,7 @@ class SGDBaseAgent(BaseAgent):
         else:
             self.learning_rate_scheduler = None
 
-    def fit_epoch(self, X, Y):
+    def fit_epoch(self):
 
         device = next(self.model.parameters()).device
         self.model.train()

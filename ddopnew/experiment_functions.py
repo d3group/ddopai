@@ -6,7 +6,7 @@ __all__ = ['EarlyStoppingHandler', 'calculate_score', 'log_info', 'update_best',
 
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 3
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List, Tuple, Dict, Literal
 import logging
 from datetime import datetime  
 import numpy as np
@@ -24,13 +24,17 @@ from mushroom_rl.core import Core
 class EarlyStoppingHandler():
 
     '''
-    Class to handle early stopping
+    Class to handle early stopping during experiments. The EarlyStoppingHandler handler calculates the average
+    score over the last "patience" epochs and compares it to the average score over the previous "patience" epochs.
+    Note that one epoch we define here as time in between evaluating on a validation set, for supervised learning
+    typically one epoch is one pass through the training data. For reinforcement learning, in between each evaluation
+    epoch there may be less than one, one, or many episodes played in the training environment.
 
     '''
     def __init__(
         self,
-        patience: int = 50,
-        warmup: int = 100,
+        patience: int = 50, # Number of epochs to evaluate for stopping
+        warmup: int = 100, # How many initial epochs to wait before evaluating
         criteria: str = "J",  # Whether to use discounted rewards J or total rewards R as criteria
         direction: str = "max"  # Whether reward shall be maximized or minimized
     ):
@@ -43,7 +47,15 @@ class EarlyStoppingHandler():
         self.criteria = criteria
         self.direction = direction
 
-    def add_result(self, J, R):
+    def add_result(self,
+                    J: float, # Return (discounted rewards) of the last epoch
+                    R: float, # Total rewards of the last epoch
+                    ) -> bool:
+
+        """
+        Add the result of the last epoch to the history and check if the experiment should be stopped.
+
+        """
         if self.criteria == "J":
             self.history.append(J)
         elif self.criteria == "R":
@@ -65,12 +77,15 @@ class EarlyStoppingHandler():
             else:
                 raise ValueError("Direction must be max or min")
 
-# %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 6
-def calculate_score(dataset, env):
+# %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 8
+def calculate_score(
+                    dataset: List,
+                    env: BaseEnvironment, # Any environment inheriting from BaseEnvironment
+                    ) -> Tuple[float, float]:
 
     """
 
-    XXX
+    Calculate the total rewards R and the discounted rewards J of a dataset.
 
     """
 
@@ -80,10 +95,15 @@ def calculate_score(dataset, env):
 
     return R, J
 
-def log_info(R, J, n_epochs, logging, mode):
+def log_info(R: float,
+                J: float,
+                n_epochs: int,
+                logging: Literal["wandb"], # only wandb implemented so far
+                mode: Literal["train", "val", "test"]
+                ):
     
     '''
-    Logs the R, J information repeatedly for n_epoochs.
+    Logs the same R, J information repeatedly for n_epoochs.
     E.g., to draw a straight line in wandb for algorithmes
     such as XGB, RF, etc. that can be comparared to the learning
     curves of supervised or reinforcement learning algorithms.
@@ -95,7 +115,14 @@ def log_info(R, J, n_epochs, logging, mode):
     else:
         pass
 
-def update_best(R, J, best_R, best_J):
+def update_best(R: float, J: float, best_R: float, best_J: float): # 
+    
+    """
+
+    Update the best total rewards R and the best discounted rewards J.
+
+    """
+
     if R > best_R:
         best_R = R
     if J > best_J:
@@ -103,7 +130,21 @@ def update_best(R, J, best_R, best_J):
 
     return best_R, best_J
 
-def save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, criteria="J"):
+def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
+                experiment_dir: str, # Directory to save the agent, 
+                save_best: bool,
+                R: float,
+                J: float,
+                best_R: float,
+                best_J: float,
+                criteria: str = "J"
+                ):
+
+    """
+    Save the agent if it has improved either R or J, depending on the criteria argument,
+    vs. the previous epochs
+
+    """
 
     if save_best:
         if criteria == "R":
@@ -115,6 +156,7 @@ def save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, criteria=
                 save_dir = f"{experiment_dir}/saved_models/best"
                 agent.save(save_dir)
 
+# %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 10
 def test_agent(agent: BaseAgent,
             env: BaseEnvironment,
             return_dataset = False,
@@ -124,10 +166,9 @@ def test_agent(agent: BaseAgent,
 
     """
     Tests the agent on the environment for a single episode
-
-    # OPEN TODO: Make possible to save dataset via wandb
-
     """
+    
+    # TODO make it possible to save dataset via tracking tool
 
     # Run the test episode
     dataset = run_test_episode(env, agent, eval_step_info)
@@ -144,14 +185,13 @@ def test_agent(agent: BaseAgent,
     else:
         return R, J
 
-# %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 8
-def run_test_episode(   env: BaseEnvironment,
-                        agent: BaseAgent,
-                        eval_step_info: bool = False,
+def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from BaseEnvironment
+                        agent: BaseAgent, # Any agent inheriting from BaseAgent
+                        eval_step_info: bool = False, # Print step info during evaluation
                 ):
 
     """
-    Runs and episode to test the agent's performance.
+    Runs an episode to test the agent's performance.
     It assumes, that agent and environment are initialized, in test/val mode
     and have done reset.
     """
@@ -215,6 +255,12 @@ def run_experiment( agent: BaseAgent,
                     eval_step_info = False,
                 ):
 
+    """
+    Run an experiment with the given agent and environment for n_epochs. It automaticall dedects if the train mode
+    of the agent is direct, epochs_fit or env_interaction and runs the experiment accordingly.
+
+    """
+
 
     # use start_time as id if no run_id is given
     if run_id is None:
@@ -264,7 +310,7 @@ def run_experiment( agent: BaseAgent,
         logging.info("Starting training with epochs fit")
         for epoch in range(n_epochs):
 
-            agent.fit_epoch(X=env.dataloader.get_all_X("train"), Y=env.dataloader.get_all_Y("train"))
+            agent.fit_epoch() # Access to dataloader provided to the agent at initialization
 
             env.val()
             agent.eval()
