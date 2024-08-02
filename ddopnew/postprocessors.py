@@ -13,13 +13,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# %% ../nbs/00_utils/10_postprocessors.ipynb 5
+# %% ../nbs/00_utils/10_postprocessors.ipynb 4
 class ClipAction:
     """
     A class to clip input values within specified bounds.
+    If the parameters lower and upper are not specified, no clipping is performed.
+    If the parameters are scalar values, then all elements of the input are clipped to the same bounds.
+    If the parameters are arrays, then each element of the input is clipped to the corresponding bounds.
     """
 
-    def __init__(self, lower: Optional[Union[float, np.ndarray]] = None, upper: Optional[Union[float, np.ndarray]] = None):
+    def __init__(self, lower: Optional[Union[float, np.ndarray]] = None, upper: Optional[Union[float, np.ndarray]] = None): #
         self.lower = self._convert_to_array(lower)
         self.upper = self._convert_to_array(upper)
 
@@ -35,15 +38,9 @@ class ClipAction:
             return value
         raise TypeError(f"Bounds must be float or np.ndarray, got {type(value).__name__}")
 
-    def __call__(self, input: np.ndarray) -> np.ndarray:
+    def __call__(self, input: np.ndarray) -> np.ndarray: #
         """
         Clips the input array within the specified bounds.
-
-        Parameters:
-        - input: A numpy array to be clipped.
-
-        Returns:
-        - A numpy array with values clipped within the specified bounds.
         """
         
         check_parameter_types(input)
@@ -60,13 +57,14 @@ class ClipAction:
 
         return output
 
-# %% ../nbs/00_utils/10_postprocessors.ipynb 6
+# %% ../nbs/00_utils/10_postprocessors.ipynb 7
 class RoundAction:
     """
     A class to round input values to the nearest specified unit size.
+    Unit size can be any decimal value like 10, 3, 1, 0.1, 0.03, etc.
     """
 
-    def __init__(self, unit_size: Union[float, int, np.ndarray]):
+    def __init__(self, unit_size: Union[float, int, np.ndarray]): #
         self.unit_size = self._validate_unit_size(unit_size)
 
     def _validate_unit_size(self, unit_size: Union[float, int, np.ndarray]) -> np.ndarray:
@@ -85,14 +83,9 @@ class RoundAction:
             raise TypeError("Unit size must be a float, int, or np.ndarray")
 
     def __call__(self, input: np.ndarray) -> np.ndarray:
+        
         """
         Rounds the input array to the nearest specified unit size.
-
-        Parameters:
-        - input: A numpy array to be rounded.
-
-        Returns:
-        - A numpy array with values rounded to the nearest specified unit size.
         """
         
         check_parameter_types(input)

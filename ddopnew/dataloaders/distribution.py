@@ -12,19 +12,25 @@ from .base import BaseDataLoader
 
 # %% ../../nbs/10_dataloaders/11_distribution_loaders.ipynb 4
 class BaseDistributionDataLoader(BaseDataLoader):
+
+    is_distribution = True
+
     def __init__(self):
-        self.is_distribution = True
         super().__init__()
 
 # %% ../../nbs/10_dataloaders/11_distribution_loaders.ipynb 5
 class NormalDistributionDataLoader(BaseDistributionDataLoader):
+
+    """
+    A dataloader that generates a dataset of normally distributed values.
+    """
     
     def __init__(self,
         mean: float,
         std: float,
         num_units: int,
         truncated_low: int = 0,
-        truncated_high: int = None
+        truncated_high: int = None #
     ):
         self.num_units = num_units
         self.mean = mean
@@ -39,6 +45,11 @@ class NormalDistributionDataLoader(BaseDistributionDataLoader):
     
     def __getitem__(self, idx):
 
+        """
+    
+        Samples a datapoint from the distribution. As the distribution is generated on the fly, the index is not used.
+        """
+
         Y = np.random.normal(self.mean, self.std, self.num_units)
 
         if self.truncated_low is not None:
@@ -49,6 +60,9 @@ class NormalDistributionDataLoader(BaseDistributionDataLoader):
         return None, Y
 
     def __len__(self):
+        """
+        Returns the length of the distribution. As the distribution is generated on the fly, the length is not defined.
+        """
         raise ValueError('Length of a distribution is not defined')
 
     @property
@@ -72,3 +86,15 @@ class NormalDistributionDataLoader(BaseDistributionDataLoader):
         Returns the entire target dataset. If no Y data is available, return None.
         """
         return None
+
+    @property
+    def len_train(self):
+        return np.inf
+
+    @property
+    def len_val(self):
+        return np.inf
+
+    @property
+    def len_test(self):
+        return np.inf

@@ -5,7 +5,7 @@ __all__ = ['BaseInventoryEnv', 'NewsvendorEnv']
 
 # %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 3
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Tuple
 
 from .base import BaseEnvironment
 from ..utils import Parameter, MDPInfo
@@ -19,27 +19,27 @@ import time
 
 # %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 4
 class BaseInventoryEnv(BaseEnvironment):
-    def __init__(self, mdp_info: MDPInfo) -> None:
-        """
-        Constructor.
-        
-        Args:
-            mdp_info (MDPInfo): the information of the environment;
-            kwargs (dict): the keyword arguments to set the environment.
-            
-        """
+    """
+    Base class for inventory management environments. This class inherits from BaseEnvironment.
+    
+    """
+    def __init__(self, 
+        mdp_info: MDPInfo #
+        ) -> None:
+
         super().__init__(mdp_info)
     
     def set_observation_space(self,
-                            shape: tuple,
-                            low: Union[np.ndarray, float] = -np.inf,
-                            high: Union[np.ndarray, float] = np.inf,
-                            samples_dim_included = True) -> None:
+                            shape: tuple, # shape of the dataloader features
+                            low: Union[np.ndarray, float] = -np.inf, # lower bound of the observation space
+                            high: Union[np.ndarray, float] = np.inf, # upper bound of the observation space
+                            samples_dim_included = True # whether the first dimension of the shape input is the number of samples
+                            ) -> None:
         '''
         Set the observation space of the environment.
         This is a standard function for simple observation spaces. For more complex observation spaces,
         this function should be overwritten. Note that it is assumped that the first dimension
-        is the n_samples that is not relevant for the observation space.
+        is n_samples that is not relevant for the observation space.
 
         '''
 
@@ -58,15 +58,16 @@ class BaseInventoryEnv(BaseEnvironment):
             self.observation_space = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
 
     def set_action_space(self,
-                        shape: tuple,
-                        low: Union[np.ndarray, float] = 0,
-                        high: Union[np.ndarray, float] = np.inf,
-                        samples_dim_included = True) -> None:
+                            shape: tuple, # shape of the dataloader target
+                            low: Union[np.ndarray, float] = -np.inf, # lower bound of the observation space
+                            high: Union[np.ndarray, float] = np.inf, # upper bound of the observation space
+                            samples_dim_included = True # whether the first dimension of the shape input is the number of samples
+                            ) -> None:
         '''
         Set the action space of the environment.
         This is a standard function for simple action spaces. For more complex action spaces,
         this function should be overwritten. Note that it is assumped that the first dimension
-        is the n_samples that is not relevant for the action space.
+        is n_samples that is not relevant for the action space.
 
         '''
 
@@ -89,21 +90,23 @@ class BaseInventoryEnv(BaseEnvironment):
         X_item, Y_item = self.dataloader[self.index]
         return X_item, Y_item
 
-# %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 5
+# %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 9
 class NewsvendorEnv(BaseInventoryEnv, ABC):
     
     """
-    XXX
+    Class implementing the Newsvendor problem, working for the single- and multi-item case. If underage_cost and overage_cost
+    are scalars and there are multiple SKUs, then the same cost is used for all SKUs. If underage_cost and overage_cost are arrays,
+    then they must have the same length as the number of SKUs. Num_SKUs can be set as parameter or inferred from the DataLoader.
     """
 
     def __init__(self,
-        underage_cost: Union[np.ndarray, Parameter, int, float] = 1,
-        overage_cost: Union[np.ndarray, Parameter, int, float] = 1,
-        q_bound_low: Union[np.ndarray, Parameter, int, float] = 0,
-        q_bound_high: Union[np.ndarray, Parameter, int, float] = np.inf,
-        dataloader: BaseDataLoader = None,
+        underage_cost: Union[np.ndarray, Parameter, int, float] = 1, # underage cost per unit
+        overage_cost: Union[np.ndarray, Parameter, int, float] = 1, # overage cost per unit
+        q_bound_low: Union[np.ndarray, Parameter, int, float] = 0, # lower bound of the order quantity
+        q_bound_high: Union[np.ndarray, Parameter, int, float] = np.inf, # upper bound of the order quantity
+        dataloader: BaseDataLoader = None, # dataloader
         num_SKUs: Union[int] = None, # if None it will be inferred from the DataLoader
-        gamma: float = 1,
+        gamma: float = 1, # discount factor
         horizon_train: Union[str, int] = 100, # if "use_all_data" then horizon is inferred from the DataLoader
     ) -> None:
 
@@ -130,11 +133,26 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         
         super().__init__(mdp_info=MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train))
 
-    def step(self, action):
-        
+    def step(self, 
+            action: np.ndarray # order quantity
+            ) -> Tuple[np.ndarray, float, bool, bool, dict]:
+
+        """
+        Step function implementing the Newsvendor logic. Note that the dataloader will return an observation and a demad,
+        which will be relevant in the next period. The observation will be returned directly, while the demand will be 
+        temporarily stored under self.demand and used in the next step.
+
+        """
+
+        # Most agent give by default a batch dimension which is not needed for a single period action.
+        # If action shape size is 2 and the first dimensiion is 1, then remove it
+        if action.ndim == 2 and action.shape[0] == 1:
+            action = np.squeeze(action, axis=0)  # Remove the first dimension
+
         if self.print:
             print(action)
         
+        # Calculate cost
         cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
         reward = -np.sum(cost_per_SKU) # negative because we want to minimize the cost
 
@@ -146,9 +164,11 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             cost_per_SKU=cost_per_SKU.copy()
         )
 
+        # Set index will set the index and return True if the index is out of bounds
         truncated = self.set_index()
 
         if truncated:
+            # No next observation when the episode terminates.
             return None, reward, terminated, truncated, info
         else:
             observation, self.demand = self.get_observation()
@@ -162,7 +182,14 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             return observation, reward, terminated, truncated, info
 
     def reset(self,
-        start_index: Union[int,str] = None):
+        start_index: int | str = None # index to start from
+        ) -> Tuple[np.ndarray, bool]:
+
+        """
+        Reset function for the Newsvendor problem. It will return the first observation and demand.
+        For val and test modes, it will by default reset to 0, while for the train mode it depends
+        on the paramter "horizon_train" whether a random point in the training data is selected or 0
+        """
 
         if start_index is None:
             if self._mode == "train":

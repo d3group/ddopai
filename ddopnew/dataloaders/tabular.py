@@ -12,16 +12,23 @@ from .base import BaseDataLoader
 
 # %% ../../nbs/10_dataloaders/12_tabular_dataloaders.ipynb 4
 class XYDataLoader(BaseDataLoader):
+
+    """
+
+    A class for datasets with the typicall X, Y structure. Both X
+    and Y are numpy arrays. X may be of shape (datapoints, features) or (datapoints, sequence_length, features) 
+    if lag features are used. The prep_lag_features can be used to create those lag features. Y is of shape
+    (datapoints, units).
+
+    """
     
     def __init__(self,
         X: np.ndarray,
         Y: np.ndarray,
-        val_index_start: Union[int, None] = None, # give list
-        test_index_start: Union[int, None] = None, # give list
-        lag_window_params: Union[dict] = None # default: {'lag_window': None, 'include_y': False, 'pre-calc': False}
+        val_index_start: Union[int, None] = None, 
+        test_index_start: Union[int, None] = None, 
+        lag_window_params: Union[dict] = None # default: {'lag_window': 0, 'include_y': False, 'pre_calc-calc': False}
     ):
-
-
 
         self.X = X
         self.Y = Y
@@ -29,6 +36,7 @@ class XYDataLoader(BaseDataLoader):
         self.val_index_start = val_index_start
         self.test_index_start = test_index_start
 
+        # train index ends either at the start of the validation set, the start of the test set or at the end of the dataset
         if self.val_index_start is not None:
             self.train_index_end = self.val_index_start-1
         elif self.test_index_start is not None:
@@ -38,14 +46,15 @@ class XYDataLoader(BaseDataLoader):
 
         self.dataset_type = "train"
 
-        lag_window_params = lag_window_params or {'lag_window': None, 'include_y': False, 'pre-calc': False}
+        lag_window_params = lag_window_params or {'lag_window': 0, 'include_y': False, 'pre_calc': False}
 
-        self.prep_lag_features(lag_window_params)
+        self.prep_lag_features(**lag_window_params)
 
-  
+        # X must at least have datapoint and feature dimension
         if len(X.shape) == 1:
             self.X = X.reshape(-1, 1)
         
+        # Y must have at least datapoint and unit dimension (even if only one unit is present)
         if len(Y.shape) == 1:
             self.Y = Y.reshape(-1, 1)
 
@@ -55,12 +64,24 @@ class XYDataLoader(BaseDataLoader):
 
         super().__init__()
 
-    def prep_lag_features(self, lag_window_params: dict):
-        # handle lag window for data
+    def prep_lag_features(self,
+        lag_window: int = 0, # length of the lage window
+        include_y: bool = False, # if lag demand shall be included as feature
+        pre_calc: bool = False # if all lags are pre-calculated for the entire dataset
+        ):
+
+        """
+        Create lag feature for the dataset. If "inlcude_y" is true, then a lag-1 of of the target variable is added as a feature.
+        If lag-window is > 0, the lag features are added as middle dimension to X. Note that this, e.g., means that with a lag
+        window of 1, the data will include 2 time steps, the current features including lag-1 demand and the lag-1 features
+        including lag-2 demand. If pre-calc is true, all these calculations are performed on the entire dataset reduce
+        computation time later on at the expense of increases memory usage. 
+
+        """
         # to be discussed: Do we need option to only provide lag demand wihtout lag features?
-        self.lag_window = lag_window_params['lag_window']
-        self.include_y = lag_window_params['include_y']
-        self.pre_calc = lag_window_params['pre-calc']
+        self.lag_window = lag_window
+        self.include_y = include_y
+        self.pre_calc = pre_calc
 
         if self.pre_calc:
             if self.include_y:
@@ -97,6 +118,8 @@ class XYDataLoader(BaseDataLoader):
                 # add time dimension to X
     
     def __getitem__(self, idx): 
+
+        """ get item by index, depending on the dataset type (train, val, test)"""
 
         if self.dataset_type == "train":
             if idx > self.train_index_end:
@@ -152,7 +175,8 @@ class XYDataLoader(BaseDataLoader):
                 ): 
 
         """
-        Returns the entire features dataset. If no X data is available, return None.
+        Returns the entire features dataset.
+        Return either the train, val, test, or all data.
         """
 
         if dataset_type == 'train':
@@ -171,7 +195,8 @@ class XYDataLoader(BaseDataLoader):
                 ): 
 
         """
-        Returns the entire target dataset. If no Y data is available, return None.
+        Returns the entire target dataset.
+        Return either the train, val, test, or all data.
         """
 
         if dataset_type == 'train':

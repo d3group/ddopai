@@ -6,28 +6,25 @@ __all__ = ['check_parameter_types', 'Parameter', 'MDPInfo', 'DatasetWrapper']
 # %% ../nbs/00_utils/00_utils.ipynb 3
 import numpy as np
 from torch.utils.data import Dataset
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Literal
+from gymnasium.spaces import Space
+from .dataloaders.base import BaseDataLoader
 
 # %% ../nbs/00_utils/00_utils.ipynb 4
-def check_parameter_types(*args,                        # any number of parameters to be checked
+def check_parameter_types(
+                            *args,                      # any number of parameters to be checked
                             parameter_type=np.ndarray   # the expected type for each parameter
 ):
     
     """
     Checks if each argument in args is of the specified type, defaulting to np.ndarray.
-
-    Parameters:
-    - parameter_type: The expected type for each argument, default is np.ndarray.
-    - args: A variable number of arguments to check.
-
-    Raises:
-    - TypeError: If any argument is not of the expected type.
     """
+    
     for index, arg in enumerate(args):
         if not isinstance(arg, parameter_type):
             raise TypeError(f"Argument {index+1} of {len(args)} is of type {type(arg).__name__}, expected {parameter_type.__name__}")
 
-# %% ../nbs/00_utils/00_utils.ipynb 7
+# %% ../nbs/00_utils/00_utils.ipynb 8
 class Parameter():
 
     """
@@ -37,10 +34,10 @@ class Parameter():
     """
     
     def __init__(self,
-                value: Union[int, float, List[int], List[float], np.ndarray], # the value of the parameter  
-                min_value: Union[int, float, List[int], List[float], np.ndarray] = None, # the minimum value of the parameter
-                max_value: Union[int, float, List[int], List[float], np.ndarray] = None, # the maximum value of the parameter
-                shape: Tuple[int] = (1,)): # the shape of the parameter
+            value: int | float | list[int] | list[float] | np.ndarray,  # the value of the parameter  
+            min_value: int | float | list[int] | list[float] | np.ndarray = None,  # the minimum value of the parameter
+            max_value: int | float | list[int] | list[float] | np.ndarray = None,  # the maximum value of the parameter
+            shape: tuple[int] = (1,)): # the shape of the parameter
 
         self._min_value = min_value
         self._max_value = max_value
@@ -49,41 +46,33 @@ class Parameter():
 
     def __call__(self):
         """
-        Update and return the parameter in the provided index.
-
-        Args:
-             *idx (list): index of the parameter to return.
-
-        Returns:
-            The updated parameter in the provided index.
+        Returns the parameter value. Alternative to get_value().
 
         """
         return self.get_value()
 
     def get_value(self):
+        
         """
-        Return the current value of the parameter in the provided index.
-
-        Args:
-            *idx (list): index of the parameter to return.
-
-        Returns:
-            The current value of the parameter in the provided index.
+        Returns the parameter value.
 
         """
 
         return self._value
 
     def set_value(self, 
-                    value: Union[int, float, List[int], List[float], np.ndarray],
-                    shape: Tuple[int] = (1,)):
+                    value: Union[int, float, List[int], List[float], np.ndarray], # the value of the parameter
+                    shape: Tuple[int] = (1,)): # the shape of the parameter
        
         """
-        Set the value of the parameter.
+        Set the value of the parameter. The value can be a scalar, list or numpy array. The shape of the value
+        must be the same as the shape of the parameter.
 
-        Args:
-            value (float, int, numpy array): The value to set the parameter to.
+        All values, including scalars, are converted to numpy arrays. If the value is a scalar, it is reshaped
+        to the shape of the parameter. If the value is a list or numpy array, it must have the same shape as the
+        parameter. If the value is a scalar, it is reshaped to the shape of the parameter.
 
+        Optionally, the value can be clipped to a minimum and maximum value.
         """
 
         if isinstance(value, (int, float)):
@@ -110,39 +99,36 @@ class Parameter():
     @property
     def shape(self):
         """
-        Returns:
-            The shape of the table of parameters.
+        Returns: The shape of the table of parameters.
         """
         return self._value.shape
     
     @property
     def size(self):
         """
-        Returns:
-            The size of the table of parameters.
+        Returns: The size of the table of parameters.
         """
         return self._value.size 
 
-# %% ../nbs/00_utils/00_utils.ipynb 10
+# %% ../nbs/00_utils/00_utils.ipynb 17
 class MDPInfo():
     """
     This class is used to store the information of the environment.
-    It is based on MushroomRL (https://github.com/MushroomRL)
+    It is based on MushroomRL (https://github.com/MushroomRL). It can be accessed by 
+    agents that need the information of the environment, such as the state and action spaces.
+    
+    Key difference with MushroomRL is that the state and action spaces are gymnasium spaces.
     """
     
-    def __init__(self, observation_space, action_space, gamma, horizon, dt=1e-1, backend='numpy'):
-        """
-        Constructor.
+    def __init__(self,
+                observation_space: Space,
+                action_space: Space,  
+                gamma: float,
+                horizon: int,
+                dt: float = 1e-1,
+                backend: Literal['numpy'] = 'numpy'  # Currently only numpy is supported
+            ) -> None: 
 
-        Args:
-             observation_space ([Box, Discrete]): the state space;
-             action_space ([Box, Discrete]): the action space;
-             gamma (float): the discount factor;
-             horizon (int): the horizon;
-             dt (float, 1e-1): the control timestep of the environment;
-             backend (str, 'numpy'): the type of data library used to generate state and actions.
-
-        """
         self.observation_space = observation_space
         self.action_space = action_space
         self.gamma = gamma
@@ -153,8 +139,7 @@ class MDPInfo():
     @property
     def size(self):
         """
-        Returns:
-            The sum of the number of discrete states and discrete actions. Only works for discrete spaces.
+        Returns: The sum of the number of discrete states and discrete actions. Only works for discrete spaces.
 
         """
         return self.observation_space.size + self.action_space.size
@@ -162,39 +147,33 @@ class MDPInfo():
     @property
     def shape(self):
         """
-        Returns:
-            The concatenation of the shape tuple of the state and action spaces.
+        Returns: The concatenation of the shape tuple of the state and action spaces.
 
         """
         return self.observation_space.shape + self.action_space.shape
 
-# %% ../nbs/00_utils/00_utils.ipynb 11
+# %% ../nbs/00_utils/00_utils.ipynb 19
 class DatasetWrapper(Dataset):
     """
     This class is used to wrap a Pytorch Dataset around the ddopnew dataloader
-    to enable the usage of the Pytorch Dataloader during training
+    to enable the usage of the Pytorch Dataloader during training. This way,
+    agents that are trained using Pytorch without interacting with the environment
+    can directly train on the data generated by the dataloader.
     
     """
 
-    def __init__(self, dataloader):
+    def __init__(self, 
+            dataloader: BaseDataLoader # Any dataloader that inherits from BaseDataLoader
+            ):
         """
-        Constructor.
 
-        Args:
-             dataset (ddopnew.data.dataset): the dataset to wrap.
 
         """
         self.dataloader = dataloader
     
     def __getitem__(self, idx):
         """
-        Get the item at the provided index.
-
-        Args:
-             idx (int): the index of the item to get.
-
-        Returns:
-            The item at the provided index.
+        Get the item at the provided idx.
 
         """
 
@@ -203,6 +182,13 @@ class DatasetWrapper(Dataset):
 
 
     def __len__(self):
+
+        """
+
+        Returns the length of the dataset. Depends on the state of
+        the dataloader (train, val, test).
+
+        """
         
         if self.dataloader.dataset_type == 'train':
             return self.dataloader.len_train
