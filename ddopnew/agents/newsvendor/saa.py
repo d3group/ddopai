@@ -21,6 +21,11 @@ from sklearn.utils.validation import check_array
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 5
 class BaseSAAagent(BaseAgent):
 
+    """
+    Base class for Sample Average Approximation Agents, implementing the main method
+    to find the quntile of some (weighted) empirical distribution.
+    """
+
     def __init__(self,
                  environment_info: MDPInfo,
                  preprocessors: Optional[List[object]] = None,
@@ -32,9 +37,8 @@ class BaseSAAagent(BaseAgent):
         
         """
         Find the weighted quantile of a range of data y. 
-        It assumes that all arrays are of shape (n_samples, n_outputs).
-
-        This function is designed for single-output only
+        It assumes that all arrays are of shape (n_samples, n_outputs). Note that it
+        has not been tested for n_outputs > 1.
         """
 
         # test shapes have lenght 2 with error
@@ -69,7 +73,8 @@ class BaseSAAagent(BaseAgent):
         return q
     
     def _validate_X_predict(self, X):
-        """Validate X whenever one tries to predict"""
+        
+        """Validate X data before prediction"""
 
         X = check_array(X)
 
@@ -80,28 +85,39 @@ class BaseSAAagent(BaseAgent):
                              % (self.n_features_, n_features))
         return X
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 6
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 9
 class NewsvendorSAAagent(BaseSAAagent):
+
+    """
+    Newsvendor agent that uses Sample Average Approximation to find the quantile of the empirical distribution
+
+    """
 
     def __init__(self,
                 environment_info: MDPInfo,
-                cu: Union[float, np.ndarray],
-                co: Union[float, np.ndarray],
-                preprocessors: Optional[List[object]] = None,
-                postprocessors: Optional[List[object]] = None):
+                cu: float | np.ndarray, # underage cost
+                co: float | np.ndarray, # overage cost
+                preprocessors: list[object] | None = None,
+                postprocessors: list[object] | None = None):
 
-        # if float, convert to array
-        self.cu = np.array([cu]) if isinstance(cu, float) else cu
-        self.co = np.array([co]) if isinstance(co, float) else co
+            # if float, convert to array
+            self.cu = np.array([cu]) if isinstance(cu, float) else cu
+            self.co = np.array([co]) if isinstance(co, float) else co
 
-        self.sl = cu / (cu + co)
-        self.fitted = False
+            self.sl = cu / (cu + co)
+            self.fitted = False
 
-        super().__init__(environment_info, preprocessors, postprocessors)
+            super().__init__(environment_info, preprocessors, postprocessors)
 
     def fit(self,
-            X: np.ndarray,
-            Y: np.ndarray):
+            X: np.ndarray, # features will be ignored
+            Y: np.ndarray) -> None:
+
+        """
+
+        Fit the agent to the data. The agent will find the quantile of the empirical distribution of the data.
+
+        """
 
         # # potential line:
         # X, y = self._validate_data(X, y, multi_output=True)
@@ -114,7 +130,13 @@ class NewsvendorSAAagent(BaseSAAagent):
         self.fitted = True
 
     def draw_action_(self, 
-                    observation: np.ndarray) -> np.ndarray:
+                    observation: np.ndarray) -> np.ndarray: #
+        """
+
+        Draw an action from the quantile of the empirical distribution.
+
+        """
+
 
         if self.fitted == False:
             return np.array([0.0])
@@ -122,19 +144,13 @@ class NewsvendorSAAagent(BaseSAAagent):
         return self.quantiles
 
 
-    def save(self, path: str, overwrite=True):
+    def save(self,
+                path: str, # The directory where the file will be saved.
+                overwrite: bool=True): # Allow overwriting; if False, a FileExistsError will be raised if the file exists.
         
         """
         Save the quantiles to a file in the specified directory.
 
-        Parameters:
-        - path (str): The directory where the file will be saved.
-        - overwrite (bool): If True, the file will be overwritten if it already exists. 
-                            If False, a FileExistsError will be raised if the file exists.
-
-        Raises:
-        - ValueError: If the agent has not been fitted.
-        - FileExistsError: If the file already exists and overwrite is set to False.
         """
 
         if not self.fitted:
@@ -152,17 +168,12 @@ class NewsvendorSAAagent(BaseSAAagent):
                 
         np.save(full_path, self.quantiles)
 
-    def load(self, path: str):
+    def load(self, path: str): # Only the path to the folder is needed, not the file itself
 
         """
         Load the quantiles from a file.
         
-        Parameters:
-        - path (str): The directory where the file is located.
-        
-        Raises:
-        - FileNotFoundError: If the file does not exist.
-        - ValueError: If the loaded data is not valid.
+
         """
 
         full_path = os.path.join(path, "saa_quantiles.npy")
@@ -177,15 +188,22 @@ class NewsvendorSAAagent(BaseSAAagent):
         except Exception as e:
             raise ValueError(f"An error occurred while loading the file: {e}")
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 7
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 16
 class BasewSAAagent(BaseSAAagent):
+
+
+    """
+    Base class for weighted Sample Average Approximation (wSAA) Agents
+
+    """
 
     def __init__(self,
                 environment_info: MDPInfo,
-                cu: Union[float, np.ndarray],
-                co: Union[float, np.ndarray],
-                preprocessors: Optional[List[object]] = None,
-                postprocessors: Optional[List[object]] = None):
+                cu: float | np.ndarray,
+                co: float | np.ndarray,
+                preprocessors: list[object] | None = None,
+                postprocessors: list[object] | None = None):  #
+
 
         # if float, convert to array
         self.cu = np.array([cu]) if isinstance(cu, float) else cu
@@ -198,7 +216,14 @@ class BasewSAAagent(BaseSAAagent):
 
     def fit(self,
             X: np.ndarray,
-            Y: np.ndarray):
+            Y: np.ndarray): #
+
+        """
+
+        Fit the agent to the data. The function will call _get_fitted_model which will
+        train a machine learning model to determine the sample weightes (e.g., kNN, DT, RF).
+
+        """
         
         # # potential line:
         # X, y = self._validate_data(X, y, multi_output=True)
@@ -225,7 +250,13 @@ class BasewSAAagent(BaseSAAagent):
         self.fitted=True
 
     def draw_action_(self, 
-                    observation: np.ndarray) -> np.ndarray:
+                    observation: np.ndarray) -> np.ndarray: # 
+
+        """
+
+        Draw an action based on the fitted model (see predict method)
+
+        """
 
         if self.fitted == False:
             return np.array([0.0])
@@ -236,26 +267,17 @@ class BasewSAAagent(BaseSAAagent):
     
     @abstractmethod
     def _get_fitted_model(self, X, y):
-        """Initialise the underlying model"""
+        """Initialise the underlying model - depending on the underlying machine learning model"""
 
     @abstractmethod
     def _calc_weights(self, sample):
-        """Calculate the sample weights"""
+        """Calculate the sample weights - depending on the underlying machine learning model"""
 
     def predict(self, 
                 X: np.ndarray
-    ) -> np.ndarray:
-        """Predict value for X.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            The input samples to predict.
-
-        Returns
-        ----------
-        y : array-like of shape (n_samples, n_outputs)
-            The predicted values
+    ) -> np.ndarray: #
+        """Predict value for X by finding the quantiles of the empirical distribution based
+        on the sample weights predicted by the underlying machine learning model.
         """
 
         X = self._validate_X_predict(X)  
@@ -279,18 +301,12 @@ class BasewSAAagent(BaseSAAagent):
 
         return pred
 
-    def save(self, path: str, overwrite=True):
+    def save(self,
+                path: str, # The directory where the file will be saved.
+                overwrite: bool=True): # Allow overwriting; if False, a FileExistsError will be raised if the file exists.
         """
         Save the scikit-learn model to a file in the specified directory.
 
-        Parameters:
-        - path (str): The directory where the model file will be saved.
-        - overwrite (bool): If True, the file will be overwritten if it already exists. 
-                            If False, a FileExistsError will be raised if the file exists.
-
-        Raises:
-        - ValueError: If the model has not been fitted.
-        - FileExistsError: If the file already exists and overwrite is set to False.
         """
 
         if not self.fitted:
@@ -314,16 +330,10 @@ class BasewSAAagent(BaseSAAagent):
         # Save the model using joblib
         joblib.dump(self.model_, full_path)
 
-    def load(self, path: str):
+    def load(self, path: str): # Only the path to the folder is needed, not the file itself
         """
         Load the scikit-learn model from a file.
 
-        Parameters:
-        - path (str): The directory where the model file is located.
-
-        Raises:
-        - FileNotFoundError: If the file does not exist.
-        - ValueError: If an error occurs during loading.
         """
         
         # Construct the file path
@@ -340,33 +350,39 @@ class BasewSAAagent(BaseSAAagent):
         except Exception as e:
             raise ValueError(f"An error occurred while loading the model: {e}")
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 8
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 25
 class NewsvendorRFwSAAagent(BasewSAAagent):
+
+    """
+
+    Newsvendor agent that uses weighted Sample Average Approximation based on Random Forest
+
+    """
 
     def __init__(self,
                 environment_info: MDPInfo,
-                cu: Union[float, np.ndarray],
-                co: Union[float, np.ndarray], 
-                preprocessors: Optional[List[object]] = None,
-                postprocessors: Optional[List[object]] = None,
-                n_estimators: int = 100,
-                criterion: str = "squared_error",
-                max_depth: Optional[int] = None,
-                min_samples_split: int = 2,
-                min_samples_leaf: int = 1,
-                min_weight_fraction_leaf: float = 0.0,
-                max_features: Union[int, float, str, None] = 1.0,
-                max_leaf_nodes: Optional[int] = None,
-                min_impurity_decrease: float = 0.0,
-                bootstrap: bool = True,
-                oob_score: bool = False,
-                n_jobs: Optional[int] = None,
-                random_state: Optional[Union[int, np.random.RandomState]] = None,
-                verbose: int = 0,
-                warm_start: bool = False,
-                ccp_alpha: float = 0.0,
-                max_samples: Optional[Union[int, float]] = None,
-                monotonic_cst: Optional[np.ndarray] = None
+                cu: float | np.ndarray, # underage cost
+                co: float | np.ndarray, # overage cost
+                preprocessors: list[object] | None = None, # List of preprocessors to apply to the observation
+                postprocessors: list[object] | None = None, # List of postprocessors to apply to the action
+                n_estimators: int = 100,# The number of trees in the forest.
+                criterion: str = "squared_error", # Function to measure the quality of a split.
+                max_depth: int | None = None, # Maximum depth of the tree; None means unlimited.
+                min_samples_split: int = 2, # Minimum samples required to split a node.
+                min_samples_leaf: int = 1, # Minimum samples required to be at a leaf node.
+                min_weight_fraction_leaf: float = 0.0, # Minimum weighted fraction of the total weights at a leaf node.
+                max_features: int | float | str | None = 1.0, # Number of features to consider when looking for the best split.
+                max_leaf_nodes: int | None = None, # Maximum number of leaf nodes; None means unlimited.
+                min_impurity_decrease: float = 0.0, # Minimum impurity decrease required to split a node.
+                bootstrap: bool = True, # Whether to use bootstrap samples when building trees.
+                oob_score: bool = False, # Whether to use out-of-bag samples to estimate R^2 on unseen data.
+                n_jobs: int | None = None, # Number of jobs to run in parallel; None means 1.
+                random_state: int | np.random.RandomState | None = None, # Controls randomness for bootstrapping and feature sampling.
+                verbose: int = 0, # Controls the verbosity when fitting and predicting.
+                warm_start: bool = False, # If True, reuse solution from previous fit and add more estimators.
+                ccp_alpha: float = 0.0, # Complexity parameter for Minimal Cost-Complexity Pruning.
+                max_samples: int | float | None = None, # Number of samples to draw when bootstrap is True.
+                monotonic_cst: np.ndarray | None = None # Monotonic constraints for features.
                 ):
         self.criterion = criterion
         self.n_estimators = n_estimators
@@ -392,7 +408,13 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
 
     def _get_fitted_model(self,
                             X: np.ndarray,
-                            Y: np.ndarray):
+                            Y: np.ndarray): #
+
+        """
+
+        Fit the underlying machine learning model using all X and Y data in the train set.
+
+        """
 
         model = RandomForestRegressor(
             criterion=self.criterion,
@@ -418,7 +440,13 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
         self.model_ = model.fit(X, Y)
         self.train_leaf_indices_ = model.apply(X)
 
-    def _calc_weights(self, sample):
+    def _calc_weights(self, sample: np.ndarray) -> tuple[np.ndarray, np.ndarray]: #
+
+        """
+        Calculate the sample weights based on the Random Forest model.
+
+        """
+
         sample_leaf_indices = self.model_.apply([sample])
         if self.weight_function == "w1":
             n = np.sum(sample_leaf_indices == self.train_leaf_indices_, axis=0)

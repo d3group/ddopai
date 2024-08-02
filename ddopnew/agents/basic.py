@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['RandomAgent']
 
-# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 4
+# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 3
 from abc import ABC, abstractmethod
 from typing import Union, Optional, List
 import numpy as np
@@ -12,13 +12,18 @@ from ..envs.base import BaseEnvironment
 from .base import BaseAgent
 from ..utils import MDPInfo
 
-# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 5
+# %% ../../nbs/40_base_agents/11_basic_agents.ipynb 4
 class RandomAgent(BaseAgent):
 
+    """
+    A random agent that samples actions from the environment's action space. Useful for testing and as minimal baseline.
+    """
+
     def __init__(self,
-                 environment_info: MDPInfo,
-                 preprocessors: Optional[List[object]] = None,
-                 postprocessors: Optional[List[object]] = None):
+                environment_info: MDPInfo,
+                preprocessors: list[object] | None = None,
+                postprocessors: list[object] | None = None #
+                ):
 
         super().__init__(environment_info, preprocessors, postprocessors)
 
