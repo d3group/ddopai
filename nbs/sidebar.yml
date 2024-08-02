@@ -2,14 +2,12 @@ website:
   sidebar:
     contents:
       - index.ipynb
+      - 000_utils_utils.ipynb
+      - 001_utils_loss_functions.ipynb
       - 00_core.ipynb
-      - section: utils
-        contents:
-          - utils/00_utils.ipynb
-          - utils/01_loss_functions.ipynb
-          - utils/02_postprocessors.ipynb
-          - utils/10_torch_loss_functions.ipynb
-          - utils/11_torch_pre_processors.ipynb
+      - 010_utils_postprocessors.ipynb
+      - 020_utils_torch_loss_functions.ipynb
+      - 021_utils_torch_pre_processors.ipynb
       - section: dataloaders
         contents:
           - dataloaders/10_base_dataloader.ipynb
