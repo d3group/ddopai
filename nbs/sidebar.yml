@@ -20,6 +20,16 @@ website:
           - section: Inventory environments
             contents:
               - 21_envs_inventory/10_single_period_envs.ipynb
+      - section: Agents
+        contents:
+          - 40_base_agents/10_base_agents.ipynb
+          - section: Basic agents
+            contents:
+              - 40_base_agents/11_basic_agents.ipynb
+          - section: Newsvendor_agents
+            contents:
+              - 41_NV_agents/10_NV_saa_agents.ipynb
+              - 41_NV_agents/11_NV_erm_agents.ipynb
       - section: Experiment functions
         contents:
           - 30_experiment_functions/10_experiment_functions.ipynb

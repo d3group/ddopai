@@ -18,22 +18,18 @@ from ..utils import MDPInfo
 # %% ../../nbs/40_base_agents/10_base_agents.ipynb 5
 class BaseAgent():
 
+    """  
+    Base class for all agents to enforce a common interface. See below for more detailed description of the requriements.
+
+    """
+
     train_mode = "direct_fit" # or "epochs_fit" or "env_interaction"
     
     def __init__(self,
-                 environment_info: MDPInfo,
-                 preprocessors: Optional[List[object]] = None, # default is empty list
-                 postprocessors: Optional[List[object]] = None # default is empty list
+                    environment_info: MDPInfo,
+                    preprocessors: list[object] | None = None,  # default is empty list
+                    postprocessors: list[object] | None = None  # default is empty list
                  ):
-        
-        """
-        Initialize a BaseAgent.
-
-        Args:
-            environment_info (MDPInfo): Information about the environment (MDP).
-            preprocessors (Optional[List[object]]): A list of preprocessors to apply to input data.
-            postprocessors (Optional[List[object]]): A list of postprocessors to apply to output data.
-        """
 
         self.preprocessors = preprocessors or []
         self.postprocessors = postprocessors or []
@@ -43,11 +39,12 @@ class BaseAgent():
         self.print = False  # Can be used for debugging
         self.receive_batch_dim = False
 
-    @abstractmethod
-    def draw_action_(self, observation):
-        pass
+    def draw_action(self, observation: np.ndarray) -> np.ndarray: #
 
-    def draw_action(self, observation):
+        """
+        Main interfrace to the environemnt. Applies preprocessors to the observation and postprocessors to the action.
+        Internal logic of the agent to be implemented in draw_action_ method.
+        """
 
         observation = self.add_batch_dim(observation)
 
@@ -60,28 +57,37 @@ class BaseAgent():
             action = postprocessor(action)
         return action
 
-    def add_preprocessor(self, preprocessor):
+    @abstractmethod
+    def draw_action_(self, observation: np.ndarray) -> np.ndarray: #
+        """Generate an action based on the observation - this is the core method that needs to be implemented by all agents."""
+        pass
+
+    def add_preprocessor(self, preprocessor: object): # pre-processor object that can be called via the "__call__" method
+        """add a preprocessor to the agent"""
         self.preprocessors.append(preprocessor)
     
-    def add_postprocessor(self, postprocessor):
+    def add_postprocessor(self, postprocessor: object): # post-processor object that can be called via the "__call__" method
+        """add a postprocessor to the agent"""
         self.postprocessors.append(postprocessor)
 
     def train(self):
+        """set the internal state of the agent to train"""
         self.mode = "train"
         
     def eval(self):
+        """
+        Set the internal state of the agent to eval. Note that for agents we do not differentiate between val and test modes.
+
+        """
         self.mode = "eval"
     
-    def add_batch_dim(self, input: np.ndarray) -> np.ndarray:
+    def add_batch_dim(self, input: np.ndarray) -> np.ndarray: #
         
         """
         Add a batch dimension to the input array if it doesn't already have one.
+        This is necessary because most environments do not have a batch dimension, but agents typically expect one.
+        If the environment does have a batch dimension, the agent can set the receive_batch_dim attribute to True to skip this step.
 
-        Args:
-            input (np.ndarray): The input array that may need a batch dimension added.
-
-        Returns:
-            np.ndarray: The input array with an added batch dimension, if required.
         """
 
         if self.receive_batch_dim:
@@ -91,19 +97,13 @@ class BaseAgent():
             # Add a batch dimension by expanding the dimensions of the input
             return np.expand_dims(input, axis=0)
         
-    def flatten_X(self, X):
+    def flatten_X(self, X: np.ndarray) -> np.ndarray: #
 
         """
-
         Function to flatten the time-dimension of the feature matrix
-        for agents that require a 2D input.
+        for agents that require a 2D input. Note applied by default but can be 
+        used by agents inheriting from this class.
         
-        
-        Args:
-            X (np.ndarray): The input data to be flattened.
-
-        Returns:
-            _type_: _description_
         """
 
         if X.ndim == 3:
@@ -112,8 +112,10 @@ class BaseAgent():
             return X
         
     def save(self):
+        """Save the agent's parameters to a file."""
         raise NotImplementedError("This agent does not have a save method implemented.")
 
     def load(self):
+        """Load the agent's parameters from a file."""
         raise NotImplementedError("This agent does not have a load method implemented.")
         
