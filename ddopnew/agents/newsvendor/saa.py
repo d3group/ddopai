@@ -3,7 +3,9 @@
 # %% auto 0
 __all__ = ['BaseSAAagent', 'NewsvendorSAAagent', 'BasewSAAagent', 'NewsvendorRFwSAAagent']
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 4
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 3
+import logging
+
 from abc import ABC, abstractmethod
 from typing import Union, Optional, List
 import numpy as np
@@ -18,7 +20,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils.validation import check_array
 
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 5
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 4
 class BaseSAAagent(BaseAgent):
 
     """
@@ -87,7 +89,7 @@ class BaseSAAagent(BaseAgent):
                              % (self.n_features_, n_features))
         return X
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 9
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 8
 class NewsvendorSAAagent(BaseSAAagent):
 
     """
@@ -99,8 +101,6 @@ class NewsvendorSAAagent(BaseSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
-                input_size: int | None = None, # can be inferred from data during fitting
-                output_size: int | None = None, # can be inferred from data during fitting
                 preprocessors: list[object] | None = None,
                 postprocessors: list[object] | None = None,
                 agent_name: str = "SAA",
@@ -194,7 +194,7 @@ class NewsvendorSAAagent(BaseSAAagent):
         except Exception as e:
             raise ValueError(f"An error occurred while loading the file: {e}")
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 16
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 15
 class BasewSAAagent(BaseSAAagent):
 
 
@@ -362,7 +362,7 @@ class BasewSAAagent(BaseSAAagent):
         except Exception as e:
             raise ValueError(f"An error occurred while loading the model: {e}")
 
-# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 25
+# %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 24
 class NewsvendorRFwSAAagent(BasewSAAagent):
 
     """
@@ -375,8 +375,6 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
-                input_size: int | None = None, # can be inferred from data during fitting
-                output_size: int | None = None, # can be inferred from data during fitting
                 preprocessors: list[object] | None = None, # List of preprocessors to apply to the observation
                 postprocessors: list[object] | None = None, # List of postprocessors to apply to the action
                 n_estimators: int = 100,# The number of trees in the forest.
