@@ -63,6 +63,15 @@ class BaseEnvironment(gym.Env, ABC):
         elif isinstance(input, (int, float)):
             param = np.full(shape, input)
 
+        elif isinstance(input, list):
+            input = np.array(input)
+            if input.shape == shape:
+                param = input
+            elif input.size == 1:  # Handle single-element arrays correctly
+                param = np.full(shape, input.item())
+            else:
+                raise ValueError("Input array must match the specified shape or be a single-element array")
+
         elif isinstance(input, np.ndarray):
             if input.shape == shape:
                 param = input
