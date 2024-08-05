@@ -9,7 +9,8 @@ from typing import Union, Optional, List
 import numpy as np
 
 from ..envs.base import BaseEnvironment
-from ..utils import MDPInfo
+from ..utils import MDPInfo, Parameter
+import numbers
 
 # # TEMPORARY
 # from sklearn.utils.validation import check_array
@@ -129,14 +130,19 @@ class BaseAgent():
         updated_params.update(custom_params)
         return updated_params
 
-    def set_env_lag_window(self,
-    env: BaseEnvironment,
-    lag_window: int,
-    include_y: bool = None, # keep the same as during env initialization if not provided
-    pre_calc: bool = None, # keep the same as during env initialization if not provided
+    @staticmethod
+    def convert_to_numpy_array(
+        input: np.ndarray | List | float | int | Parameter | None #
     ):
 
-        """Set the lag window for the environment."""
+        """convert input to numpy array or keep as Parameter"""
 
-        self.env.update_lag_features(self, lag_window=lag_window, include_y=include_y, pre_calc=pre_calc)
+        if isinstance(input, np.ndarray):
+            return input
+        elif isinstance(input, (list, numbers.Number)):
+            return np.array(input)
+        elif isinstance(input, Parameter):
+            return input
+        else:
+            raise ValueError("Input type not recognized.")
         

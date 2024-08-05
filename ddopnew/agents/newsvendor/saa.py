@@ -105,8 +105,8 @@ class NewsvendorSAAagent(BaseSAAagent):
                 ):
 
             # if float, convert to array
-            self.cu = np.array([cu]) if isinstance(cu, float) else cu
-            self.co = np.array([co]) if isinstance(co, float) else co
+            cu = self.convert_to_numpy_array(cu)
+            co = self.convert_to_numpy_array(co)
 
             self.sl = cu / (cu + co)
             self.fitted = False
@@ -215,7 +215,11 @@ class BasewSAAagent(BaseSAAagent):
         self.cu = np.array([cu]) if isinstance(cu, float) else cu
         self.co = np.array([co]) if isinstance(co, float) else co
 
+        cu = self.convert_to_numpy_array(cu)
+        co = self.convert_to_numpy_array(co)
+
         self.sl = cu / (cu + co)
+        
         self.fitted = False
 
         super().__init__(environment_info, preprocessors, postprocessors, agent_name)

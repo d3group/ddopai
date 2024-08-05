@@ -265,6 +265,9 @@ class NVBaseAgent(SGDBaseAgent):
                 ):
 
         
+        cu = self.convert_to_numpy_array(cu)
+        co = self.convert_to_numpy_array(co)
+        
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
         super().__init__(environment_info, dataloader, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device, agent_name)
@@ -341,14 +344,17 @@ class NewsvendorDLAgent(NVBaseAgent):
                 dataloader: BaseDataLoader,
                 cu: np.ndarray | Parameter,
                 co: np.ndarray | Parameter,
-                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
-                model_params: dict | None = None,  # default: {"input_size": 1, "output_size": 1, "relu_output": False}
+                
+                # parameters in yaml file
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                model_params: dict | None = None,  # default: {"input_size": 1, "output_size": 1, "hidden_layers": [64, 64], "drop_prob": 0.0, "batch_norm": False, "relu_output": False}
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                device: str = "cpu", # "cuda" or "cpu"
+
                 preprocessors: list | None = None,  # default: []
                 postprocessors: list | None = None,  # default: []
                 torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
-                device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = "DLNV",
                 ):
 
