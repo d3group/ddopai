@@ -11,6 +11,7 @@ import logging
 from datetime import datetime  
 import numpy as np
 import sys
+import wandb
 
 from .envs.base import BaseEnvironment
 from .agents.base import BaseAgent
@@ -98,7 +99,7 @@ def calculate_score(
 def log_info(R: float,
                 J: float,
                 n_epochs: int,
-                logging: Literal["wandb"], # only wandb implemented so far
+                tracking: Literal["wandb"], # only wandb implemented so far
                 mode: Literal["train", "val", "test"]
                 ):
     
@@ -109,7 +110,7 @@ def log_info(R: float,
     curves of supervised or reinforcement learning algorithms.
     '''
 
-    if logging == "wandb":
+    if tracking == "wandb":
         for epoch in range(n_epochs):
             wandb.log({f"{mode}/R": R, f"{mode}/J": J})
     else:
@@ -303,7 +304,7 @@ def run_experiment( agent: BaseAgent,
         print(R, J, best_R, best_J)
         save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
 
-        log_info(R, J, n_epochs-1, logging, "val")
+        log_info(R, J, n_epochs-1, tracking, "val")
 
     elif agent.train_mode == "epochs_fit":
         
