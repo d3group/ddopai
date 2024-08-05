@@ -26,7 +26,7 @@ class ClipAction:
         self.lower = self._convert_to_array(lower)
         self.upper = self._convert_to_array(upper)
 
-    def _convert_to_array(self, value: Optional[Union[float, np.ndarray]]) -> Optional[np.ndarray]:
+    def _convert_to_array(self, value: Optional[Union[float, list, np.ndarray]]) -> Optional[np.ndarray]:
         """
         Converts a float value to a numpy array of shape (1,) if needed.
         """
@@ -34,6 +34,8 @@ class ClipAction:
             return None
         if isinstance(value, float):
             return np.array([value])
+        if isinstance(value, list):
+            return np.array(value)
         if isinstance(value, np.ndarray):
             return value
         raise TypeError(f"Bounds must be float or np.ndarray, got {type(value).__name__}")
