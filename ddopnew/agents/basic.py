@@ -22,10 +22,11 @@ class RandomAgent(BaseAgent):
     def __init__(self,
                 environment_info: MDPInfo,
                 preprocessors: list[object] | None = None,
-                postprocessors: list[object] | None = None #
+                postprocessors: list[object] | None = None, #
+                agent_name: str = "RandomAgent"
                 ):
 
-        super().__init__(environment_info, preprocessors, postprocessors)
+        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
 
     def draw_action_(self, observation):
         return self.environment_info.action_space.sample()

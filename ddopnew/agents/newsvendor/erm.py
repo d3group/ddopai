@@ -40,7 +40,8 @@ class SGDBaseAgent(BaseAgent):
             preprocessors: Optional[List] = None,     # default: []
             postprocessors: Optional[List] = None,     # default: []
             torch_preprocessors: Optional[List] = None,     # default: []
-            device: str = "cpu" # "cuda" or "cpu"
+            device: str = "cpu", # "cuda" or "cpu"
+            agent_name: str | None = None
             ):
 
         # Initialize default values for mutable arguments
@@ -56,7 +57,7 @@ class SGDBaseAgent(BaseAgent):
         self.set_optimizer(optimizer_params)
         self.set_learning_rate_scheduler(learning_rate_scheduler)
 
-        super().__init__(environment_info, preprocessors, postprocessors)
+        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
 
     def set_dataloader(self,
                         dataloader: BaseDataLoader,
@@ -259,13 +260,14 @@ class NVBaseAgent(SGDBaseAgent):
                 preprocessors: list | None = None,      # default: []
                 postprocessors: list | None = None,     # default: []
                 torch_preprocessors: list | None = None,  # default: []
-                device: str = "cpu"  # "cuda" or "cpu"
+                device: str = "cpu", # "cuda" or "cpu"
+                agent_name: str | None = None,
                 ):
 
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
-        super().__init__(environment_info, dataloader, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device)
+        super().__init__(environment_info, dataloader, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device, agent_name)
 
 
     def set_loss_function(self):
@@ -301,7 +303,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 preprocessors: list | None = None,  # default: []
                 postprocessors: list | None = None,  # default: []
                 torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
-                device: str = "cpu"  # "cuda" or "cpu"
+                device: str = "cpu",  # "cuda" or "cpu"
+                agent_name: str | None = "lERM"
                 ):
 
         # Handle mutable defaults unique to this class
@@ -316,7 +319,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
         # By default automatically flatten the time dimension of data, if it is not already 2D
         torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device)
+        super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
     
     def set_model(self):
 
@@ -345,7 +348,8 @@ class NewsvendorDLAgent(NVBaseAgent):
                 preprocessors: list | None = None,  # default: []
                 postprocessors: list | None = None,  # default: []
                 torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
-                device: str = "cpu"  # "cuda" or "cpu"
+                device: str = "cpu", # "cuda" or "cpu"
+                agent_name: str | None = "DLNV",
                 ):
 
         # Handle mutable defaults unique to this class
@@ -362,7 +366,7 @@ class NewsvendorDLAgent(NVBaseAgent):
         
         torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device)
+        super().__init__(environment_info, dataloader, cu, co, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
     
     def set_model(self):
         

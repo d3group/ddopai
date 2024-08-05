@@ -28,7 +28,8 @@ class BaseAgent():
     def __init__(self,
                     environment_info: MDPInfo,
                     preprocessors: list[object] | None = None,  # default is empty list
-                    postprocessors: list[object] | None = None  # default is empty list
+                    postprocessors: list[object] | None = None,  # default is empty list
+                    agent_name: str | None = None
                  ):
 
         self.preprocessors = preprocessors or []
@@ -38,6 +39,8 @@ class BaseAgent():
         self.mode = "train"
         self.print = False  # Can be used for debugging
         self.receive_batch_dim = False
+
+        self.agent_name = agent_name
 
     def draw_action(self, observation: np.ndarray) -> np.ndarray: #
 
@@ -125,4 +128,15 @@ class BaseAgent():
         updated_params = default_params.copy()
         updated_params.update(custom_params)
         return updated_params
+
+    def set_env_lag_window(self,
+    env: BaseEnvironment,
+    lag_window: int,
+    include_y: bool = None, # keep the same as during env initialization if not provided
+    pre_calc: bool = None, # keep the same as during env initialization if not provided
+    ):
+
+        """Set the lag window for the environment."""
+
+        self.env.update_lag_features(self, lag_window=lag_window, include_y=include_y, pre_calc=pre_calc)
         

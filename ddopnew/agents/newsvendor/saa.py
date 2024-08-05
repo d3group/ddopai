@@ -29,9 +29,11 @@ class BaseSAAagent(BaseAgent):
     def __init__(self,
                  environment_info: MDPInfo,
                  preprocessors: Optional[List[object]] = None,
-                 postprocessors: Optional[List[object]] = None):
+                 postprocessors: Optional[List[object]] = None,
+                 agent_name: str | None = None,
+                 ):
 
-        super().__init__(environment_info, preprocessors, postprocessors)
+        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
 
     def find_weighted_quantiles(self, weights, weightPosIndices, sl, y):
         
@@ -98,7 +100,9 @@ class NewsvendorSAAagent(BaseSAAagent):
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
                 preprocessors: list[object] | None = None,
-                postprocessors: list[object] | None = None):
+                postprocessors: list[object] | None = None,
+                agent_name: str = "SAA",
+                ):
 
             # if float, convert to array
             self.cu = np.array([cu]) if isinstance(cu, float) else cu
@@ -107,7 +111,7 @@ class NewsvendorSAAagent(BaseSAAagent):
             self.sl = cu / (cu + co)
             self.fitted = False
 
-            super().__init__(environment_info, preprocessors, postprocessors)
+            super().__init__(environment_info, preprocessors, postprocessors, agent_name)
 
     def fit(self,
             X: np.ndarray, # features will be ignored
@@ -202,7 +206,9 @@ class BasewSAAagent(BaseSAAagent):
                 cu: float | np.ndarray,
                 co: float | np.ndarray,
                 preprocessors: list[object] | None = None,
-                postprocessors: list[object] | None = None):  #
+                postprocessors: list[object] | None = None,
+                agent_name: str = "wSAA",
+                ):  #
 
 
         # if float, convert to array
@@ -212,7 +218,7 @@ class BasewSAAagent(BaseSAAagent):
         self.sl = cu / (cu + co)
         self.fitted = False
 
-        super().__init__(environment_info, preprocessors, postprocessors)
+        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
 
     def fit(self,
             X: np.ndarray,
@@ -382,7 +388,8 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
                 warm_start: bool = False, # If True, reuse solution from previous fit and add more estimators.
                 ccp_alpha: float = 0.0, # Complexity parameter for Minimal Cost-Complexity Pruning.
                 max_samples: int | float | None = None, # Number of samples to draw when bootstrap is True.
-                monotonic_cst: np.ndarray | None = None # Monotonic constraints for features.
+                monotonic_cst: np.ndarray | None = None, # Monotonic constraints for features.
+                agent_name: str = "wSAA", # Default wSAA, change if it is needed to differentiate among different ML models
                 ):
         self.criterion = criterion
         self.n_estimators = n_estimators
@@ -404,7 +411,7 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
         self.monotonic_cst = monotonic_cst
         self.weight_function = "w1"
 
-        super().__init__(environment_info, cu, co, preprocessors, postprocessors)
+        super().__init__(environment_info, cu, co, preprocessors, postprocessors, agent_name)
 
     def _get_fitted_model(self,
                             X: np.ndarray,
