@@ -7,7 +7,7 @@ __all__ = ['SGDBaseAgent', 'NVBaseAgent', 'NewsvendorlERMAgent', 'NewsvendorDLAg
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 import numpy as np
 import os
 
@@ -34,8 +34,8 @@ class SGDBaseAgent(BaseAgent):
     def __init__(self, 
             environment_info: MDPInfo,
             dataloader: BaseDataLoader,
-            input_size: int,
-            output_size: int,
+            input_shape: int,
+            output_shape: int,
             optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
             learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
             dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
@@ -54,7 +54,7 @@ class SGDBaseAgent(BaseAgent):
         self.device = device
         
         self.set_dataloader(dataloader, dataloader_params)
-        self.set_model(input_size, output_size)
+        self.set_model(input_shape, output_shape)
         self.set_loss_function()
         self.set_optimizer(optimizer_params)
         self.set_learning_rate_scheduler(learning_rate_scheduler)
@@ -79,7 +79,7 @@ class SGDBaseAgent(BaseAgent):
         pass
 
     @abstractmethod
-    def set_model(self, input_size: int, output_size: int):
+    def set_model(self, input_shape: Tuple, output_shape: Tuple):
         """ Set the model for the agent """
         pass
 
@@ -256,8 +256,8 @@ class NVBaseAgent(SGDBaseAgent):
                 dataloader: BaseDataLoader,
                 cu: np.ndarray | Parameter,
                 co: np.ndarray | Parameter,
-                input_size: int,
-                output_size: int,
+                input_shape: Tuple,
+                output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
@@ -274,7 +274,7 @@ class NVBaseAgent(SGDBaseAgent):
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
-        super().__init__(environment_info, dataloader, input_size, output_size, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device, agent_name)
 
 
     def set_loss_function(self):
@@ -303,8 +303,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 dataloader: BaseDataLoader,
                 cu: np.ndarray | Parameter,
                 co: np.ndarray | Parameter,
-                input_size: int,
-                output_size: int,
+                input_shape: Tuple,
+                output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
@@ -326,13 +326,18 @@ class NewsvendorlERMAgent(NVBaseAgent):
         # By default automatically flatten the time dimension of data, if it is not already 2D
         torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_size, output_size, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
     
-    def set_model(self, input_size, output_size):
+    def set_model(self, input_shape, output_shape):
 
         """Set the model for the agent to a linear model"""
 
         from ddopnew.approximators import LinearModel
+
+        # flatten time dim of input
+        input_size = np.prod(input_shape)
+        output_size = output_shape[0]
+
         self.model = LinearModel(input_size=input_size, output_size=output_size, **self.model_params)
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 29
@@ -348,8 +353,8 @@ class NewsvendorDLAgent(NVBaseAgent):
                 dataloader: BaseDataLoader,
                 cu: np.ndarray | Parameter,
                 co: np.ndarray | Parameter,
-                input_size: int,
-                output_size: int,
+                input_shape: Tuple,
+                output_shape: Tuple,
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 
                 # parameters in yaml file
@@ -376,11 +381,16 @@ class NewsvendorDLAgent(NVBaseAgent):
         
         torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_size, output_size, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
     
-    def set_model(self, input_size, output_size):
+    def set_model(self, input_shape, output_shape):
         
         """Set the model for the agent to an MLP"""
+
+
+        # flatten time dim of input
+        input_size = np.prod(input_shape)
+        output_size = output_shape[0]
 
         from ddopnew.approximators import MLP
         self.model = MLP(input_size=input_size, output_size=output_size, **self.model_params)
