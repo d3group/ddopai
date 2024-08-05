@@ -23,7 +23,9 @@ class RandomAgent(BaseAgent):
                 environment_info: MDPInfo,
                 preprocessors: list[object] | None = None,
                 postprocessors: list[object] | None = None, #
-                agent_name: str = "RandomAgent"
+                agent_name: str = "RandomAgent",
+                *args,
+                **kwargs,
                 ):
 
         super().__init__(environment_info, preprocessors, postprocessors, agent_name)

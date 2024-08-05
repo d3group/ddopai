@@ -253,6 +253,7 @@ def run_experiment( agent: BaseAgent,
                     env: BaseEnvironment,
 
                     n_epochs: int,
+                    n_steps: int = None, # Number of steps to interact with the environment per epoch. Will be ignored for direct_fit and epchos_fit agents
 
                     early_stopping_handler: Union[EarlyStoppingHandler, None] = None,
                     save_best: bool = True,

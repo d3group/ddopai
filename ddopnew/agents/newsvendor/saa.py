@@ -99,6 +99,8 @@ class NewsvendorSAAagent(BaseSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
+                input_size: int | None = None, # can be inferred from data during fitting
+                output_size: int | None = None, # can be inferred from data during fitting
                 preprocessors: list[object] | None = None,
                 postprocessors: list[object] | None = None,
                 agent_name: str = "SAA",
@@ -373,6 +375,8 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
+                input_size: int | None = None, # can be inferred from data during fitting
+                output_size: int | None = None, # can be inferred from data during fitting
                 preprocessors: list[object] | None = None, # List of preprocessors to apply to the observation
                 postprocessors: list[object] | None = None, # List of postprocessors to apply to the action
                 n_estimators: int = 100,# The number of trees in the forest.
