@@ -15,6 +15,7 @@ import os
 from ...envs.base import BaseEnvironment
 from ..base import BaseAgent
 from ...utils import MDPInfo
+from ...obsprocessors import FlattenTimeDimNumpy
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils.validation import check_array
@@ -30,12 +31,16 @@ class BaseSAAagent(BaseAgent):
 
     def __init__(self,
                  environment_info: MDPInfo,
-                 preprocessors: Optional[List[object]] = None,
+                 obsprocessors: Optional[List[object]] = None,
                  postprocessors: Optional[List[object]] = None,
                  agent_name: str | None = None,
                  ):
 
-        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
+        super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
+
+        # check if FlattenTimeDimNumpy in obsprocessors
+        if not any(isinstance(p, FlattenTimeDimNumpy) for p in self.obsprocessors):
+            self.add_obsprocessor(FlattenTimeDimNumpy(allow_2d=True))
 
     def find_weighted_quantiles(self, weights, weightPosIndices, sl, y):
         
@@ -101,7 +106,7 @@ class NewsvendorSAAagent(BaseSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
-                preprocessors: list[object] | None = None,
+                obsprocessors: list[object] | None = None,
                 postprocessors: list[object] | None = None,
                 agent_name: str = "SAA",
                 ):
@@ -113,7 +118,7 @@ class NewsvendorSAAagent(BaseSAAagent):
             self.sl = cu / (cu + co)
             self.fitted = False
 
-            super().__init__(environment_info, preprocessors, postprocessors, agent_name)
+            super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
 
     def fit(self,
             X: np.ndarray, # features will be ignored
@@ -207,7 +212,7 @@ class BasewSAAagent(BaseSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray,
                 co: float | np.ndarray,
-                preprocessors: list[object] | None = None,
+                obsprocessors: list[object] | None = None,
                 postprocessors: list[object] | None = None,
                 agent_name: str = "wSAA",
                 ):  #
@@ -224,7 +229,7 @@ class BasewSAAagent(BaseSAAagent):
         
         self.fitted = False
 
-        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
+        super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
 
     def fit(self,
             X: np.ndarray,
@@ -240,7 +245,10 @@ class BasewSAAagent(BaseSAAagent):
         # # potential line:
         # X, y = self._validate_data(X, y, multi_output=True)
 
-        X = self.flatten_X(X) # remove time dimension, if there
+        # get FlattenTimeDimNumpy obsprocessor
+        flatten_obsprocessor = [p for p in self.obsprocessors if isinstance(p, FlattenTimeDimNumpy)][0]
+
+        X = flatten_obsprocessor(X)
 
         if len(Y.shape) == 2 and Y.shape[1] == 1:
             Y = Y.flatten() 
@@ -272,8 +280,6 @@ class BasewSAAagent(BaseSAAagent):
 
         if self.fitted == False:
             return np.array([0.0])
-
-        observation = self.flatten_X(observation) # remove time dimension, if any
         
         return self.predict(observation)
     
@@ -375,7 +381,7 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
                 environment_info: MDPInfo,
                 cu: float | np.ndarray, # underage cost
                 co: float | np.ndarray, # overage cost
-                preprocessors: list[object] | None = None, # List of preprocessors to apply to the observation
+                obsprocessors: list[object] | None = None, # List of obsprocessors to apply to the observation
                 postprocessors: list[object] | None = None, # List of postprocessors to apply to the action
                 n_estimators: int = 100,# The number of trees in the forest.
                 criterion: str = "squared_error", # Function to measure the quality of a split.
@@ -417,7 +423,7 @@ class NewsvendorRFwSAAagent(BasewSAAagent):
         self.monotonic_cst = monotonic_cst
         self.weight_function = "w1"
 
-        super().__init__(environment_info, cu, co, preprocessors, postprocessors, agent_name)
+        super().__init__(environment_info, cu, co, obsprocessors, postprocessors, agent_name)
 
     def _get_fitted_model(self,
                             X: np.ndarray,

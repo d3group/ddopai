@@ -29,7 +29,7 @@ class XYDataLoader(BaseDataLoader):
         Y: np.ndarray,
         val_index_start: Union[int, None] = None, 
         test_index_start: Union[int, None] = None, 
-        lag_window_params: Union[dict] = None, # default: {'lag_window': 0, 'include_y': False, 'pre_calc-calc': False}
+        lag_window_params: Union[dict] = None, # default: {'lag_window': 0, 'include_y': False, 'pre_calc': False}
         normalize_features: Union[dict] = None, # default: {'normalize': True, 'ignore_one_hot': True}
     ):
 
@@ -172,7 +172,7 @@ class XYDataLoader(BaseDataLoader):
 
         if self.dataset_type == "train":
             if idx > self.train_index_end:
-                raise IndexError(f'index{idx} out of range{self.train_index_end}')
+                raise IndexError(f'index {idx} out of range{self.train_index_end}')
             idx = idx
 
         elif self.dataset_type == "val":

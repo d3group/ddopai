@@ -16,7 +16,7 @@ from ...envs.base import BaseEnvironment
 from ..base import BaseAgent
 from ...utils import MDPInfo, Parameter, DatasetWrapper
 from ...torch_utils.loss_functions import TorchQuantileLoss
-from ...torch_utils.preprocessors import FlattenTimeDim
+from ...torch_utils.obsprocessors import FlattenTimeDim
 
 from ...dataloaders.base import BaseDataLoader
 
@@ -29,19 +29,21 @@ class SGDBaseAgent(BaseAgent):
     Base class for Agents that are trained using Stochastic Gradient Descent (SGD) on PyTorch models.
     """
 
+    # TODO: Remove input shapes as input end get from MDPInfo
+
     train_mode = "epochs_fit"
     
     def __init__(self, 
             environment_info: MDPInfo,
             dataloader: BaseDataLoader,
-            input_shape: int,
-            output_shape: int,
+            input_shape: Tuple,
+            output_shape: Tuple,
             optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
             learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
             dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
-            preprocessors: Optional[List] = None,     # default: []
+            obsprocessors: Optional[List] = None,     # default: []
             postprocessors: Optional[List] = None,     # default: []
-            torch_preprocessors: Optional[List] = None,     # default: []
+            torch_obsprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None
             ):
@@ -49,7 +51,7 @@ class SGDBaseAgent(BaseAgent):
         # Initialize default values for mutable arguments
         optimizer_params = optimizer_params or {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
         dataloader_params = dataloader_params or {"batch_size": 32, "shuffle": True}
-        self.torch_preprocessors = torch_preprocessors or []
+        self.torch_obsprocessors = torch_obsprocessors or []
 
         self.device = device
         
@@ -59,7 +61,7 @@ class SGDBaseAgent(BaseAgent):
         self.set_optimizer(optimizer_params)
         self.set_learning_rate_scheduler(learning_rate_scheduler)
 
-        super().__init__(environment_info, preprocessors, postprocessors, agent_name)
+        super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
 
     def set_dataloader(self,
                         dataloader: BaseDataLoader,
@@ -122,8 +124,8 @@ class SGDBaseAgent(BaseAgent):
             X = X.type(torch.float32)
             y = y.type(torch.float32)
 
-            for torch_preprocessor in self.torch_preprocessors:
-                X = torch_preprocessor(X)
+            for torch_obsprocessor in self.torch_obsprocessors:
+                X = torch_obsprocessor(X)
             
             X, y = X.to(device), y.to(device)
 
@@ -164,8 +166,8 @@ class SGDBaseAgent(BaseAgent):
         self.model.eval()
 
         X = torch.tensor(X, dtype=torch.float32)
-        for torch_preprocessor in self.torch_preprocessors:
-            X = torch_preprocessor(X)
+        for torch_obsprocessor in self.torch_obsprocessors:
+            X = torch_obsprocessor(X)
         X = X.to(device)
 
         with torch.no_grad():
@@ -213,11 +215,11 @@ class SGDBaseAgent(BaseAgent):
             if not overwrite:
                 raise FileExistsError(f"The file {full_path} already exists and will not be overwritten.")
             else:
-                logging.info(f"Overwriting file {full_path}") # Only log with info as during training we will continuously overwrite the model
+                logging.debug(f"Overwriting file {full_path}") # Only log with info as during training we will continuously overwrite the model
         
         # Save the model's state_dict using torch.save
         torch.save(self.model.state_dict(), full_path)
-        logging.info(f"Model saved successfully to {full_path}")
+        logging.debug(f"Model saved successfully to {full_path}")
 
     def load(self, path: str): # Only the path to the folder is needed, not the file itself
  
@@ -237,7 +239,7 @@ class SGDBaseAgent(BaseAgent):
         try:
             # Load the model's state_dict using torch.load
             self.model.load_state_dict(torch.load(full_path))
-            logging.info(f"Model loaded successfully from {full_path}")
+            logging.debug(f"Model loaded successfully from {full_path}")
         except Exception as e:
             raise RuntimeError(f"An error occurred while loading the model: {e}")
     
@@ -261,9 +263,9 @@ class NVBaseAgent(SGDBaseAgent):
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
-                preprocessors: list | None = None,      # default: []
+                obsprocessors: list | None = None,      # default: []
                 postprocessors: list | None = None,     # default: []
-                torch_preprocessors: list | None = None,  # default: []
+                torch_obsprocessors: list | None = None,  # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = None,
                 ):
@@ -274,7 +276,7 @@ class NVBaseAgent(SGDBaseAgent):
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
-        super().__init__(environment_info, dataloader, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors,torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors,torch_obsprocessors, device, agent_name)
 
 
     def set_loss_function(self):
@@ -309,9 +311,9 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
-                preprocessors: list | None = None,  # default: []
+                obsprocessors: list | None = None,  # default: []
                 postprocessors: list | None = None,  # default: []
-                torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
+                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERM"
                 ):
@@ -324,9 +326,9 @@ class NewsvendorlERMAgent(NVBaseAgent):
         self.model_params = self.update_model_params(default_model_params, model_params or {})
 
         # By default automatically flatten the time dimension of data, if it is not already 2D
-        torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
+        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors, torch_obsprocessors, device, agent_name)
     
     def set_model(self, input_shape, output_shape):
 
@@ -363,9 +365,9 @@ class NewsvendorDLAgent(NVBaseAgent):
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 device: str = "cpu", # "cuda" or "cpu"
 
-                preprocessors: list | None = None,  # default: []
+                obsprocessors: list | None = None,  # default: []
                 postprocessors: list | None = None,  # default: []
-                torch_preprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
+                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 ):
 
@@ -379,9 +381,9 @@ class NewsvendorDLAgent(NVBaseAgent):
 
         self.model_params = self.update_model_params(default_model_params, model_params or {})
         
-        torch_preprocessors = [FlattenTimeDim(allow_2d=True)] if torch_preprocessors is None else torch_preprocessors
+        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, preprocessors, postprocessors, torch_preprocessors, device, agent_name)
+        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors, torch_obsprocessors, device, agent_name)
     
     def set_model(self, input_shape, output_shape):
         

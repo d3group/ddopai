@@ -19,59 +19,21 @@ import time
 class LinearModel(nn.Module):
     """Linear regression model"""
 
-    # def __init__(self, 
-    #         input_size: int, # number of features
-    #         output_size: int, # number of outputs/actions
-    #         relu_output: bool = False): # whether to apply ReLU activation to the output
-    #     super().__init__()
-    #     self.l1=nn.Linear(input_size, output_size)
-    #     if relu_output:
-    #         self.final_activation = nn.ReLU()
-    #     else:
-    #         self.final_activation = nn.Identity()
-            
-    # def forward(self,x):
-    #     out=self.l1(x)
-    #     out=self.final_activation(out)
-    #     return out
-
-
-    """ Multilayer perceptron model"""
-
-    def __init__(self,
-                    input_size: int, # number of features
-                    output_size: int, # number of outputs/actions
-                    hidden_layers: list = [64, 64], # list of number of neurons in each hidden layer
-                    drop_prob: float = 0.0, # dropout probability
-                    batch_norm: bool = False, # whether to apply batch normalization
-                    relu_output: bool = False): # whether to apply ReLU activation to the output
+    def __init__(self, 
+            input_size: int, # number of features
+            output_size: int, # number of outputs/actions
+            relu_output: bool = False): # whether to apply ReLU activation to the output
         super().__init__()
-
-        # List of layers
-        layers = []
-
-        last_size = input_size
-        # for num_neurons in hidden_layers:
-        #     layers.append(nn.Linear(last_size, num_neurons))
-        #     layers.append(nn.ReLU())
-        #     layers.append(nn.Dropout(p=drop_prob))
-        #     if batch_norm:
-        #         layers.append(nn.BatchNorm1d(num_neurons))
-        #     last_size = num_neurons
-
-        # Output layer
-        layers.append(nn.Linear(last_size, output_size))
+        self.l1=nn.Linear(input_size, output_size)
         if relu_output:
-            layers.append(nn.ReLU()) # output is non-negative
+            self.final_activation = nn.ReLU()
         else:
-            layers.append(nn.Identity())
-
-        # Combine layers
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x):
-        print(x.shape)
-        return self.model(x)
+            self.final_activation = nn.Identity()
+            
+    def forward(self,x):
+        out=self.l1(x)
+        out=self.final_activation(out)
+        return out
 
 # %% ../nbs/60_approximators/11_approximators.ipynb 6
 class MLP(nn.Module):

@@ -22,17 +22,17 @@ class ClipAction:
     If the parameters are arrays, then each element of the input is clipped to the corresponding bounds.
     """
 
-    def __init__(self, lower: Optional[Union[float, np.ndarray]] = None, upper: Optional[Union[float, np.ndarray]] = None): #
+    def __init__(self, lower: Optional[Union[float, int, np.ndarray]] = None, upper: Optional[Union[float, np.ndarray]] = None): #
         self.lower = self._convert_to_array(lower)
         self.upper = self._convert_to_array(upper)
 
-    def _convert_to_array(self, value: Optional[Union[float, list, np.ndarray]]) -> Optional[np.ndarray]:
+    def _convert_to_array(self, value: Optional[Union[float, int, list, np.ndarray]]) -> Optional[np.ndarray]:
         """
         Converts a float value to a numpy array of shape (1,) if needed.
         """
         if value is None:
             return None
-        if isinstance(value, float):
+        if isinstance(value, (float, int)):
             return np.array([value])
         if isinstance(value, list):
             return np.array(value)

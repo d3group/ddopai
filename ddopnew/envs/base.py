@@ -23,12 +23,15 @@ class BaseEnvironment(gym.Env, ABC):
     def __init__(self,
                     mdp_info: MDPInfo, # MDPInfo object to ensure compatibility with the agents
                     mode: str = "train", # Initial mode (train, val, test) of the environment
+                    return_truncation: str = True # whether to return a truncated condition in step function
                     ) -> None: #
 
         super().__init__()
 
+        self.return_truncation = return_truncation
+
         self._mode = mode
-        self.mdp_info = mdp_info
+        self._mdp_info = mdp_info
         
         if mode == "train": 
             self.train()
@@ -38,7 +41,6 @@ class BaseEnvironment(gym.Env, ABC):
             self.test()
         else:
             raise ValueError("mode must be 'train', 'val', or 'test'")
-
 
     def set_param(self,
                         name: str, # name of the parameter (will become the attribute name)
@@ -92,13 +94,55 @@ class BaseEnvironment(gym.Env, ABC):
             else:
                 getattr(self, name).set(param)
 
+    def return_truncation_handler(self, observation, reward, terminated, truncated, info):
+        """ 
+        Handle the return_truncation attribute of the environment. This function is called by the step function
+
+        """
+        
+        terminated = truncated # ! TEMPORARY FIX - let's discuss how we want to define termination and truncation
+
+        if self.return_truncation:
+            return observation, reward, terminated, truncated, info
+        else:
+            return observation, reward, terminated, info
+
+    def step(self, action):
+        
+        """
+        Step function of the environment. Do not overwrite this function. 
+        Instead, write the step_ function
+
+        """
+        observation, reward, terminated, truncated, info = self.step_(action)
+
+        return self.return_truncation_handler(observation, reward, terminated, truncated, info)
+
+    @staticmethod
+    def step_(self, action):
+        """
+        Step function of the environment. It is a wrapper around the step function that handles the return_truncation
+        attribute of the environment. It must return the following: observation, reward, terminated, truncated, info
+
+        """
+        pass
+
+
     @property
-    def info(self):
+    def mdp_info(self):
         """
         Returns: The MDPInfo object of the environment.
 
         """
         return self._mdp_info
+
+    @property
+    def info(self):
+        """
+        Returns: Alternative call to the method for mushroom_rl.
+
+        """
+        return self.mdp_info
 
     @property
     def mode(self):
@@ -188,9 +232,9 @@ class BaseEnvironment(gym.Env, ABC):
 
         """
         if gamma is not None:
-            self.mdp_info.gamma = gamma
+            self._mdp_info.gamma = gamma
         if horizon is not None:
-            self.mdp_info.horizon = horizon
+            self._mdp_info.horizon = horizon
 
     def train(self, update_mdp_info=True):
         """
@@ -257,3 +301,18 @@ class BaseEnvironment(gym.Env, ABC):
             self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
 
         self.reset()
+
+    def set_return_truncation(self, return_truncation: bool): # whether or not to return the truncated condition in the step function
+        """
+        Set the return_truncation attribute of the environment.
+
+        """
+        self.return_truncation = return_truncation
+
+    def stop(self):
+        """
+        Stop the environment. This function is used to ensure compatibility with the Core of mushroom_rl.
+
+        """
+        pass
+

@@ -24,10 +24,12 @@ class BaseInventoryEnv(BaseEnvironment):
     
     """
     def __init__(self, 
-        mdp_info: MDPInfo #
+        mdp_info: MDPInfo, #
+        mode: str = "train", # Initial mode (train, val, test) of the environment
+        return_truncation: str = True # whether to return a truncated condition in step function
         ) -> None:
 
-        super().__init__(mdp_info)
+        super().__init__(mdp_info=mdp_info, mode = mode, return_truncation=return_truncation)
     
     def set_observation_space(self,
                             shape: tuple, # shape of the dataloader features
@@ -35,6 +37,7 @@ class BaseInventoryEnv(BaseEnvironment):
                             high: Union[np.ndarray, float] = np.inf, # upper bound of the observation space
                             samples_dim_included = True # whether the first dimension of the shape input is the number of samples
                             ) -> None:
+        
         '''
         Set the observation space of the environment.
         This is a standard function for simple observation spaces. For more complex observation spaces,
@@ -108,6 +111,8 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         num_SKUs: Union[int] = None, # if None it will be inferred from the DataLoader
         gamma: float = 1, # discount factor
         horizon_train: Union[str, int] = 100, # if "use_all_data" then horizon is inferred from the DataLoader
+        mode: str = "train", # Initial mode (train, val, test) of the environment
+        return_truncation: str = True # whether to return a truncated condition in step function
     ) -> None:
 
         self.horizon_train = horizon_train
@@ -127,13 +132,16 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         self.set_param("q_bound_high", q_bound_high, shape=(num_SKUs,), new=True)
         
         self.set_observation_space(dataloader.X_shape)
-        self.set_action_space(dataloader.Y_shape)
+
+        self.set_action_space(dataloader.Y_shape, low = self.q_bound_low, high = self.q_bound_high)
 
         self.print=False
-        
-        super().__init__(mdp_info=MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train))
 
-    def step(self, 
+        mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
+        
+        super().__init__(mdp_info=mdp_info, mode=mode, return_truncation=return_truncation)
+
+    def step_(self, 
             action: np.ndarray # order quantity
             ) -> Tuple[np.ndarray, float, bool, bool, dict]:
 
@@ -149,8 +157,10 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)  # Remove the first dimension
 
-        if self.print:
-            print(action)
+        action = np.maximum(action, 0) # temp
+
+        # if self.print:
+        #     print(action)
         
         # Calculate cost
         cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
@@ -169,7 +179,10 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         if truncated:
             # No next observation when the episode terminates.
-            return None, reward, terminated, truncated, info
+
+            dummy_state = None if self.observation_space is None else self.observation_space.sample()
+            
+            return dummy_state, reward, terminated, truncated, info
         else:
             observation, self.demand = self.get_observation()
 
@@ -177,12 +190,15 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
                 print("##################")
                 print("observation:", observation)
                 print("next demand:", self.demand)
-                time.sleep(3)
+
+            # if observation is not None:
+            #     print(observation.shape)
 
             return observation, reward, terminated, truncated, info
 
     def reset(self,
-        start_index: int | str = None # index to start from
+        start_index: int | str = None, # index to start from
+        state: np.ndarray = None # initial state
         ) -> Tuple[np.ndarray, bool]:
 
         """
@@ -210,4 +226,4 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         observation, self.demand = self.get_observation()
         
-        return observation, truncated
+        return observation

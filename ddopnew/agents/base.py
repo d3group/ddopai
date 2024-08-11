@@ -28,12 +28,12 @@ class BaseAgent():
     
     def __init__(self,
                     environment_info: MDPInfo,
-                    preprocessors: list[object] | None = None,  # default is empty list
+                    obsprocessors: list[object] | None = None,  # default is empty list
                     postprocessors: list[object] | None = None,  # default is empty list
                     agent_name: str | None = None
                  ):
 
-        self.preprocessors = preprocessors or []
+        self.obsprocessors = obsprocessors or []
         self.postprocessors = postprocessors or []
 
         self.environment_info = environment_info
@@ -52,8 +52,8 @@ class BaseAgent():
 
         observation = self.add_batch_dim(observation)
 
-        for preprocessor in self.preprocessors:
-            observation = preprocessor(observation)
+        for obsprocessor in self.obsprocessors:
+            observation = obsprocessor(observation)
 
         action = self.draw_action_(observation)
         
@@ -66,16 +66,16 @@ class BaseAgent():
         """Generate an action based on the observation - this is the core method that needs to be implemented by all agents."""
         pass
 
-    def add_preprocessor(self, preprocessor: object): # pre-processor object that can be called via the "__call__" method
-        """add a preprocessor to the agent"""
-        self.preprocessors.append(preprocessor)
+    def add_obsprocessor(self, obsprocessor: object): # pre-processor object that can be called via the "__call__" method
+        """Add a preprocessor to the agent"""
+        self.obsprocessors.append(obsprocessor)
     
     def add_postprocessor(self, postprocessor: object): # post-processor object that can be called via the "__call__" method
-        """add a postprocessor to the agent"""
+        """Add a postprocessor to the agent"""
         self.postprocessors.append(postprocessor)
 
     def train(self):
-        """set the internal state of the agent to train"""
+        """Set the internal state of the agent to train"""
         self.mode = "train"
         
     def eval(self):
@@ -100,20 +100,6 @@ class BaseAgent():
         else:
             # Add a batch dimension by expanding the dimensions of the input
             return np.expand_dims(input, axis=0)
-        
-    def flatten_X(self, X: np.ndarray) -> np.ndarray: #
-
-        """
-        Function to flatten the time-dimension of the feature matrix
-        for agents that require a 2D input. Note applied by default but can be 
-        used by agents inheriting from this class.
-        
-        """
-
-        if X.ndim == 3:
-            return X.reshape(X.shape[0], -1)
-        else:
-            return X
         
     def save(self):
         """Save the agent's parameters to a file."""

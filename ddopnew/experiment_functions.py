@@ -19,7 +19,7 @@ from .agents.class_names import AGENT_CLASSES
 
 import importlib
 
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 # Think about how to handle mushroom integration.
 from mushroom_rl.core import Core
@@ -202,6 +202,7 @@ def test_agent(agent: BaseAgent,
 def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from BaseEnvironment
                         agent: BaseAgent, # Any agent inheriting from BaseAgent
                         eval_step_info: bool = False, # Print step info during evaluation
+
                 ):
 
     """
@@ -211,12 +212,15 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
     """
 
     # Get initial observation
-    obs, *_ = env.reset()
+    obs = env.reset()
 
     dataset = []
     
     finished = False
     step = 0
+
+    horizon = env.mdp_info.horizon
+    
     while not finished:
         
         # Sample action from agent
@@ -276,7 +280,6 @@ def run_experiment( agent: BaseAgent,
 
     """
 
-
     # use start_time as id if no run_id is given
     if run_id is None:
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -323,7 +326,7 @@ def run_experiment( agent: BaseAgent,
     elif agent.train_mode == "epochs_fit":
         
         logging.info("Starting training with epochs fit")
-        for epoch in range(n_epochs):
+        for epoch in trange(n_epochs):
 
             agent.fit_epoch() # Access to dataloader provided to the agent at initialization
 
@@ -337,6 +340,7 @@ def run_experiment( agent: BaseAgent,
             
             best_R, best_J = update_best(R, J, best_R, best_J)
             save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
+            
             if early_stopping_handler is not None:
                 stop = early_stopping_handler.add_result(J, R)
             else:
@@ -352,7 +356,55 @@ def run_experiment( agent: BaseAgent,
         logging.info("Finished training with epochs fit")
 
     elif agent.train_mode == "env_interaction":
-        pass
+
+        logging.info("Starting training with env_interaction")
+
+
+        core = Core(agent, env)
+
+        if hasattr(agent, "warmup_training_steps"):
+            warmup_training = True
+            warmup_training_steps = agent.warmup_training_steps
+        else:
+            warmup_training = False
+        
+        if hasattr(agent, "n_steps_per_fit"):
+            n_steps_per_fit = agent.n_steps_per_fit
+        else:
+            n_steps_per_fit = 1
+
+        if warmup_training:
+            env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
+            core.learn(n_steps=warmup_training_steps, n_steps_per_fit=warmup_training_steps, quiet=True)
+        
+        for epoch in trange(n_epochs):
+
+            env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
+            core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, quiet=True)
+            env.set_return_truncation(True) # Set back to standard gynmasium behavior
+
+            env.val()
+            agent.eval()
+
+            R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
+
+            if ((epoch+1) % print_freq) == 0:
+                logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
+            
+            best_R, best_J = update_best(R, J, best_R, best_J)
+            save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
+
+            if early_stopping_handler is not None:
+                stop = early_stopping_handler.add_result(J, R)
+            else:
+                stop = False
+
+            if stop:
+                logging.info(f"Early stopping after {epoch+1} epochs")
+                break
+        
+            env.train()
+            agent.train()
 
     else:
         raise ValueError("Unknown train mode")
