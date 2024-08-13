@@ -50,7 +50,7 @@ class RLBaseAgent(BaseAgent):
 
         self.device = device
 
-        self.network_list, self.actor = self.get_network_list(return_actor=True)
+        self.network_list, self.actor, self.critic = self.get_network_list(set_actor_critic_attributes=True)
 
         super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
 
@@ -402,11 +402,16 @@ class SACAgent(RLBaseAgent):
 
         super().__init__(environment_info, obsprocessors, postprocessors, device, agent_name)
 
-        logging.info("Actor network:")
+        logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
             summary(self.actor, input_size=actor_input_shape)
+            time.sleep(.2)
 
-    def get_network_list(self, return_actor: bool = True):
+        logging.info("Critic network:")
+        if logging.getLogger().isEnabledFor(logging.INFO):
+            summary(self.critic, input_size=[actor_input_shape, actor_output_shape])
+
+    def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions
         Get the actor for the predict function in eval mode """
 
@@ -418,9 +423,10 @@ class SACAgent(RLBaseAgent):
         networks.append(self.agent.policy._sigma_approximator._impl.model.network)
 
         actor = self.agent.policy._mu_approximator._impl.model.network
-        
-        if return_actor:
-            return networks, actor
+        critic = ensemble_critic[0].network
+
+        if set_actor_critic_attributes:
+            return networks, actor, critic
         else:
             return networks
     
