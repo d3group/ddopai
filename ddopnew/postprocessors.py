@@ -14,7 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # %% ../nbs/00_utils/10_postprocessors.ipynb 4
-class ClipAction:
+class ClipAction():
     """
     A class to clip input values within specified bounds.
     If the parameters lower and upper are not specified, no clipping is performed.
@@ -59,8 +59,8 @@ class ClipAction:
 
         return output
 
-# %% ../nbs/00_utils/10_postprocessors.ipynb 7
-class RoundAction:
+# %% ../nbs/00_utils/10_postprocessors.ipynb 8
+class RoundAction():
     """
     A class to round input values to the nearest specified unit size.
     Unit size can be any decimal value like 10, 3, 1, 0.1, 0.03, etc.

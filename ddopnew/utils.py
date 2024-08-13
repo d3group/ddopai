@@ -4,11 +4,12 @@
 __all__ = ['check_parameter_types', 'Parameter', 'MDPInfo', 'DatasetWrapper']
 
 # %% ../nbs/00_utils/00_utils.ipynb 3
-import numpy as np
 from torch.utils.data import Dataset
 from typing import Union, List, Tuple, Literal
 from gymnasium.spaces import Space
 from .dataloaders.base import BaseDataLoader
+
+import numpy as np
 
 # %% ../nbs/00_utils/00_utils.ipynb 4
 def check_parameter_types(
@@ -24,7 +25,7 @@ def check_parameter_types(
         if not isinstance(arg, parameter_type):
             raise TypeError(f"Argument {index+1} of {len(args)} is of type {type(arg).__name__}, expected {parameter_type.__name__}")
 
-# %% ../nbs/00_utils/00_utils.ipynb 8
+# %% ../nbs/00_utils/00_utils.ipynb 7
 class Parameter():
 
     """
@@ -110,7 +111,7 @@ class Parameter():
         """
         return self._value.size 
 
-# %% ../nbs/00_utils/00_utils.ipynb 17
+# %% ../nbs/00_utils/00_utils.ipynb 16
 class MDPInfo():
     """
     This class is used to store the information of the environment.
@@ -152,7 +153,7 @@ class MDPInfo():
         """
         return self.observation_space.shape + self.action_space.shape
 
-# %% ../nbs/00_utils/00_utils.ipynb 19
+# %% ../nbs/00_utils/00_utils.ipynb 20
 class DatasetWrapper(Dataset):
     """
     This class is used to wrap a Pytorch Dataset around the ddopnew dataloader

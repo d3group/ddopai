@@ -222,10 +222,7 @@ class BaseEnvironment(gym.Env, ABC):
         if start_index=="random":
             if self.mode == "train":
                 if self.dataloader.len_train is not None and self.dataloader.len_train > self.mdp_info.horizon:
-                    # seed = self.seed_setter.return_seed()
-                    # np.random.seed(seed)
                     random_index = np.random.choice(self.dataloader.len_train-self.mdp_info.horizon)
-                    # print("reset period:", random_index)
                 else:
                     random_index = 0
                 self.start_index = random_index
