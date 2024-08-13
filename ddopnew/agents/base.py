@@ -29,12 +29,10 @@ class BaseAgent():
     def __init__(self,
                     environment_info: MDPInfo,
                     obsprocessors: list[object] | None = None,  # default is empty list
-                    postprocessors: list[object] | None = None,  # default is empty list
                     agent_name: str | None = None
                  ):
 
         self.obsprocessors = obsprocessors or []
-        self.postprocessors = postprocessors or []
 
         self.environment_info = environment_info
         self.mode = "train"
@@ -46,7 +44,7 @@ class BaseAgent():
     def draw_action(self, observation: np.ndarray) -> np.ndarray: #
 
         """
-        Main interfrace to the environemnt. Applies preprocessors to the observation and postprocessors to the action.
+        Main interfrace to the environemnt. Applies preprocessors to the observation.
         Internal logic of the agent to be implemented in draw_action_ method.
         """
 
@@ -57,8 +55,6 @@ class BaseAgent():
 
         action = self.draw_action_(observation)
         
-        for postprocessor in self.postprocessors:
-            action = postprocessor(action)
         return action
 
     @abstractmethod
@@ -69,10 +65,6 @@ class BaseAgent():
     def add_obsprocessor(self, obsprocessor: object): # pre-processor object that can be called via the "__call__" method
         """Add a preprocessor to the agent"""
         self.obsprocessors.append(obsprocessor)
-    
-    def add_postprocessor(self, postprocessor: object): # post-processor object that can be called via the "__call__" method
-        """Add a postprocessor to the agent"""
-        self.postprocessors.append(postprocessor)
 
     def train(self):
         """Set the internal state of the agent to train"""

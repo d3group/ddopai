@@ -42,7 +42,6 @@ class SGDBaseAgent(BaseAgent):
             learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
             dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
             obsprocessors: Optional[List] = None,     # default: []
-            postprocessors: Optional[List] = None,     # default: []
             torch_obsprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None
@@ -61,7 +60,7 @@ class SGDBaseAgent(BaseAgent):
         self.set_optimizer(optimizer_params)
         self.set_learning_rate_scheduler(learning_rate_scheduler)
 
-        super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
+        super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
 
     def set_dataloader(self,
                         dataloader: BaseDataLoader,
@@ -264,7 +263,6 @@ class NVBaseAgent(SGDBaseAgent):
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,      # default: []
-                postprocessors: list | None = None,     # default: []
                 torch_obsprocessors: list | None = None,  # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = None,
@@ -276,9 +274,20 @@ class NVBaseAgent(SGDBaseAgent):
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
 
-        super().__init__(environment_info, dataloader, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors,torch_obsprocessors, device, agent_name)
 
-
+        super().__init__(
+            environment_info=environment_info,
+            dataloader=dataloader,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            optimizer_params=optimizer_params,
+            learning_rate_scheduler=learning_rate_scheduler,
+            dataloader_params=dataloader_params,
+            obsprocessors=obsprocessors,
+            torch_obsprocessors=torch_obsprocessors,
+            device=device,
+            agent_name=agent_name
+        )   
     def set_loss_function(self):
 
         """Set the loss function for the model to the quantile loss. For training
@@ -312,7 +321,6 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 model_params: dict | None = None,  # default: {"relu_output": False}
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,  # default: []
-                postprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERM"
@@ -328,8 +336,21 @@ class NewsvendorlERMAgent(NVBaseAgent):
         # By default automatically flatten the time dimension of data, if it is not already 2D
         torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors, torch_obsprocessors, device, agent_name)
-    
+        super().__init__(
+            environment_info=environment_info,
+            dataloader=dataloader,
+            cu=cu,
+            co=co,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            optimizer_params=optimizer_params,
+            learning_rate_scheduler=learning_rate_scheduler,
+            dataloader_params=dataloader_params,
+            obsprocessors=obsprocessors,
+            torch_obsprocessors=torch_obsprocessors,
+            device=device,
+            agent_name=agent_name
+        )
     def set_model(self, input_shape, output_shape):
 
         """Set the model for the agent to a linear model"""
@@ -366,7 +387,6 @@ class NewsvendorDLAgent(NVBaseAgent):
                 device: str = "cpu", # "cuda" or "cpu"
 
                 obsprocessors: list | None = None,  # default: []
-                postprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 ):
@@ -383,8 +403,22 @@ class NewsvendorDLAgent(NVBaseAgent):
         
         torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
 
-        super().__init__(environment_info, dataloader, cu, co, input_shape, output_shape, optimizer_params, learning_rate_scheduler, dataloader_params, obsprocessors, postprocessors, torch_obsprocessors, device, agent_name)
-    
+        super().__init__(
+            environment_info=environment_info,
+            dataloader=dataloader,
+            cu=cu,
+            co=co,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            optimizer_params=optimizer_params,
+            learning_rate_scheduler=learning_rate_scheduler,
+            dataloader_params=dataloader_params,
+            obsprocessors=obsprocessors,
+            torch_obsprocessors=torch_obsprocessors,
+            device=device,
+            agent_name=agent_name
+        )
+        
     def set_model(self, input_shape, output_shape):
         
         """Set the model for the agent to an MLP"""

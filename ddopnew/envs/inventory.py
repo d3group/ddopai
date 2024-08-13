@@ -25,11 +25,12 @@ class BaseInventoryEnv(BaseEnvironment):
     """
     def __init__(self, 
         mdp_info: MDPInfo, #
+        postprocessors: list[object] | None = None,  # default is empty list
         mode: str = "train", # Initial mode (train, val, test) of the environment
         return_truncation: str = True # whether to return a truncated condition in step function
         ) -> None:
 
-        super().__init__(mdp_info=mdp_info, mode = mode, return_truncation=return_truncation)
+        super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation)
     
     def set_observation_space(self,
                             shape: tuple, # shape of the dataloader features
@@ -112,6 +113,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         num_SKUs: Union[int] = None, # if None it will be inferred from the DataLoader
         gamma: float = 1, # discount factor
         horizon_train: Union[str, int] = 100, # if "use_all_data" then horizon is inferred from the DataLoader
+        postprocessors: list[object] | None = None,  # default is empty list
         mode: str = "train", # Initial mode (train, val, test) of the environment
         return_truncation: str = True # whether to return a truncated condition in step function
     ) -> None:
@@ -140,7 +142,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         
-        super().__init__(mdp_info=mdp_info, mode=mode, return_truncation=return_truncation)
+        super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode=mode, return_truncation=return_truncation)
 
     def step_(self, 
             action: np.ndarray # order quantity
@@ -153,15 +155,10 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         """
 
-        action_raw = action.copy()
         # Most agent give by default a batch dimension which is not needed for a single period action.
         # If action shape size is 2 and the first dimensiion is 1, then remove it
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)  # Remove the first dimension
-
-        # print("action_raw:", action)
-        action = np.round(action, 2)
-        action = np.maximum(0, action)
 
         cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
         reward = -np.sum(cost_per_SKU) # negative because we want to minimize the cost
@@ -206,16 +203,10 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             observation, self.demand = self.get_observation()
 
             if self.print:
-                if self.mode=="train":
-                    print("action:" , np.round(action_raw, 2))
-                    print("##################")
-                    print("next_period:", self.index+1)
-                    print("next observation:", observation)
-                    print("next demand:", self.demand)
-                    time.sleep(3)
-                
-            # terminated = False
-            # truncated = False
+                print("next_period:", self.index+1)
+                print("next observation:", observation)
+                print("next demand:", self.demand)
+                time.sleep(3)
 
             return observation, reward, terminated, truncated, info
 

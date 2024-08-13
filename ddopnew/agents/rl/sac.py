@@ -43,7 +43,6 @@ class RLBaseAgent(BaseAgent):
     def __init__(self, 
             environment_info: MDPInfo,
             obsprocessors: Optional[List] = None,     # default: []
-            postprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None
             ):
@@ -52,7 +51,7 @@ class RLBaseAgent(BaseAgent):
 
         self.network_list, self.actor, self.critic = self.get_network_list(set_actor_critic_attributes=True)
 
-        super().__init__(environment_info, obsprocessors, postprocessors, agent_name)
+        super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
 
         self.transfer_obs_processors_to_mushroom_agent()
 
@@ -73,10 +72,10 @@ class RLBaseAgent(BaseAgent):
     @property
     def preprocessors(self):
 
-        """ Return the preprocessors of the MushroomRL agent """
+        """ Return the obsprocessors of the agent,
+        which are the preprocessors of the MushroomRL agent """
 
         return self.agent.preprocessors
-
 
     @abstractmethod
     def set_model(self, input_shape: Tuple, output_shape: Tuple):
@@ -318,9 +317,7 @@ class SACAgent(RLBaseAgent):
                 target_entropy: float | None = None,
                 optimizer: str = "Adam", # "Adam" or "SGD" or "RMSprop"  
                 loss: str = "MSE", # currently only MSE is supported     
-            
                 obsprocessors: list | None = None,      # default: []
-                postprocessors: list | None = None,     # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = "SAC",
                 ):
@@ -400,7 +397,12 @@ class SACAgent(RLBaseAgent):
         # Filter out special attributes/methods (those starting and ending with double underscores)
         filtered_attributes_methods = [item for item in all_attributes_methods if not item.startswith('__')]
 
-        super().__init__(environment_info, obsprocessors, postprocessors, device, agent_name)
+        super().__init__(
+            environment_info=environment_info,
+            obsprocessors=obsprocessors,
+            device=device,
+            agent_name=agent_name
+        )
 
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):

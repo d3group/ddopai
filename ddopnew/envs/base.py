@@ -13,7 +13,7 @@ from ..utils import MDPInfo
 from ..utils import Parameter
 import time
 
-# %% ../../nbs/20_base_env/10_base_env.ipynb 5
+# %% ../../nbs/20_base_env/10_base_env.ipynb 4
 class BaseEnvironment(gym.Env, ABC):
 
     """
@@ -23,6 +23,7 @@ class BaseEnvironment(gym.Env, ABC):
 
     def __init__(self,
                     mdp_info: MDPInfo, # MDPInfo object to ensure compatibility with the agents
+                    postprocessors: list[object] | None = None,  # default is empty list
                     mode: str = "train", # Initial mode (train, val, test) of the environment
                     return_truncation: str = True # whether to return a truncated condition in step function
                     ) -> None: #
@@ -45,6 +46,8 @@ class BaseEnvironment(gym.Env, ABC):
             self.test()
         else:
             raise ValueError("mode must be 'train', 'val', or 'test'")
+
+        self.postprocessors = postprocessors or []
 
     def set_param(self,
                         name: str, # name of the parameter (will become the attribute name)
@@ -115,12 +118,21 @@ class BaseEnvironment(gym.Env, ABC):
         
         """
         Step function of the environment. Do not overwrite this function. 
-        Instead, write the step_ function
+        Instead, write the step_ function. Note that the postprocessor is applied here.
 
         """
+
+        ## apply postprocessor
+        for postprocessor in self.postprocessors:
+            action = postprocessor(action)
+
         observation, reward, terminated, truncated, info = self.step_(action)
 
         return self.return_truncation_handler(observation, reward, terminated, truncated, info)
+    
+    def add_postprocessor(self, postprocessor: object): # post-processor object that can be called via the "__call__" method
+        """Add a postprocessor to the agent"""
+        self.postprocessors.append(postprocessor)
 
     @staticmethod
     def step_(self, action):
