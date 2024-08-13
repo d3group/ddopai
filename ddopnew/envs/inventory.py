@@ -142,8 +142,6 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         
         super().__init__(mdp_info=mdp_info, mode=mode, return_truncation=return_truncation)
 
-        self.sleep=False
-
     def step_(self, 
             action: np.ndarray # order quantity
             ) -> Tuple[np.ndarray, float, bool, bool, dict]:
@@ -248,7 +246,6 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
                 raise ValueError("Mode not recognized.")
 
         truncated = self.reset_index(start_index)
-        print("index after rest:", self.index)
 
         observation, self.demand = self.get_observation()
         
