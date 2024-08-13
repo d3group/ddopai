@@ -27,6 +27,7 @@ from mushroom_rl.algorithms.actor_critic.deep_actor_critic import SAC
 
 import torch
 import torch.nn.functional as F
+from torchsummary import summary
 
 import time
 
@@ -118,18 +119,17 @@ class RLBaseAgent(BaseAgent):
     def predict(self, observation: np.ndarray) -> np.ndarray: #
         """ Do one forward pass of the model directly and return the prediction"""
 
-
         if self.mode=="eval":
 
             # Apply pre-processors of the mushroom agent
             for preprocessor in self.agent.preprocessors:
                 observation = preprocessor(observation)
+            
+            # add batch dimension back to mimic mushroom_rl library
+            observation = np.expand_dims(observation, axis=0)
             action = self.predict_(observation)
 
             return action
-
-
-
         else:
             raise ValueError("Model is in train mode. Use draw_action method instead.")
 
@@ -400,17 +400,11 @@ class SACAgent(RLBaseAgent):
         # Filter out special attributes/methods (those starting and ending with double underscores)
         filtered_attributes_methods = [item for item in all_attributes_methods if not item.startswith('__')]
 
-        # # Print all non-special attributes and methods
-        # for item in filtered_attributes_methods:
-        #     print(item)
-
-        # get networks list
-
-        # wandb.watch networks
-
-        # Check if attributes need to be shared from mushroom_agent
-
         super().__init__(environment_info, obsprocessors, postprocessors, device, agent_name)
+
+        logging.info("Actor network:")
+        if logging.getLogger().isEnabledFor(logging.INFO):
+            summary(self.actor, input_size=actor_input_shape)
 
     def get_network_list(self, return_actor: bool = True):
         """ Get the list of networks in the agent for the save and load functions
@@ -441,9 +435,11 @@ class SACAgent(RLBaseAgent):
 
         observation = torch.tensor(observation, dtype=torch.float32).to(self.device)
         action = self.actor.forward(observation)
+        # print("a before tanh: ", action)
         action = torch.tanh(action)
+        # print("a after tanh: ", action)
         action = action * self.agent.policy._delta_a + self.agent.policy._central_a
+        # print("a after scaling: ", action)
         action = action.cpu().detach().numpy()
 
-        
         return action

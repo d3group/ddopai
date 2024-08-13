@@ -91,6 +91,7 @@ class BaseInventoryEnv(BaseEnvironment):
         """
         
         X_item, Y_item = self.dataloader[self.index]
+        
         return X_item, Y_item
 
 # %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 9
@@ -141,6 +142,8 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         
         super().__init__(mdp_info=mdp_info, mode=mode, return_truncation=return_truncation)
 
+        self.sleep=False
+
     def step_(self, 
             action: np.ndarray # order quantity
             ) -> Tuple[np.ndarray, float, bool, bool, dict]:
@@ -152,17 +155,16 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         """
 
+        action_raw = action.copy()
         # Most agent give by default a batch dimension which is not needed for a single period action.
         # If action shape size is 2 and the first dimensiion is 1, then remove it
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)  # Remove the first dimension
 
-        action = np.maximum(action, 0) # temp
+        # print("action_raw:", action)
+        action = np.round(action, 2)
+        action = np.maximum(0, action)
 
-        # if self.print:
-        #     print(action)
-        
-        # Calculate cost
         cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
         reward = -np.sum(cost_per_SKU) # negative because we want to minimize the cost
 
@@ -180,19 +182,42 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         if truncated:
             # No next observation when the episode terminates.
 
-            dummy_state = None if self.observation_space is None else self.observation_space.sample()
+            if self.observation_space is None:
+                dummy_state = None
+            else:
+
+                if self.mode == "train":
+                    max_index = self.dataloader.len_train
+                elif self.mode == "val":
+                    max_index = self.dataloader.len_val
+                elif self.mode == "test":
+                    max_index = self.dataloader.len_test
+                else:  
+                    raise ValueError("Mode not recognized.")
             
+                max_index -= 1 # because the index is already out of bounds
+                
+                if self.index <= max_index:
+                    dummy_state, _ = self.get_observation()
+                else:
+                    dummy_state = self.observation_space.sample()    
+                    dummy_state = np.zeros_like(dummy_state)
+        
             return dummy_state, reward, terminated, truncated, info
         else:
             observation, self.demand = self.get_observation()
 
             if self.print:
-                print("##################")
-                print("observation:", observation)
-                print("next demand:", self.demand)
-
-            # if observation is not None:
-            #     print(observation.shape)
+                if self.mode=="train":
+                    print("action:" , np.round(action_raw, 2))
+                    print("##################")
+                    print("next_period:", self.index+1)
+                    print("next observation:", observation)
+                    print("next demand:", self.demand)
+                    time.sleep(3)
+                
+            # terminated = False
+            # truncated = False
 
             return observation, reward, terminated, truncated, info
 
@@ -223,6 +248,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
                 raise ValueError("Mode not recognized.")
 
         truncated = self.reset_index(start_index)
+        print("index after rest:", self.index)
 
         observation, self.demand = self.get_observation()
         

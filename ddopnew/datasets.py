@@ -14,11 +14,11 @@ import pandas as pd
 import zipfile
 
 
-# %% ../nbs/80_datasets/datasets.ipynb 6
-def get_all_release_tags():
-
-    url = f"https://api.github.com/repos/opimwue/ddopnew/releases"
-    response = requests.get(url)
+# %% ../nbs/80_datasets/datasets.ipynb 7
+def get_all_release_tags(token=None):
+    url = "https://api.github.com/repos/opimwue/ddopnew/releases"
+    headers = {'Authorization': f'Bearer {token}'} if token else {}
+    response = requests.get(url, headers=headers)
     
     if response.status_code == 200:
         releases = response.json()
@@ -27,9 +27,8 @@ def get_all_release_tags():
     else:
         raise ValueError(f"Failed to fetch releases: {response.status_code} with message: {response.text}")
 
-def get_release_tag(dataset_type, version):
-
-    release_tags = get_all_release_tags()
+def get_release_tag(dataset_type, version, token=None):
+    release_tags = get_all_release_tags(token)
     release_tags_filtered = [tag for tag in release_tags if dataset_type in tag]
 
     if version == "latest":
@@ -38,27 +37,18 @@ def get_release_tag(dataset_type, version):
     else:
         release_tag = f"{dataset_type}_{version}"
     
-    return release_tag
-    
     print(f"Filtered release tags: {release_tags_filtered}")
+    return release_tag
 
-
-
-def get_dataset_url(dataset_type, dataset_number, release_tag):
-    # Define the repository and release tag
-
-    # GitHub API URL for the release
+def get_dataset_url(dataset_type, dataset_number, release_tag, token=None):
     api_url = f"https://api.github.com/repos/opimwue/ddopnew/releases/tags/{release_tag}"
-    
-    # Make the request to the GitHub API
-    response = requests.get(api_url)
+    headers = {'Authorization': f'Bearer {token}'} if token else {}
+    response = requests.get(api_url, headers=headers)
 
-    # Check if the request was successful
     if response.status_code == 200:
         release_info = response.json()
         assets = release_info.get("assets", [])
 
-        # get asset where the name contains the f"{dataset_type}_dataset_{dataset_number}"
         assets = [asset for asset in assets if f"{dataset_type}_dataset_{dataset_number}_" in asset['name']]
 
         for asset in assets:
@@ -72,19 +62,16 @@ def get_dataset_url(dataset_type, dataset_number, release_tag):
             asset = assets[0]
             return asset['browser_download_url']
     else:
-        raise ValueError(f"Failed to fetch release information: {response.status_code}")
+        raise ValueError(f"Failed to fetch release information: {response.status_code} with message: {response.text}")
 
-def get_asset_url(dataset_type, dataset_number, version="latest"):
-
-    release_tag = get_release_tag(dataset_type, version)
-
-    asset_url = get_dataset_url(dataset_type, dataset_number, release_tag)
-
+def get_asset_url(dataset_type, dataset_number, version="latest", token=None):
+    release_tag = get_release_tag(dataset_type, version, token)
+    asset_url = get_dataset_url(dataset_type, dataset_number, release_tag, token)
     return asset_url
 
-
-def download_file_from_github(url, output_path):
-    response = requests.get(url, stream=True)
+def download_file_from_github(url, output_path, token=None):
+    headers = {'Authorization': f'Bearer {token}'} if token else {}
+    response = requests.get(url, headers=headers, stream=True)
     if response.status_code == 200:
         with open(output_path, 'wb') as file:
             for chunk in response.iter_content(chunk_size=1024):
@@ -95,21 +82,15 @@ def download_file_from_github(url, output_path):
         logging.error(f"Failed to download file: {response.status_code}")
 
 def unzip_file(zip_file_path, output_dir, delete_zip_file=True):
-
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(output_dir)
 
     if delete_zip_file:
         os.remove(zip_file_path)
 
-
 def load_data_from_directory(dir):
-
     data = list()
     for file in os.listdir(dir):
-        # check if the file is a csv, pkl, or numpy file
-        # load data into pandas dataframe array with name of the file before the extension
-
         if file.endswith(".csv"):
             data.append(pd.read_csv(os.path.join(dir, file)))
         elif file.endswith(".pkl"):
@@ -121,7 +102,8 @@ def load_data_from_directory(dir):
     
     return data
 
-# %% ../nbs/80_datasets/datasets.ipynb 8
+
+# %% ../nbs/80_datasets/datasets.ipynb 9
 class DatasetLoader():
 
     """
@@ -161,7 +143,8 @@ class DatasetLoader():
         dataset_type: str,
         dataset_number: int,
         overwrite: bool = False, # Whether to overwrite the dataset if it already exists
-        version: str = "latest", # Which version of the dataset to load, "latest" or a specific version
+        version: str = "latest", # Which version of the dataset to load, "latest" or a specific version,
+        token: str = None # GitHub token to enable more requests (otherwise limited to 60 requests per hour)
     ):
 
         """ Load a dataset from the GitHub repository."""
@@ -169,7 +152,7 @@ class DatasetLoader():
         if dataset_type not in self.dataset_types_univariate and dataset_type not in self.dataset_types_multivariate:
             raise ValueError(f"Dataset type {dataset_type} is not valid. Use the function show_dataset_types() to see valid dataset types.")
 
-        asset_url = get_asset_url(dataset_type, dataset_number, version=version)
+        asset_url = get_asset_url(dataset_type, dataset_number, version=version, token=token)
 
 
         # check if folder "data" exists, if not create it
@@ -191,7 +174,7 @@ class DatasetLoader():
             download = True
 
         if download:
-            download_file_from_github(asset_url, output_file_path+".zip")
+            download_file_from_github(asset_url, output_file_path+".zip", token=token)
             unzip_file(output_file_path+".zip", output_file_path)
 
         data = load_data_from_directory(output_file_path)
