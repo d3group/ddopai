@@ -189,8 +189,9 @@ class SACBaseAgent(MushroomBaseAgent):
         Apply tanh as implemented for the SAC actor in mushroom_rl"""
 
         # make observation torch tensor
+        device = next(self.actor.parameters()).device
+        observation = torch.tensor(observation, dtype=torch.float32).to(device)
 
-        observation = torch.tensor(observation, dtype=torch.float32).to(self.device)
         action = self.actor.forward(observation)
         # print("a before tanh: ", action)
         action = torch.tanh(action)
