@@ -193,11 +193,8 @@ class SACBaseAgent(MushroomBaseAgent):
         observation = torch.tensor(observation, dtype=torch.float32).to(device)
 
         action = self.actor.forward(observation)
-        # print("a before tanh: ", action)
         action = torch.tanh(action)
-        # print("a after tanh: ", action)
         action = action * self.agent.policy._delta_a + self.agent.policy._central_a
-        # print("a after scaling: ", action)
         action = action.cpu().detach().numpy()
 
         return action
