@@ -276,3 +276,23 @@ class MushroomBaseAgent(BaseAgent):
         """ Stop the agent """
 
         self.agent.stop()
+
+    @staticmethod
+    # input tuple or list of tuples
+    def add_batch_dimension_for_shape(
+                        input_shape: Tuple | List[Tuple],
+                        batch_dim: int = 1,
+                        ) -> Tuple | List[Tuple]:
+
+        """ Add batch dimension to the shape of the input to 
+        ensure torchinfo works correctly """
+
+        if isinstance(input_shape, tuple):
+            input_shape = (batch_dim,) + input_shape
+        elif isinstance(input_shape, list):
+            input_shape = [(batch_dim,) + shape for shape in input_shape]
+        else:
+            raise ValueError("Input shape must be tuple or list of tuples")
+
+        return input_shape
+        

@@ -29,7 +29,7 @@ from mushroom_rl.policy import OrnsteinUhlenbeckPolicy
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
-from torchsummary import summary
+from torchinfo import summary
 
 import time
 
@@ -39,6 +39,8 @@ class TD3Agent(MushroomBaseAgent):
     """
     XXX
     """
+
+    # TODO: Make structure same to SAC with TD3 base class
 
     def __init__(self, 
                 environment_info: MDPInfo,
@@ -150,12 +152,14 @@ class TD3Agent(MushroomBaseAgent):
 
         logging.info("Actor network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.actor, input_size=actor_input_shape)
+            input_size = self.add_batch_dimension_for_shape(actor_input_shape)
+            print(summary(self.actor, input_size=input_size))
             time.sleep(.2)
 
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.critic, input_size=[actor_input_shape, actor_output_shape])
+            input_size = self.add_batch_dimension_for_shape([actor_input_shape, actor_output_shape])
+            print(summary(self.critic, input_size=input_size))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions

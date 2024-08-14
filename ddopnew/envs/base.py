@@ -110,8 +110,6 @@ class BaseEnvironment(gym.Env, ABC):
         Handle the return_truncation attribute of the environment. This function is called by the step function
 
         """
-        
-        # terminated = truncated # ! TEMPORARY FIX - let's discuss how we want to define termination and truncation
 
         if self.return_truncation:
             return observation, reward, terminated, truncated, info

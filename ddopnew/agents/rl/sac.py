@@ -153,21 +153,16 @@ class SACBaseAgent(MushroomBaseAgent):
             agent_name=agent_name
         )
 
-        
-
-        test_batch_size = 1
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            input_size = (test_batch_size, *actor_mu_params["input_shape"])
+            input_size = self.add_batch_dimension_for_shape(actor_mu_params["input_shape"])
             print(summary(self.actor, input_size=input_size))
             time.sleep(0.2)
 
         logging.info("################################################################################")
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            input_size = list()
-            for critic_param in critic_params["input_shape"]:
-                input_size.append((test_batch_size, *critic_param))
+            input_size = self.add_batch_dimension_for_shape(critic_params["input_shape"])
             print(summary(self.critic, input_size=input_size))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
