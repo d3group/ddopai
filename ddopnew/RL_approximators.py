@@ -585,6 +585,6 @@ class RNNStateAction(BaseApproximatorRNN):
             rnn_input = state
             mlp_input = action
 
-        a = self.model(rnn_input, mlp_input)
+        a = self.model(rnn_input.float(), mlp_input.float())
 
         return a
