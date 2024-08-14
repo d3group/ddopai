@@ -5,7 +5,7 @@ __all__ = ['BaseApproximator', 'MLPStateAction', 'MLPState', 'MLPActor']
 
 # %% ../nbs/60_approximators/21_critic_networks.ipynb 4
 from abc import ABC, abstractmethod
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np
 
 import torch
@@ -130,7 +130,7 @@ class MLPStateAction(BaseApproximator):
     both states and actions as inputs to output the q-value"""
 
     def __init__(self,
-                    input_shape: Tuple, # number of features
+                    input_shape: Tuple | List[Tuple], # number of features
                     output_shape: Tuple, # number of outputs/actions
                     hidden_layers: list, # list of number of neurons in each hidden layer
                     activation: str = "relu",
@@ -143,6 +143,10 @@ class MLPStateAction(BaseApproximator):
                     ):
 
         super().__init__()
+
+        # if input shape is list, then concatenate the elements
+        if isinstance(input_shape, list):
+            input_shape = (sum([shape[0] for shape in input_shape]),)
         
         self.model = self.build_MLP(    input_shape[0],
                                         output_shape[0],

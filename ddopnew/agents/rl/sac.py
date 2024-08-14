@@ -16,7 +16,7 @@ import os
 
 from ...envs.base import BaseEnvironment
 from .mushroom_rl import MushroomBaseAgent
-from ...utils import MDPInfo, Parameter
+from ...utils import MDPInfo, Parameter, merge_dictionaries
 from ...obsprocessors import FlattenTimeDimNumpy
 from ...RL_approximators import MLPStateAction, MLPActor
 from ...postprocessors import ClipAction
@@ -28,6 +28,8 @@ from mushroom_rl.algorithms.actor_critic.deep_actor_critic import SAC
 import torch
 import torch.nn.functional as F
 from torchsummary import summary
+
+from copy import deepcopy
 
 import time
 
@@ -41,13 +43,13 @@ class SACBaseAgent(MushroomBaseAgent):
     def __init__(self, 
                 environment_info: MDPInfo,
 
+                # Not input regarding network architecture --> to be set in subclass
+
                 learning_rate_actor: float = 3e-4,
                 learning_rate_critic: float | None = None, # If none, then it is set to learning_rate_actor
                 initial_replay_size: int = 64,
                 max_replay_size: int = 50000,
                 batch_size: int = 64,
-                hidden_layers: List = None, # if None, then default is [64, 64]
-                activation: str = "relu", # "relu", "sigmoid", "tanh", "leakyrelu", "elu"
                 warmup_transitions: int = 100,
                 lr_alpha: float = 3e-4,
                 tau: float = 0.005,
@@ -55,7 +57,7 @@ class SACBaseAgent(MushroomBaseAgent):
                 log_std_max: float = 2.0,
                 use_log_alpha_loss=False,
                 target_entropy: float | None = None,
-
+                
                 drop_prob: float = 0.0,
                 batch_norm: bool = False,
                 init_method: str = "xavier_uniform", # "xavier_uniform", "xavier_normal", "he_normal", "he_uniform", "normal", "uniform"
@@ -65,71 +67,65 @@ class SACBaseAgent(MushroomBaseAgent):
                 obsprocessors: list | None = None,      # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = "SAC",
+
+                network_actor_mu_params: dict = None,
+                network_actor_sigma_params: dict = None,
+                network_critic_params: dict = None,
+
                 ):
 
-        # The standard SAC agent needs a 2D input, so we need to flatten the time dimension
-        flatten_time_dim_processor = FlattenTimeDimNumpy(allow_2d=True, batch_dim_included=False)
-        obsprocessors = (obsprocessors or []) + [flatten_time_dim_processor]
+        #### To set in the subclass:
+        # potential pre-processor
+        # input shapes for actor and critic, output shape for actor
+        # actor and critic network classes
+        # actor and critic network parameters
 
         use_cuda = self.set_device(device)
 
-        hidden_layers = hidden_layers or [64, 64]
         self.warmup_training_steps = initial_replay_size
 
         OptimizerClass=self.get_optimizer_class(optimizer)
         learning_rate_critic = learning_rate_critic or learning_rate_actor
         lossfunction = self.get_loss_function(loss)
 
-        actor_input_shape = self.get_input_shape(environment_info.observation_space)
-        actor_output_shape = environment_info.action_space.shape
-        critic_input_shape = (actor_input_shape[0] + actor_output_shape[0],) # check how this works when RNN and mixed agents are used
-
-        actor_mu_params = dict(network=MLPActor,
-                                    input_shape=actor_input_shape,
-                                    output_shape=actor_output_shape,
-
-                                    hidden_layers=hidden_layers,
-                                    activation=activation,
+        actor_mu_params = dict(
                                     drop_prob=drop_prob,
                                     batch_norm=batch_norm,
                                     init_method=init_method,
 
                                     use_cuda=use_cuda,
                                     dropout=self.dropout
-                                    )
+        )
 
-        actor_sigma_params = dict(network=MLPActor,
-                                    input_shape= actor_input_shape,
-                                    output_shape=actor_output_shape,
-
-                                    hidden_layers=hidden_layers,
-                                    activation=activation,
+        actor_sigma_params = dict(
                                     drop_prob=drop_prob,
                                     batch_norm=batch_norm,
                                     init_method=init_method,
 
                                     use_cuda=use_cuda,
-                                    dropout=self.dropout 
-                                    )
-        
+                                    dropout=self.dropout
+        )
+
+        actor_mu_params = merge_dictionaries(actor_mu_params, network_actor_mu_params)
+        actor_sigma_params = merge_dictionaries(actor_sigma_params, network_actor_sigma_params)
+
         actor_optimizer = {'class': OptimizerClass,
             'params': {'lr': learning_rate_actor}} 
 
-        critic_params = dict(network=MLPStateAction,
-                optimizer={'class': OptimizerClass,
-                        'params': {'lr': learning_rate_critic}}, 
-                loss=lossfunction,
-                input_shape=critic_input_shape,
-                output_shape=(1,),
+        critic_optimizer = {'class': OptimizerClass,
+            'params': {'lr': learning_rate_critic}}
 
-                hidden_layers=hidden_layers,
-                activation=activation,
-                drop_prob=drop_prob,
-                batch_norm=batch_norm,
-                init_method=init_method,
+        critic_params = dict(
+                                optimizer = critic_optimizer,
+                                loss=lossfunction,
+                                drop_prob=drop_prob,
+                                batch_norm=batch_norm,
+                                init_method=init_method,
 
-                use_cuda=use_cuda,
-                dropout=self.dropout,)
+                                use_cuda=use_cuda,
+                                dropout=self.dropout,)
+                            
+        critic_params = merge_dictionaries(critic_params, network_critic_params)
 
         self.agent = SAC(
             mdp_info=environment_info,
@@ -159,12 +155,12 @@ class SACBaseAgent(MushroomBaseAgent):
 
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.actor, input_size=actor_input_shape)
+            summary(self.actor, input_size=actor_mu_params["input_shape"])
             time.sleep(.2)
 
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.critic, input_size=[actor_input_shape, actor_output_shape])
+            summary(self.critic, input_size=critic_params["input_shape"])
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions
@@ -203,7 +199,7 @@ class SACBaseAgent(MushroomBaseAgent):
         return action
 
 # %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 5
-class SACAgent(MushroomBaseAgent):
+class SACAgent(SACBaseAgent):
 
     """
     XXX
@@ -214,13 +210,14 @@ class SACAgent(MushroomBaseAgent):
     def __init__(self, 
                 environment_info: MDPInfo,
 
+                hidden_layers: List = None, # if None, then default is [64, 64]
+                activation: str = "relu", # "relu", "sigmoid", "tanh", "leakyrelu", "elu"
+
                 learning_rate_actor: float = 3e-4,
                 learning_rate_critic: float | None = None, # If none, then it is set to learning_rate_actor
                 initial_replay_size: int = 64,
                 max_replay_size: int = 50000,
                 batch_size: int = 64,
-                hidden_layers: List = None, # if None, then default is [64, 64]
-                activation: str = "relu", # "relu", "sigmoid", "tanh", "leakyrelu", "elu"
                 warmup_transitions: int = 100,
                 lr_alpha: float = 3e-4,
                 tau: float = 0.005,
@@ -244,133 +241,73 @@ class SACAgent(MushroomBaseAgent):
         flatten_time_dim_processor = FlattenTimeDimNumpy(allow_2d=True, batch_dim_included=False)
         obsprocessors = (obsprocessors or []) + [flatten_time_dim_processor]
 
-        use_cuda = self.set_device(device)
+        # determine shapes
+        actor_input_shape = self.get_input_shape(environment_info.observation_space) # Note: This can be a list or tuple
+        actor_output_shape = environment_info.action_space.shape # Note: This can be a list or tuple
+        critic_input_shape = [actor_input_shape, actor_output_shape,] # Note: This can be a list or tuple
 
+        # Set networks (use classes, not instances)
+        actor_mu_network = MLPActor
+        actor_sigma_network = MLPActor
+        critic_network = MLPStateAction
+
+        # Set default for network architecture
         hidden_layers = hidden_layers or [64, 64]
-        self.warmup_training_steps = initial_replay_size
 
-        OptimizerClass=self.get_optimizer_class(optimizer)
-        learning_rate_critic = learning_rate_critic or learning_rate_actor
-        lossfunction = self.get_loss_function(loss)
-
-        actor_input_shape = self.get_input_shape(environment_info.observation_space)
-        actor_output_shape = environment_info.action_space.shape
-        critic_input_shape = (actor_input_shape[0] + actor_output_shape[0],) # check how this works when RNN and mixed agents are used
-
-        actor_mu_params = dict(network=MLPActor,
+        # Set network parameters
+        network_actor_mu_params = dict(
+                                    network = MLPActor,
                                     input_shape=actor_input_shape,
                                     output_shape=actor_output_shape,
-
                                     hidden_layers=hidden_layers,
                                     activation=activation,
-                                    drop_prob=drop_prob,
-                                    batch_norm=batch_norm,
-                                    init_method=init_method,
+        )
 
-                                    use_cuda=use_cuda,
-                                    dropout=self.dropout
-                                    )
-
-        actor_sigma_params = dict(network=MLPActor,
-                                    input_shape= actor_input_shape,
+        network_actor_sigma_params = dict(
+                                    network = MLPActor,
+                                    input_shape=actor_input_shape,
                                     output_shape=actor_output_shape,
-
                                     hidden_layers=hidden_layers,
                                     activation=activation,
-                                    drop_prob=drop_prob,
-                                    batch_norm=batch_norm,
-                                    init_method=init_method,
+        )
 
-                                    use_cuda=use_cuda,
-                                    dropout=self.dropout 
-                                    )
-        
-        actor_optimizer = {'class': OptimizerClass,
-            'params': {'lr': learning_rate_actor}} 
-
-        critic_params = dict(network=MLPStateAction,
-                optimizer={'class': OptimizerClass,
-                        'params': {'lr': learning_rate_critic}}, 
-                loss=lossfunction,
-                input_shape=critic_input_shape,
-                output_shape=(1,),
-
-                hidden_layers=hidden_layers,
-                activation=activation,
-                drop_prob=drop_prob,
-                batch_norm=batch_norm,
-                init_method=init_method,
-
-                use_cuda=use_cuda,
-                dropout=self.dropout,)
-
-        self.agent = SAC(
-            mdp_info=environment_info,
-            actor_mu_params=actor_mu_params,
-            actor_sigma_params=actor_sigma_params,
-            actor_optimizer=actor_optimizer,
-            critic_params=critic_params,
-            batch_size=batch_size,
-            initial_replay_size=initial_replay_size,
-            max_replay_size=max_replay_size,
-            warmup_transitions=warmup_transitions,
-            tau=tau,
-            lr_alpha=lr_alpha,
-            use_log_alpha_loss=use_log_alpha_loss,
-            log_std_min=log_std_min,
-            log_std_max=log_std_max,
-            target_entropy=target_entropy,
-            critic_fit_params=None
+        network_critic_params = dict(
+                                    network = MLPStateAction,
+                                    input_shape=critic_input_shape,
+                                    output_shape=(1,),
+                                    hidden_layers=hidden_layers,
+                                    activation=activation,
         )
 
         super().__init__(
             environment_info=environment_info,
+
+            learning_rate_actor=learning_rate_actor,
+            learning_rate_critic=learning_rate_critic,
+            initial_replay_size=initial_replay_size,
+            max_replay_size=max_replay_size,
+            batch_size=batch_size,
+            warmup_transitions=warmup_transitions,
+            lr_alpha=lr_alpha,
+            tau=tau,
+            log_std_min=log_std_min,
+            log_std_max=log_std_max,
+            use_log_alpha_loss=use_log_alpha_loss,
+            target_entropy=target_entropy,
+
+            drop_prob=drop_prob,
+            batch_norm=batch_norm,
+            init_method=init_method,
+
+            optimizer=optimizer,
+            loss=loss,
             obsprocessors=obsprocessors,
             device=device,
-            agent_name=agent_name
+            agent_name=agent_name,
+
+            network_actor_mu_params=network_actor_mu_params,
+            network_actor_sigma_params=network_actor_sigma_params,
+            network_critic_params=network_critic_params,
         )
-
-        logging.info("Actor network (mu network):")
-        if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.actor, input_size=actor_input_shape)
-            time.sleep(.2)
-
-        logging.info("Critic network:")
-        if logging.getLogger().isEnabledFor(logging.INFO):
-            summary(self.critic, input_size=[actor_input_shape, actor_output_shape])
-
-    def get_network_list(self, set_actor_critic_attributes: bool = True):
-        """ Get the list of networks in the agent for the save and load functions
-        Get the actor for the predict function in eval mode """
-
-        networks = []
-        ensemble_critic = self.agent._critic_approximator._impl.model
-        for i, model in enumerate(ensemble_critic):
-            networks.append(model.network)
-        networks.append(self.agent.policy._mu_approximator._impl.model.network)
-        networks.append(self.agent.policy._sigma_approximator._impl.model.network)
-
-        actor = self.agent.policy._mu_approximator._impl.model.network
-        critic = ensemble_critic[0].network
-
-        if set_actor_critic_attributes:
-            return networks, actor, critic
-        else:
-            return networks
-
-    def predict_(self, observation: np.ndarray) -> np.ndarray: #
-        """ Do one forward pass of the model directly and return the prediction.
-        Apply tanh as implemented for the SAC actor in mushroom_rl"""
-
-        # make observation torch tensor
-
-        observation = torch.tensor(observation, dtype=torch.float32).to(self.device)
-        action = self.actor.forward(observation)
-        # print("a before tanh: ", action)
-        action = torch.tanh(action)
-        # print("a after tanh: ", action)
-        action = action * self.agent.policy._delta_a + self.agent.policy._central_a
-        # print("a after scaling: ", action)
-        action = action.cpu().detach().numpy()
-
-        return action
+        
+       
