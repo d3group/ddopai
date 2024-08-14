@@ -93,7 +93,11 @@ class BaseEnvironment(gym.Env, ABC):
 
         # set the parameter
         if new:
+            if hasattr(self, name):
+                logging.warning(f"Parameter {name} already exists in this environment. Overwriting it.")
             setattr(self, name, param)
+
+            
         else:
             # check if parameter already exists
             if not hasattr(self, name):

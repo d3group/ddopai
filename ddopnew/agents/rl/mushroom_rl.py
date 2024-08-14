@@ -137,14 +137,11 @@ class MushroomBaseAgent(BaseAgent):
     def train(self):
         """set the internal state of the agent and its model to train"""
         self.mode = "train"
-        
-        pass
 
     def eval(self):
         """set the internal state of the agent and its model to eval"""
         self.mode = "eval"
-        
-        pass
+    
 
     def to(self, device: str): #
         """Move the model to the specified device"""
@@ -257,7 +254,7 @@ class MushroomBaseAgent(BaseAgent):
         if flatten_time_dim:
             input_shape = (np.prod(observation_space_shape),)
         else:
-            input_shape = input_shape
+            input_shape = observation_space_shape
 
         return input_shape
 

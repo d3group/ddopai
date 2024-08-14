@@ -289,8 +289,6 @@ def run_experiment( agent: BaseAgent,
     logging.info("Starting experiment")
 
     env.reset()
-    env.train()
-    agent.train()
 
     # initial evaluation
     env.val()
