@@ -156,14 +156,14 @@ class SACBaseAgent(MushroomBaseAgent):
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
             input_size = self.add_batch_dimension_for_shape(actor_mu_params["input_shape"])
-            print(summary(self.actor, input_size=input_size))
+            print(summary(self.actor, input_size=input_size, device=self.device))
             time.sleep(0.2)
 
         logging.info("################################################################################")
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
             input_size = self.add_batch_dimension_for_shape(critic_params["input_shape"])
-            print(summary(self.critic, input_size=input_size))
+            print(summary(self.critic, input_size=input_size, device=self.device))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions
