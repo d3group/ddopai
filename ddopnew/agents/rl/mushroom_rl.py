@@ -128,7 +128,8 @@ class MushroomBaseAgent(BaseAgent):
         """ Do one forward pass of the model directly and return the prediction
         Overwrite for agents that have additional steps such as SAC"""
 
-        observation = torch.tensor(observation, dtype=torch.float32).to(self.device)
+        device = next(self.actor.parameters()).device
+        observation = torch.tensor(observation, dtype=torch.float32).to(device)
         action = self.actor.forward(observation)
         action = action.cpu().detach().numpy()
 
