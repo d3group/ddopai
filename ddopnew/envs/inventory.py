@@ -92,7 +92,7 @@ class BaseInventoryEnv(BaseEnvironment):
         """
         
         X_item, Y_item = self.dataloader[self.index]
-        
+
         return X_item, Y_item
 
 # %% ../../nbs/21_envs_inventory/10_single_period_envs.ipynb 9
@@ -200,6 +200,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         
             return dummy_state, reward, terminated, truncated, info
         else:
+
             observation, self.demand = self.get_observation()
 
             if self.print:

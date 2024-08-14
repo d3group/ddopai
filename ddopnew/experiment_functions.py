@@ -359,8 +359,10 @@ def run_experiment( agent: BaseAgent,
 
         logging.info("Starting training with env_interaction")
 
-
         core = Core(agent, env)
+
+        agent.train()
+        env.train()
 
         if hasattr(agent, "warmup_training_steps"):
             warmup_training = True
@@ -373,12 +375,15 @@ def run_experiment( agent: BaseAgent,
         else:
             n_steps_per_fit = 1
 
+        print(f"n_steps_per_fit: {n_steps_per_fit}")
+
         if warmup_training:
             env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
             core.learn(n_steps=warmup_training_steps, n_steps_per_fit=warmup_training_steps, quiet=True)
         
         for epoch in trange(n_epochs):
 
+            print("learning with n_steps_per_fit: ", n_steps_per_fit, "for", n_steps, "steps")
             env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
             core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, quiet=True)
             env.set_return_truncation(True) # Set back to standard gynmasium behavior
