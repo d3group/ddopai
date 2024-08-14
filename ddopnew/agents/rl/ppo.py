@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['PPOAgent']
 
-# %% ../../../nbs/51_RL_agents/10_PPO_agents.ipynb 3
+# %% ../../../nbs/51_RL_agents/10_PPO_agents.ipynb 4
 import logging
 
 # set logging level to INFO
@@ -33,7 +33,7 @@ from torchinfo import summary
 
 import time
 
-# %% ../../../nbs/51_RL_agents/10_PPO_agents.ipynb 4
+# %% ../../../nbs/51_RL_agents/10_PPO_agents.ipynb 5
 class PPOAgent(MushroomBaseAgent):
 
     """

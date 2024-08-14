@@ -315,8 +315,8 @@ def run_experiment( agent: BaseAgent,
         R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
         best_R, best_J = update_best(R, J, best_R, best_J)
 
-        print("results")
-        print(R, J, best_R, best_J)
+        logging.info(f"Evaluation after training: R={R}, J={J}")
+
         save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
 
         log_info(R, J, n_epochs-1, tracking, "val")
@@ -373,15 +373,12 @@ def run_experiment( agent: BaseAgent,
         else:
             n_steps_per_fit = 1
 
-        print(f"n_steps_per_fit: {n_steps_per_fit}")
-
         if warmup_training:
             env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
             core.learn(n_steps=warmup_training_steps, n_steps_per_fit=warmup_training_steps, quiet=True)
         
         for epoch in trange(n_epochs):
 
-            print("learning with n_steps_per_fit: ", n_steps_per_fit, "for", n_steps, "steps")
             env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
             core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, quiet=True)
             env.set_return_truncation(True) # Set back to standard gynmasium behavior
