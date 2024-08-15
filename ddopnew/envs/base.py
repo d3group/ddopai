@@ -219,6 +219,34 @@ class BaseEnvironment(gym.Env, ABC):
         
         return truncated
 
+    def get_start_index(self,
+        start_index: int | str = None, # index to start from
+        ) -> int:
+        
+        """ Determine if the start index is random or 0,
+        depending on the state of the environment and training
+        process (over entire train set or in shorter episodes) """
+
+        if start_index is None:
+            if self._mode == "train":
+                if self.horizon_train == "use_all_data":
+                    start_index = 0
+                elif hasattr(self.dataloader, "is_distribution") and self.dataloader.is_distribution:
+                    start_index = 0
+                else:
+                    start_index = "random"
+            elif self._mode == "val":
+                start_index = 0
+            elif self._mode == "test":
+                start_index = 0
+            else:
+                raise ValueError("Mode not recognized.")
+            
+        else:
+            start_index = start_index
+        
+        return start_index
+
     def reset_index(self,
         start_index: Union[int,str]):
 
@@ -228,6 +256,8 @@ class BaseEnvironment(gym.Env, ABC):
         the index is set to a random integer between 0 and the length of the training data.
 
         """
+
+        start_index = self.get_start_index(start_index)
  
         if start_index=="random":
             if self.mode == "train":
@@ -333,7 +363,7 @@ class BaseEnvironment(gym.Env, ABC):
         """
         Set the return_truncation attribute of the environment.
         """
-        
+
         self.return_truncation = return_truncation
 
     def stop(self):
