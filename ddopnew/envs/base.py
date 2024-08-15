@@ -329,10 +329,11 @@ class BaseEnvironment(gym.Env, ABC):
         self.reset()
 
     def set_return_truncation(self, return_truncation: bool): # whether or not to return the truncated condition in the step function
+        
         """
         Set the return_truncation attribute of the environment.
-
         """
+        
         self.return_truncation = return_truncation
 
     def stop(self):
