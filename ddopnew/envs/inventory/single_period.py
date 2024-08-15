@@ -127,21 +127,6 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         on the paramter "horizon_train" whether a random point in the training data is selected or 0
         """
 
-        if start_index is None:
-            if self._mode == "train":
-                if self.horizon_train == "use_all_data":
-                    start_index = 0
-                elif hasattr(self.dataloader, "is_distribution") and self.dataloader.is_distribution:
-                    start_index = 0
-                else:
-                    start_index = "random"
-            elif self._mode == "val":
-                start_index = 0
-            elif self._mode == "test":
-                start_index = 0
-            else:
-                raise ValueError("Mode not recognized.")
-
         truncated = self.reset_index(start_index)
 
         observation, self.demand = self.get_observation()

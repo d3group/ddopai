@@ -96,3 +96,20 @@ class BaseInventoryEnv(BaseEnvironment):
         X_item, Y_item = self.dataloader[self.index]
 
         return X_item, Y_item
+    
+    def reset(self,
+        start_index: int | str = None, # index to start from
+        state: np.ndarray = None # initial state
+        ) -> Tuple[np.ndarray, bool]:
+
+        """
+        Reset function for the Newsvendor problem. It will return the first observation and demand.
+        For val and test modes, it will by default reset to 0, while for the train mode it depends
+        on the paramter "horizon_train" whether a random point in the training data is selected or 0
+        """
+
+        truncated = self.reset_index(start_index)
+
+        observation, self.demand = self.get_observation()
+        
+        return observation
