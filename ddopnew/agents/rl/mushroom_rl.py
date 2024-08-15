@@ -128,7 +128,8 @@ class MushroomBaseAgent(BaseAgent):
         """ Do one forward pass of the model directly and return the prediction
         Overwrite for agents that have additional steps such as SAC"""
 
-        observation = torch.tensor(observation, dtype=torch.float32).to(self.device)
+        device = next(self.actor.parameters()).device
+        observation = torch.tensor(observation, dtype=torch.float32).to(device)
         action = self.actor.forward(observation)
         action = action.cpu().detach().numpy()
 
@@ -137,12 +138,15 @@ class MushroomBaseAgent(BaseAgent):
     def train(self):
         """set the internal state of the agent and its model to train"""
         self.mode = "train"
+        for network in self.network_list:
+            network.train()
 
     def eval(self):
         """set the internal state of the agent and its model to eval"""
         self.mode = "eval"
+        for network in self.network_list:
+            network.eval()
     
-
     def to(self, device: str): #
         """Move the model to the specified device"""
 

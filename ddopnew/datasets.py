@@ -14,7 +14,7 @@ import pandas as pd
 import zipfile
 
 
-# %% ../nbs/80_datasets/datasets.ipynb 7
+# %% ../nbs/80_datasets/datasets.ipynb 6
 def get_all_release_tags(token=None):
     url = "https://api.github.com/repos/opimwue/ddopnew/releases"
     headers = {'Authorization': f'Bearer {token}'} if token else {}
@@ -89,21 +89,24 @@ def unzip_file(zip_file_path, output_dir, delete_zip_file=True):
         os.remove(zip_file_path)
 
 def load_data_from_directory(dir):
-    data = list()
+    data = dict()
     for file in os.listdir(dir):
         if file.endswith(".csv"):
-            data.append(pd.read_csv(os.path.join(dir, file)))
+            key = os.path.splitext(file)[0]
+            data[key] = pd.read_csv(os.path.join(dir, file))
         elif file.endswith(".pkl"):
-            data.append(pd.read_pickle(os.path.join(dir, file)))
+            key = os.path.splitext(file)[0]
+            data[key] = pd.read_pickle(os.path.join(dir, file))
         elif file.endswith(".npy"):
-            data.append(np.load(os.path.join(dir, file)))
+            key = os.path.splitext(file)[0]
+            data[key] = np.load(os.path.join(dir, file))
         else:
             raise ValueError(f"File {file} is not a valid file type (csv, pkl, or npy)")
     
     return data
 
 
-# %% ../nbs/80_datasets/datasets.ipynb 9
+# %% ../nbs/80_datasets/datasets.ipynb 8
 class DatasetLoader():
 
     """
