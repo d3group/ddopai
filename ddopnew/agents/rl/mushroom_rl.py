@@ -138,12 +138,15 @@ class MushroomBaseAgent(BaseAgent):
     def train(self):
         """set the internal state of the agent and its model to train"""
         self.mode = "train"
+        for network in self.network_list:
+            network.train()
 
     def eval(self):
         """set the internal state of the agent and its model to eval"""
         self.mode = "eval"
+        for network in self.network_list:
+            network.eval()
     
-
     def to(self, device: str): #
         """Move the model to the specified device"""
 
