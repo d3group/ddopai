@@ -5,7 +5,7 @@ __all__ = ['BaseInventoryEnv']
 
 # %% ../../../nbs/21_envs_inventory/10_base_inventory_env.ipynb 3
 from abc import ABC, abstractmethod
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 
 from ..base import BaseEnvironment
 from ...utils import Parameter, MDPInfo

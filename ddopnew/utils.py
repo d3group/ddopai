@@ -9,6 +9,8 @@ from typing import Union, List, Tuple, Literal
 from gymnasium.spaces import Space
 from .dataloaders.base import BaseDataLoader
 
+import logging
+
 import numpy as np
 
 # %% ../nbs/00_utils/00_utils.ipynb 4
@@ -214,7 +216,7 @@ def merge_dictionaries(dict1, dict2):
 # %% ../nbs/00_utils/00_utils.ipynb 26
 def set_param(obj,
                 name: str, # name of the parameter (will become the attribute name)
-                input: Parameter | float | np.ndarray, # input value of the parameter
+                input: Parameter | int | float | np.ndarray | List | None , # input value of the parameter
                 shape: tuple = (1,), # shape of the parameter
                 new: bool = False, # whether to create a new parameter or update an existing one
                 ): 
@@ -224,10 +226,15 @@ def set_param(obj,
         the function will create a new parameter or update an existing one otherwise. If new is set to
         False, the function will raise an error if the parameter does not exist.
     """
-    if isinstance(input, Parameter):
+
+    if input is None:
+        param = None
+        
+    elif isinstance(input, Parameter):
         if input.shape != shape:
             raise ValueError("Parameter shape must be equal to the shape specified for this environment parameter")
         param = input
+    
     
     elif isinstance(input, (int, float)):
         param = np.full(shape, input)
