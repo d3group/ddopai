@@ -30,9 +30,6 @@ class BaseEnvironment(gym.Env, ABC):
 
         super().__init__()
 
-        self.start_index = 0
-        self.max_index = 0 # will be automatically overwritten by the reset_index function
-
         self.return_truncation = return_truncation
 
         self._mode = mode
@@ -207,6 +204,7 @@ class BaseEnvironment(gym.Env, ABC):
         pass
     
     def set_index(self, index=None):
+        
         """
         Handle the index of the environment.
 
@@ -216,10 +214,8 @@ class BaseEnvironment(gym.Env, ABC):
             self.index = index
         else:
             self.index += 1
-
-        max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
         
-        truncated = True if self.index >= max_index_episode else False
+        truncated = True if self.index >= self.max_index_episode else False
         
         return truncated
 
@@ -239,18 +235,19 @@ class BaseEnvironment(gym.Env, ABC):
                     random_index = np.random.choice(self.dataloader.len_train-self.mdp_info.horizon)
                 else:
                     random_index = 0
-                self.start_index = random_index
-                truncated = self.set_index(random_index) # assuming we only start randomly during training. 
+                self.start_index = random_index 
             else:
                 raise ValueError("start_index cannot be 'random' in val or test mode")
         elif isinstance(start_index, int):
             self.start_index = start_index
-            truncated = self.set_index(start_index)
-            
         else:
             raise ValueError("start_index must be an integer or 'random'")
 
         self.max_index = self.dataloader.len_train if self.mode == "train" else self.dataloader.len_val if self.mode == "val" else self.dataloader.len_test
+        # self.max_index -= 1
+        self.max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
+    
+        truncated = self.set_index(self.start_index) # assuming we only start randomly during training.
         
         return truncated
 
