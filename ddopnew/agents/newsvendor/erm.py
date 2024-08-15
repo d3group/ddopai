@@ -52,7 +52,7 @@ class SGDBaseAgent(BaseAgent):
         dataloader_params = dataloader_params or {"batch_size": 32, "shuffle": True}
         self.torch_obsprocessors = torch_obsprocessors or []
 
-        self.device = device
+        self.device = self.set_device(device)
         
         self.set_dataloader(dataloader, dataloader_params)
         self.set_model(input_shape, output_shape)
@@ -61,6 +61,24 @@ class SGDBaseAgent(BaseAgent):
         self.set_learning_rate_scheduler(learning_rate_scheduler)
 
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
+
+        self.to(self.device)
+
+    def set_device(self, device: str):
+
+        """ Set the device for the model """
+
+        if device == "cuda":
+            if torch.cuda.is_available():
+                return "cuda"
+            else:
+                logging.warning("CUDA is not available. Using CPU instead.")
+                return "cpu"
+        elif device == "cpu":
+            return "cpu"
+        else:
+            raise ValueError(f"Device {device} not currently not supported, use 'cuda' or 'cpu'")
+
 
     def set_dataloader(self,
                         dataloader: BaseDataLoader,

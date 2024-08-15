@@ -380,6 +380,7 @@ def run_experiment( agent: BaseAgent,
         for epoch in trange(n_epochs):
 
             env.set_return_truncation(False) # For mushroom Core to work, the step function should not return the truncation flag
+            agent.train()
             core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, quiet=True)
             env.set_return_truncation(True) # Set back to standard gynmasium behavior
 
