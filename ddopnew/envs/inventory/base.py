@@ -25,13 +25,27 @@ class BaseInventoryEnv(BaseEnvironment):
     """
 
     def __init__(self, 
+
+        ## Parameters for Base env:
         mdp_info: MDPInfo, #
         postprocessors: list[object] | None = None,  # default is empty list
         mode: str = "train", # Initial mode (train, val, test) of the environment
-        return_truncation: str = True # whether to return a truncated condition in step function
+        return_truncation: str = True, # whether to return a truncated condition in step function
+        dataloader: BaseDataLoader = None, # dataloader for the environment
+        horizon_train: int = 100, # horizon for training mode
+        
+        # Parameters common in all inventory environments
+        underage_cost: Union[np.ndarray, Parameter, int, float] = 1, # underage cost per unit
+        overage_cost: Union[np.ndarray, Parameter, int, float] = 0, # overage cost per unit (zero in most cases)
+
         ) -> None:
 
-        super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation)
+        self.dataloader = dataloader
+        
+        self.set_param("underage_cost", underage_cost, shape=(self.num_SKUs[0],), new=True)
+        self.set_param("overage_cost", overage_cost, shape=(self.num_SKUs[0],), new=True)
+
+        super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation, horizon_train=horizon_train)
     
     def set_observation_space(self,
                             shape: tuple, # shape of the dataloader features

@@ -9,8 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Union
 import numpy as np
 
-from ..utils import MDPInfo
-from ..utils import Parameter
+from ..utils import MDPInfo, Parameter, set_param
 import time
 
 # %% ../../nbs/20_base_env/10_base_env.ipynb 4
@@ -25,10 +24,13 @@ class BaseEnvironment(gym.Env, ABC):
                     mdp_info: MDPInfo, # MDPInfo object to ensure compatibility with the agents
                     postprocessors: list[object] | None = None,  # default is empty list
                     mode: str = "train", # Initial mode (train, val, test) of the environment
-                    return_truncation: str = True # whether to return a truncated condition in step function
+                    return_truncation: str = True, # whether to return a truncated condition in step function
+                    horizon_train: int | str = "use_all_data" # horizon of the training data
                     ) -> None: #
 
         super().__init__()
+
+        self.horizon_train = horizon_train
 
         self.return_truncation = return_truncation
 
@@ -60,47 +62,7 @@ class BaseEnvironment(gym.Env, ABC):
         False, the function will raise an error if the parameter does not exist.
         """
 
-        # check if input is a valid type
-        if isinstance(input, Parameter):
-            if input.shape != shape:
-                raise ValueError("Parameter shape must be equal to the shape specified for this environment parameter")
-            param = input
-        
-        elif isinstance(input, (int, float)):
-            param = np.full(shape, input)
-
-        elif isinstance(input, list):
-            input = np.array(input)
-            if input.shape == shape:
-                param = input
-            elif input.size == 1:  # Handle single-element arrays correctly
-                param = np.full(shape, input.item())
-            else:
-                raise ValueError("Input array must match the specified shape or be a single-element array")
-
-        elif isinstance(input, np.ndarray):
-            if input.shape == shape:
-                param = input
-            elif input.size == 1:  # Handle single-element arrays correctly
-                param = np.full(shape, input.item())
-            else:
-                raise ValueError("Input array must match the specified shape or be a single-element array")
-        else:
-            raise TypeError("Input must be a Parameter, scalar, or numpy array")
-
-        # set the parameter
-        if new:
-            if hasattr(self, name):
-                logging.warning(f"Parameter {name} already exists in this environment. Overwriting it.")
-            setattr(self, name, param)
-
-            
-        else:
-            # check if parameter already exists
-            if not hasattr(self, name):
-                raise AttributeError(f"Parameter {name} does not exist in this environment")
-            else:
-                getattr(self, name).set(param)
+        set_param(self, name, input, shape, new)
 
     def return_truncation_handler(self, observation, reward, terminated, truncated, info):
         """ 
