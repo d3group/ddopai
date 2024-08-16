@@ -226,7 +226,7 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
         logging.debug("truncated: %s", truncated)
 
         sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
-
+        
         obs = next_obs
         
         dataset.append((sample, info))
