@@ -23,6 +23,7 @@ class BaseInventoryEnv(BaseEnvironment):
     Base class for inventory management environments. This class inherits from BaseEnvironment.
     
     """
+
     def __init__(self, 
         mdp_info: MDPInfo, #
         postprocessors: list[object] | None = None,  # default is empty list
@@ -67,12 +68,12 @@ class BaseInventoryEnv(BaseEnvironment):
                             high: Union[np.ndarray, float] = np.inf, # upper bound of the observation space
                             samples_dim_included = True # whether the first dimension of the shape input is the number of samples
                             ) -> None:
+        
         '''
         Set the action space of the environment.
         This is a standard function for simple action spaces. For more complex action spaces,
         this function should be overwritten. Note that it is assumped that the first dimension
         is n_samples that is not relevant for the action space.
-
         '''
 
         if not isinstance(shape, tuple):
@@ -90,6 +91,7 @@ class BaseInventoryEnv(BaseEnvironment):
         is only an x,y pair. For more complex observations, this function should be overwritten.
 
         """
+
         
         X_item, Y_item = self.dataloader[self.index]
 
@@ -177,28 +179,36 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         if truncated:
             # No next observation when the episode terminates.
 
-            if self.observation_space is None:
-                dummy_state = None
-            else:
+            # # if self.observation_space is None:
+            # #     dummy_state = None
+            # # else:
 
-                if self.mode == "train":
-                    max_index = self.dataloader.len_train
-                elif self.mode == "val":
-                    max_index = self.dataloader.len_val
-                elif self.mode == "test":
-                    max_index = self.dataloader.len_test
-                else:  
-                    raise ValueError("Mode not recognized.")
+            # #     if self.mode == "train":
+            # #         max_index = self.dataloader.len_train
+            # #     elif self.mode == "val":
+            # #         max_index = self.dataloader.len_val
+            # #     elif self.mode == "test":
+            # #         max_index = self.dataloader.len_test
+            # #     else:  
+            # #         raise ValueError("Mode not recognized.")
             
-                max_index -= 1 # because the index is already out of bounds
+            # #     max_index -= 1 # because the index is already out of bounds
                 
-                if self.index <= max_index:
-                    dummy_state, _ = self.get_observation()
-                else:
-                    dummy_state = self.observation_space.sample()    
-                    dummy_state = np.zeros_like(dummy_state)
+            # #     if self.index <= max_index:
+            # #         dummy_state, _ = self.get_observation()
+            # #     else:
+            # #         dummy_state = self.observation_space.sample()    
+            # #         dummy_state = np.zeros_like(dummy_state)
         
-            return dummy_state, reward, terminated, truncated, info
+            # return dummy_state, reward, terminated, truncated, info
+            print("self.index:", self.index)
+            # observation, self.demand = self.get_observation()
+            # print("truncated observation:")
+            # print(observation)
+            observation = np.zeros_like(self.observation_space.sample()) if self.observation_space is not None else None
+            demand = np.zeros_like(self.action_space.sample())
+
+            return observation, reward, terminated, truncated, info
         else:
 
             observation, self.demand = self.get_observation()

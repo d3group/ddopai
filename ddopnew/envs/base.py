@@ -6,11 +6,10 @@ __all__ = ['BaseEnvironment']
 # %% ../../nbs/20_base_env/10_base_env.ipynb 3
 import gymnasium as gym
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, List
 import numpy as np
 
-from ..utils import MDPInfo
-from ..utils import Parameter
+from ..utils import MDPInfo, Parameter, set_param
 import time
 
 # %% ../../nbs/20_base_env/10_base_env.ipynb 4
@@ -25,13 +24,13 @@ class BaseEnvironment(gym.Env, ABC):
                     mdp_info: MDPInfo, # MDPInfo object to ensure compatibility with the agents
                     postprocessors: list[object] | None = None,  # default is empty list
                     mode: str = "train", # Initial mode (train, val, test) of the environment
-                    return_truncation: str = True # whether to return a truncated condition in step function
+                    return_truncation: str = True, # whether to return a truncated condition in step function
+                    horizon_train: int | str = "use_all_data" # horizon of the training data
                     ) -> None: #
 
         super().__init__()
 
-        self.start_index = 0
-        self.max_index = 0 # will be automatically overwritten by the reset_index function
+        self.horizon_train = horizon_train
 
         self.return_truncation = return_truncation
 
@@ -51,7 +50,7 @@ class BaseEnvironment(gym.Env, ABC):
 
     def set_param(self,
                         name: str, # name of the parameter (will become the attribute name)
-                        input: Parameter | float | np.ndarray, # input value of the parameter
+                        input: Parameter | int | float | np.ndarray | List | None, # input value of the parameter
                         shape: tuple = (1,), # shape of the parameter
                         new: bool = False # whether to create a new parameter or update an existing one
                         ) -> None: #
@@ -63,47 +62,7 @@ class BaseEnvironment(gym.Env, ABC):
         False, the function will raise an error if the parameter does not exist.
         """
 
-        # check if input is a valid type
-        if isinstance(input, Parameter):
-            if input.shape != shape:
-                raise ValueError("Parameter shape must be equal to the shape specified for this environment parameter")
-            param = input
-        
-        elif isinstance(input, (int, float)):
-            param = np.full(shape, input)
-
-        elif isinstance(input, list):
-            input = np.array(input)
-            if input.shape == shape:
-                param = input
-            elif input.size == 1:  # Handle single-element arrays correctly
-                param = np.full(shape, input.item())
-            else:
-                raise ValueError("Input array must match the specified shape or be a single-element array")
-
-        elif isinstance(input, np.ndarray):
-            if input.shape == shape:
-                param = input
-            elif input.size == 1:  # Handle single-element arrays correctly
-                param = np.full(shape, input.item())
-            else:
-                raise ValueError("Input array must match the specified shape or be a single-element array")
-        else:
-            raise TypeError("Input must be a Parameter, scalar, or numpy array")
-
-        # set the parameter
-        if new:
-            if hasattr(self, name):
-                logging.warning(f"Parameter {name} already exists in this environment. Overwriting it.")
-            setattr(self, name, param)
-
-            
-        else:
-            # check if parameter already exists
-            if not hasattr(self, name):
-                raise AttributeError(f"Parameter {name} does not exist in this environment")
-            else:
-                getattr(self, name).set(param)
+        set_param(self, name, input, shape, new)
 
     def return_truncation_handler(self, observation, reward, terminated, truncated, info):
         """ 
@@ -207,6 +166,7 @@ class BaseEnvironment(gym.Env, ABC):
         pass
     
     def set_index(self, index=None):
+        
         """
         Handle the index of the environment.
 
@@ -216,12 +176,38 @@ class BaseEnvironment(gym.Env, ABC):
             self.index = index
         else:
             self.index += 1
-
-        max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
         
-        truncated = True if self.index >= max_index_episode else False
+        truncated = True if self.index >= self.max_index_episode else False
         
         return truncated
+
+    def get_start_index(self,
+        start_index: int | str = None, # index to start from
+        ) -> int:
+        
+        """ Determine if the start index is random or 0,
+        depending on the state of the environment and training
+        process (over entire train set or in shorter episodes) """
+
+        if start_index is None:
+            if self._mode == "train":
+                if self.horizon_train == "use_all_data":
+                    start_index = 0
+                elif hasattr(self.dataloader, "is_distribution") and self.dataloader.is_distribution:
+                    start_index = 0
+                else:
+                    start_index = "random"
+            elif self._mode == "val":
+                start_index = 0
+            elif self._mode == "test":
+                start_index = 0
+            else:
+                raise ValueError("Mode not recognized.")
+            
+        else:
+            start_index = start_index
+        
+        return start_index
 
     def reset_index(self,
         start_index: Union[int,str]):
@@ -232,6 +218,8 @@ class BaseEnvironment(gym.Env, ABC):
         the index is set to a random integer between 0 and the length of the training data.
 
         """
+
+        start_index = self.get_start_index(start_index)
  
         if start_index=="random":
             if self.mode == "train":
@@ -239,18 +227,19 @@ class BaseEnvironment(gym.Env, ABC):
                     random_index = np.random.choice(self.dataloader.len_train-self.mdp_info.horizon)
                 else:
                     random_index = 0
-                self.start_index = random_index
-                truncated = self.set_index(random_index) # assuming we only start randomly during training. 
+                self.start_index = random_index 
             else:
                 raise ValueError("start_index cannot be 'random' in val or test mode")
         elif isinstance(start_index, int):
             self.start_index = start_index
-            truncated = self.set_index(start_index)
-            
         else:
             raise ValueError("start_index must be an integer or 'random'")
 
         self.max_index = self.dataloader.len_train if self.mode == "train" else self.dataloader.len_val if self.mode == "val" else self.dataloader.len_test
+        self.max_index -= 1
+        self.max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
+    
+        truncated = self.set_index(self.start_index) # assuming we only start randomly during training.
         
         return truncated
 
@@ -332,10 +321,11 @@ class BaseEnvironment(gym.Env, ABC):
         self.reset()
 
     def set_return_truncation(self, return_truncation: bool): # whether or not to return the truncated condition in the step function
+        
         """
         Set the return_truncation attribute of the environment.
-
         """
+
         self.return_truncation = return_truncation
 
     def stop(self):
