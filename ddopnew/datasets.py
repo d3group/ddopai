@@ -37,7 +37,7 @@ def get_release_tag(dataset_type, version, token=None):
     else:
         release_tag = f"{dataset_type}_{version}"
     
-    print(f"Filtered release tags: {release_tags_filtered}")
+    logging.debug(f"Filtered release tags: {release_tags_filtered}")
     return release_tag
 
 def get_dataset_url(dataset_type, dataset_number, release_tag, token=None):
