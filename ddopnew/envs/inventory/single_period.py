@@ -5,11 +5,11 @@ __all__ = ['NewsvendorEnv', 'NewsvendorEnvVariableSL']
 
 # %% ../../../nbs/21_envs_inventory/20_single_period_envs.ipynb 3
 from abc import ABC, abstractmethod
-from typing import Union, Tuple
+from typing import Union, Tuple, Literal
 
 from ...utils import Parameter, MDPInfo
 from ...dataloaders.base import BaseDataLoader
-from ...loss_functions import pinball_loss
+from ...loss_functions import pinball_loss, quantile_loss
 from .base import BaseInventoryEnv
 
 import gymnasium as gym
@@ -82,7 +82,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)  # Remove the first dimension
 
-        cost_per_SKU = pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
+        cost_per_SKU = self.determine_cost(action)
         reward = -np.sum(cost_per_SKU) # negative because we want to minimize the cost
 
         terminated = False # in this problem there is no termination condition
@@ -103,7 +103,6 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
             observation, self.demand = self.get_observation()
 
-
             return observation, reward, terminated, truncated, info
         
         else:
@@ -118,9 +117,24 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
             return observation, reward, terminated, truncated, info
 
+    def determine_cost(self, action: np.ndarray) -> np.ndarray:
+        """
+        Determine the cost per SKU given the action taken. The cost is the sum of underage and overage costs.
+        """
+        # Compute the cost per SKU
+        return pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
+
 # %% ../../../nbs/21_envs_inventory/20_single_period_envs.ipynb 13
 class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
     def __init__(self,
+
+        # Additional parameters:
+        sl_bound_low: Union[np.ndarray, Parameter, int, float] = 0.1, # lower bound of the service level during training
+        sl_bound_high: Union[np.ndarray, Parameter, int, float] = 0.9, # upper bound of the service level during training
+        sl_distribution: Literal["fixed", "uniform"] = "fixed", # distribution of the random service level during training, if fixed then the service level is fixed to sl_test_val
+        evaluation_metric: Literal["pinball_loss", "quantile_loss"] = "quantile_loss", # quantile loss is the generic quantile loss (independent of cost levels) while pinball loss uses the specific under- and overage costs
+        sl_test_val: Union[np.ndarray, Parameter, int, float] = None, # service level during test and validation, alternatively use cu and co
+
         underage_cost: Union[np.ndarray, Parameter, int, float] = 1, # underage cost per unit
         overage_cost: Union[np.ndarray, Parameter, int, float] = 1, # overage cost per unit
         q_bound_low: Union[np.ndarray, Parameter, int, float] = 0, # lower bound of the order quantity
@@ -134,6 +148,13 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         return_truncation: str = True # whether to return a truncated condition in step function
     ) -> None:
 
+        self.set_param("sl_bound_low", sl_bound_low, shape=(1,), new=True)
+        self.set_param("sl_bound_high", sl_bound_high, shape=(1,), new=True)
+        self.evaluation_metric = evaluation_metric
+        self.check_evaluation_metric
+        self.sl_distribution = sl_distribution
+        self.check_sl_distribution
+
         super.__init__(underage_cost=underage_cost,
                         overage_cost=overage_cost,
                         q_bound_low=q_bound_low,
@@ -145,3 +166,102 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
                         postprocessors=postprocessors,
                         mode=mode,
                         return_truncation=return_truncation)
+
+        if sl_test_val is not None:
+            if self.underage_cost is None and self.overage_cost is None:
+                self.set_param("sl", sl_test_val, shape=(num_SKUs[0],), new=True)
+            else:
+                raise ValueError("sl_test_val can only be used when underage_cost and overage_cost are None.")
+        else:
+            if self.underage_cost is None or self.overage_cost is None:
+                raise ValueError("Either sl_test_val or underage_cost and overage_cost must be provided.")
+            sl = self.underage_cost / (self.underage_cost + self.overage_cost)
+            self.set_param("sl", sl, shape=(num_SKUs[0],), new=True)
+
+    def determin_cost(self, action: np.ndarray) -> np.ndarray:
+        """
+        Determine the cost per SKU given the action taken. The cost is the sum of underage and overage costs.
+        """
+
+        # Compute the cost per SKU
+        if self.mode == "train": # during training only the service level is relevant
+            return quantile_loss(self.demand, action, self.sl_period)
+        else:
+            if self.evaluation_metric == "pinball_loss":
+                return pinball_loss(self.demand, action, self.underage_cost, self.overage_cost)
+            elif self.evaluation_metric == "quantile_loss":
+                return quantile_loss(self.demand, action, self.sl)
+
+    def set_observation_space(self,
+                            shape: tuple, # shape of the dataloader features
+                            low: Union[np.ndarray, float] = -np.inf, # lower bound of the observation space
+                            high: Union[np.ndarray, float] = np.inf, # upper bound of the observation space
+                            samples_dim_included = True # whether the first dimension of the shape input is the number of samples
+                            ) -> None:
+        
+        '''
+        Set the observation space of the environment.
+        This is a standard function for simple observation spaces. For more complex observation spaces,
+        this function should be overwritten. Note that it is assumped that the first dimension
+        is n_samples that is not relevant for the observation space.
+
+        '''
+
+        # To handle cases when no external information is available (e.g., parametric NV)
+        
+        if shape is None:
+            self.observation_space = None
+
+        spaces = {}
+        if isinstance(shape, tuple):
+            if samples_dim_included:
+                feature_shape = feature_shape[1:] # assumed that the first dimension is the number of samples
+            spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
+        
+        elif feature_shape is None:
+            pass
+
+        else:
+            raise ValueError("Shape for features must be a tuple or None")
+
+        spaces["service_level"] = gym.spaces.Box(low=0, high=1, shape=(self.num_SKUs[0],), dtype=np.float32)
+
+        self.observation_space = gym.spaces.Dict(spaces)
+
+    def get_observation(self):
+        
+        """
+        Return the current observation. This function is for the simple case where the observation
+        is only an x,y pair. For more complex observations, this function should be overwritten.
+        """
+        
+        X_item, Y_item = self.dataloader[self.index]
+
+        if self.mode == "train":
+            if self.sl_distribution == "fixed":
+                sl = self.sl.copy()
+            elif self.sl_distribution == "uniform":
+                sl = np.random.uniform(self.sl_bound_low, self.sl_bound_high, size=(self.num_SKUs[0],))
+            else:
+                raise ValueError("sl_distribution not recognized.")
+        else:
+            sl = self.sl.copy() # evaluate on fixed sls
+        
+        self.sl_period = sl # store the service level to assess the action
+
+        return {"features": X_item, "service_level": sl}, Y_item
+
+    def check_evaluation_metric(self):
+        if self.evaluation_metric not in ["pinball_loss", "quantile_loss"]:
+            raise ValueError("evaluation_metric must be either 'pinball_loss' or 'quantile_loss'.")
+        if self.evaluation_metric == "pinball_loss" and (self.underage_cost is None or self.overage_cost is None):
+            raise ValueError("Underage and overage costs must be provided for pinball loss.")
+        if self.evaluation_metric == "quantile_loss" and (self.sl_test_val is None):
+            raise ValueError("sl_test_val must be provided for quantile loss.")
+    
+    def check_sl_distribution(self):
+        if self.sl_distribution not in ["fixed", "uniform"]:
+            raise ValueError("sl_distribution must be 'uniform' or 'fixed'.")
+
+    def set_val_test_sl(self, sl_test_val):
+        self.set_param("sl", sl_test_val, shape=(self.num_SKUs[0],), new=False)
