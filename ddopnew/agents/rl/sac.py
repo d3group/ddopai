@@ -28,6 +28,7 @@ from mushroom_rl.algorithms.actor_critic.deep_actor_critic import SAC
 import torch
 import torch.nn.functional as F
 from torchinfo import summary
+from IPython import get_ipython
 
 from copy import deepcopy
 
@@ -166,7 +167,10 @@ class SACBaseAgent(MushroomBaseAgent):
             else:
                 input_tensor = torch.randn(batch_dim, *actor_mu_params["input_shape"]).to(self.device)
             input_tuple = (input_tensor,)
-            print(summary(self.actor, input_data=input_tuple, device=self.device))
+            if get_ipython() is not None:
+                print(summary(self.actor, input_data=input_tuple, device=self.device))
+            else:
+                summary(self.actor, input_data=input_tuple, device=self.device)
             time.sleep(0.2)
 
         logging.info("################################################################################")
@@ -183,7 +187,10 @@ class SACBaseAgent(MushroomBaseAgent):
                     state_mlp_sample = torch.randn(batch_dim, *critic_params["input_shape"][0][1]).to(self.device)
                     state_sample = torch.cat((state_sample, state_mlp_sample), dim=1)
             input_tuple = (state_sample, action_sample)
-            summary(self.critic, input_data=input_tuple, device=self.device)
+            if get_ipython() is not None:
+                print(summary(self.critic, input_data=input_tuple, device=self.device))
+            else:
+                summary(self.critic, input_data=input_tuple, device=self.device)
             # print(summary(self.critic, input_data=input_tuple, device=self.device))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
@@ -208,7 +215,7 @@ class SACBaseAgent(MushroomBaseAgent):
     def predict_(self, observation: np.ndarray) -> np.ndarray: #
         """ Do one forward pass of the model directly and return the prediction.
         Apply tanh as implemented for the SAC actor in mushroom_rl"""
-
+        
         # make observation torch tensor
         device = next(self.actor.parameters()).device
         observation = torch.tensor(observation, dtype=torch.float32).to(device)
