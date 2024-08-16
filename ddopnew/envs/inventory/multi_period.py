@@ -21,7 +21,7 @@ import time
 class MultiPeriodEnv(BaseInventoryEnv, ABC):
     
     """
-    XXX.
+    XXX
     """
 
     def __init__(self,
