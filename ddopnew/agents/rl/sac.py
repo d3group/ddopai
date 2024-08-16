@@ -37,7 +37,7 @@ import time
 class SACBaseAgent(MushroomBaseAgent):
 
     """
-    XXX
+    Base agent for the Soft Actor-Critic (SAC) algorithm. 
     """
 
     def __init__(self, 
@@ -412,9 +412,6 @@ class SACRNNAgent(SACBaseAgent):
         else:
             actor_input_shape_mushroom = actor_input_shape # if only time dimension, then keep 2d input
             critic_input_shape_mushroom = critic_input_shape
-
-        print("shape to convert:")
-        print(critic_input_shape)
 
         # Set networks (use classes, not instances)
         actor_mu_network = RNNActor
