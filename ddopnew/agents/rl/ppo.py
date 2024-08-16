@@ -86,6 +86,9 @@ class PPOAgent(MushroomBaseAgent):
         input_shape = self.get_input_shape(environment_info.observation_space)
         actor_output_shape = environment_info.action_space.shape
 
+        input_shape = self.convert_recursively_to_int(input_shape)
+        actor_output_shape = self.convert_recursively_to_int(actor_output_shape)
+
         policy_params = dict(network=MLPActor,
 
                                 input_shape=input_shape,

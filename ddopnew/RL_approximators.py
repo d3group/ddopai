@@ -480,7 +480,7 @@ class RNNActor(BaseApproximatorRNN):
     both states and actions as inputs to output the q-value"""
 
     def __init__(self,
-                    input_shape: Tuple | List[Tuple], # number of features
+                    input_shape: List[Tuple], # input shape, must be exaclty as input shape into agent for mushroom_rl to work
                     output_shape: Tuple, # number of outputs/actions
                     hidden_layers_RNN: int, # number of initial hidden RNN layers
                     num_hidden_units_RNN: int, # number of neurons in the RNN layers
@@ -494,19 +494,34 @@ class RNNActor(BaseApproximatorRNN):
                     init_method: str = "xavier_uniform",  # Parameter for initialization
                     use_cuda: bool = False,
                     dropout: bool = False, # legacy parameter to ensure compatibility, use drop_prob instead
+                    input_shape_: List[Tuple] = None, # input shape for composite spaces
                     **kwargs
                     ): 
 
         super().__init__()
 
+        if input_shape_ is not None:
+            input_shape = input_shape_
+
         if isinstance(input_shape, tuple):
             if len(input_shape) != 2:
                 raise ValueError(f"Input shape must be a tuple with dimensions (time_steps, features), got {input_shape}")
             input_size = input_shape[1]
+            self.rnn_shape = input_shape
+            self.mlp_shape = None
+            self.get_time_input = True
         else:
             if len(input_shape) > 2:
                 raise ValueError(f"Input shape must be a tuple or a list of tuples with length 1 or 2, got length {len(input_shape)}")
-            input_size = [input_shape[0][1], input_shape[1][0]]
+            if len(input_shape) == 2:
+                input_size = [input_shape[0][1], input_shape[1][0]]
+                self.rnn_shape = input_shape[0]
+                self.mlp_shape = input_shape[1]
+            else:
+                input_size = input_shape[0][1]
+                self.rnn_shape = input_shape[0]
+                self.mlp_shape = None
+            self.get_time_input = False
 
         self.build_RNN(     input_size,
                             output_shape[0],
@@ -522,12 +537,43 @@ class RNNActor(BaseApproximatorRNN):
                             init_method)
 
     def forward(self, state):
-
-        state = state.float()
-
-        a = self.model(state)
-
+        
+        if self.get_time_input: # already in the right 2d (or 3d with batch) format
+            a = self.model(state.float(), None)
+        
+        else:
+            if state.dim() == 1:
+                a = self.forward_without_batch(state.float())
+            else:
+                a = self.forward_with_batch(state.float())
+                
         return a
+
+    def forward_with_batch(self, state):
+        if self.mlp_shape is not None:
+            rnn_input = state[:, :self.rnn_shape[0] * self.rnn_shape[1]]
+            mlp_input = state[:, self.rnn_shape[0] * self.rnn_shape[1]:]
+        else:
+            rnn_input = state
+            mlp_input = None
+    
+        # Reshape rnn_input to (batch_size, time, features)
+        rnn_input = rnn_input.view(-1, self.rnn_shape[0], self.rnn_shape[1])
+        
+        return self.model(rnn_input, mlp_input)
+
+    def forward_without_batch(self, state):
+        if self.mlp_shape is not None:
+            rnn_input = state[:self.rnn_shape[0] * self.rnn_shape[1]]
+            mlp_input = state[self.rnn_shape[0] * self.rnn_shape[1]:]
+        else:
+            rnn_input = state
+            mlp_input = None
+        
+        # Reshape rnn_input to (time, features)
+        rnn_input = rnn_input.view(self.rnn_shape[0], self.rnn_shape[1])
+        
+        return self.model(rnn_input, mlp_input)
 
 # %% ../nbs/60_approximators/21_critic_networks.ipynb 14
 class RNNStateAction(BaseApproximatorRNN):
@@ -536,7 +582,7 @@ class RNNStateAction(BaseApproximatorRNN):
     both states and actions as inputs to output the q-value"""
 
     def __init__(self,
-                    input_shape: List[Tuple], # input shape of features for rnn (optional for mlp) and action
+                    input_shape: List[Tuple], # input shape, must be exaclty as input shape into agent for mushroom_rl to work
                     output_shape: Tuple, # Output shape
                     hidden_layers_RNN: int, # number of initial hidden RNN layers
                     num_hidden_units_RNN: int, # number of neurons in the RNN layers
@@ -550,19 +596,43 @@ class RNNStateAction(BaseApproximatorRNN):
                     init_method: str = "xavier_uniform",  # Parameter for initialization
                     use_cuda: bool = False,
                     dropout: bool = False, # legacy parameter to ensure compatibility, use drop_prob instead
+                    input_shape_: List[Tuple] = None, # input shape for composite spaces
                     **kwargs
                     ): 
 
         super().__init__()
 
+        if input_shape_ is not None:
+            input_shape = input_shape_
+
         # check that input lenght of list is 2 or 3
-        if len(input_shape) < 2 or len(input_shape) > 3:
-            raise ValueError(f"Input shape must be a list of length 2 or 3, got {len(input_shape)}")
+        if len(input_shape) != 2:
+            raise ValueError(f"Input shape must be a list of length 2, got {len(input_shape)}")
         
-        rnn_input = input_shape[0][1] # RNN input is always the first element, only the feature dimension is used
-        mlp_input = input_shape[1][0] if len(input_shape) == 2 else input_shape[1][0] + input_shape[2][0] # if there is a separate MLP input, it is the second element
+        action_input = input_shape[1][0]
+    
+        if isinstance(input_shape[0], tuple):
+            if len(input_shape) != 2:
+                raise ValueError(f"Input shape must be a tuple with dimensions (time_steps, features), got {input_shape}")
+            self.rnn_shape = input_shape[0]
+            non_time_features = 0
+            self.get_time_input = True
+        else:
+            if isinstance(input_shape[0], list):
+                if len(input_shape[0]) > 2:
+                    raise ValueError(f"Input shape must be a list of length 1 or 2, got {len(input_shape[0])}")
+                self.rnn_shape = input_shape[0][0]
+                if len(input_shape[0]) == 2:
+                    non_time_features = input_shape[0][1][0]
+                else:
+                    non_time_features = 0
+                self.get_time_input = False
+            else:
+                raise ValueError("Input shape for composite spaces must be a list")
         
-        self.build_RNN(     [rnn_input, mlp_input],
+        self.mlp_shape = (action_input + non_time_features,)
+
+        self.build_RNN(     [self.rnn_shape[1], self.mlp_shape[0]],
                             output_shape[0],
                             hidden_layers_RNN,
                             num_hidden_units_RNN,
@@ -577,14 +647,44 @@ class RNNStateAction(BaseApproximatorRNN):
 
     def forward(self, state, action):
 
-        if isinstance(state, list):
-            rnn_input = state[0]
-            non_time_features = state[1]
-            mlp_input = torch.cat([non_time_features, action], dim=-1)
+        if self.get_time_input: # already in the right 2d (or 3d with batch) format
+            q = self.model(state.float(), action.float())
+        
         else:
-            rnn_input = state
-            mlp_input = action
-
-        q = self.model(rnn_input.float(), mlp_input.float())
+            if state.dim() == 1:
+                q = self.forward_without_batch(state.float(), action.float())
+            else:
+                q = self.forward_with_batch(state.float(), action.float())
 
         return torch.squeeze(q)
+    
+    def forward_with_batch(self, state, action):
+        
+        if self.mlp_shape is not None:
+            rnn_input = state[:, :self.rnn_shape[0] * self.rnn_shape[1]]
+            mlp_input = state[:, self.rnn_shape[0] * self.rnn_shape[1]:]
+        else:
+            rnn_input = state
+            mlp_input = None
+    
+        # Reshape rnn_input to (batch_size, time, features)
+        rnn_input = rnn_input.view(-1, self.rnn_shape[0], self.rnn_shape[1])
+
+        mlp_input = torch.cat((mlp_input, action), dim=1) # dim 0 is batch dimension
+        
+        return self.model(rnn_input, mlp_input)
+    
+    def forward_without_batch(self, state, action):
+        if self.mlp_shape is not None:
+            rnn_input = state[:self.rnn_shape[0] * self.rnn_shape[1]]
+            mlp_input = state[self.rnn_shape[0] * self.rnn_shape[1:]:]
+        else:
+            rnn_input = state
+            mlp_input = None
+        
+        # Reshape rnn_input to (time, features)
+        rnn_input = rnn_input.view(self.rnn_shape[0], self.rnn_shape[1])
+
+        mlp_input = torch.cat((mlp_input, action), dim=0) # no batch dimension  
+        
+        return self.model(rnn_input, mlp_input)

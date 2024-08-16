@@ -127,3 +127,4 @@ class BaseInventoryEnv(BaseEnvironment):
         observation, self.demand = self.get_observation()
         
         return observation
+

@@ -153,17 +153,19 @@ class SACBaseAgent(MushroomBaseAgent):
             agent_name=agent_name
         )
 
+        batch_dim = 1
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
-            input_size = self.add_batch_dimension_for_shape(actor_mu_params["input_shape"])
+            input_size = self.add_batch_dimension_for_shape(actor_mu_params["input_shape"], batch_dim=batch_dim)
+            input_size = self.convert_recursively_to_int(input_size)
             if isinstance(input_size, list):
-                input_tensors = [
-                    torch.randn(1, *actor_mu_params["input_shape"][0]).to(self.device),
-                    torch.randn(1, *actor_mu_params["input_shape"][1]).to(self.device)
-                ]
+                input_tensor = torch.randn(1, *actor_mu_params["input_shape"][0]).to(self.device).view(batch_dim, -1)
+                if len(input_size) == 2:
+                    mlp_features = torch.randn(batch_dim, *actor_mu_params["input_shape"][1]).to(self.device)
+                    input_tensor = torch.cat((input_tensor, mlp_features), dim=1)
             else:
-                input_tensors = torch.randn(1, *actor_mu_params["input_shape"]).to(self.device)
-            input_tuple = (input_tensors,)
+                input_tensor = torch.randn(batch_dim, *actor_mu_params["input_shape"]).to(self.device)
+            input_tuple = (input_tensor,)
             print(summary(self.actor, input_data=input_tuple, device=self.device))
             time.sleep(0.2)
 
@@ -171,19 +173,16 @@ class SACBaseAgent(MushroomBaseAgent):
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
             input_size = self.add_batch_dimension_for_shape(critic_params["input_shape"])
-            if len(input_size) == 3:
-                input_tensors_state = [
-                    torch.randn(1, *critic_params["input_shape"][0]).to(self.device),
-                    torch.randn(1, *critic_params["input_shape"][1]).to(self.device)
-                ]
-                input_tensors_action = torch.randn(1, *critic_params["input_shape"][2]).to(self.device)
-                input_tuple = (input_tensors_state, input_tensors_action)
+            input_size = self.convert_recursively_to_int(input_size)
+            action_sample = torch.randn(batch_dim, *critic_params["input_shape"][1]).to(self.device)
+            if isinstance(input_size[0], tuple):
+                state_sample = torch.randn(batch_dim, *critic_params["input_shape"][0]).to(self.device)
             else:
-                input_tuple = (
-                    torch.randn(1, *critic_params["input_shape"][0]).to(self.device),
-                    torch.randn(1, *critic_params["input_shape"][1]).to(self.device)
-                )
-
+                state_sample = torch.randn(batch_dim, *critic_params["input_shape"][0][0]).to(self.device).view(batch_dim, -1)
+                if len(input_size[0]) == 2:
+                    state_mlp_sample = torch.randn(batch_dim, *critic_params["input_shape"][0][1]).to(self.device)
+                    state_sample = torch.cat((state_sample, state_mlp_sample), dim=1)
+            input_tuple = (state_sample, action_sample)
             print(summary(self.critic, input_data=input_tuple, device=self.device))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
@@ -268,6 +267,9 @@ class SACAgent(SACBaseAgent):
         # determine observation and action shapes
         obs_space_shape = observation_space_shape or self.get_input_shape(environment_info.observation_space)
         act_space_shape = action_space_shape or environment_info.action_space.shape
+
+        obs_space_shape = self.convert_recursively_to_int(obs_space_shape)
+        act_space_shape = self.convert_recursively_to_int(act_space_shape)
 
         actor_input_shape = obs_space_shape # Note: This can be a list or tuple 
         actor_output_shape = act_space_shape # Note: This can be a list or tuple
@@ -389,6 +391,9 @@ class SACRNNAgent(SACBaseAgent):
         # determine observation and action shapes
         obs_space_shape = observation_space_shape or self.get_input_shape(environment_info.observation_space, flatten_time_dim=False)
         act_space_shape = action_space_shape or environment_info.action_space.shape
+    
+        obs_space_shape = self.convert_recursively_to_int(obs_space_shape)
+        act_space_shape = self.convert_recursively_to_int(act_space_shape)
 
         if isinstance(obs_space_shape, list) and len(obs_space_shape[0]) == 1 or len(obs_space_shape) == 1:
             raise ValueError("The RNN-based SAC needs at least one 2D input (time x features)")
@@ -397,12 +402,18 @@ class SACRNNAgent(SACBaseAgent):
         # determine shapes
         actor_input_shape = obs_space_shape # Note: This can be a list or tuple
         actor_output_shape = act_space_shape # Note: This can be a list or tuple
-        if isinstance(obs_space_shape, list) and all(isinstance(x, tuple) for x in obs_space_shape):
-            critic_input_shape = obs_space_shape + [act_space_shape]
-        else:
-            critic_input_shape = [obs_space_shape, act_space_shape]
+        
+        critic_input_shape = [obs_space_shape, act_space_shape]
 
-        print(actor_input_shape)
+        # Determine raw input shape for mushroom to work:
+        if isinstance(actor_input_shape, list):
+            actor_input_shape_mushroom = actor_input_shape[0][0]*actor_input_shape[0][1] + actor_input_shape[1][0], # if composite space, then flattend vector
+            critic_input_shape_mushroom = [actor_input_shape_mushroom, act_space_shape]
+        else:
+            actor_input_shape_mushroom = actor_input_shape # if only time dimension, then keep 2d input
+            critic_input_shape_mushroom = critic_input_shape
+
+        print("shape to convert:")
         print(critic_input_shape)
 
         # Set networks (use classes, not instances)
@@ -416,7 +427,8 @@ class SACRNNAgent(SACBaseAgent):
         # Set network parameters
         network_actor_mu_params = dict(
                                     network = RNNActor,
-                                    input_shape=actor_input_shape,
+                                    input_shape=actor_input_shape_mushroom,
+                                    input_shape_=actor_input_shape,
                                     output_shape=actor_output_shape,
                                     hidden_layers_RNN=hidden_layers_RNN,
                                     num_hidden_units_RNN=num_hidden_units_RNN,
@@ -428,7 +440,8 @@ class SACRNNAgent(SACBaseAgent):
 
         network_actor_sigma_params = dict(
                                     network = RNNActor,
-                                    input_shape=actor_input_shape,
+                                    input_shape=actor_input_shape_mushroom,
+                                    input_shape_=actor_input_shape,
                                     output_shape=actor_output_shape,
                                     hidden_layers_RNN=hidden_layers_RNN,
                                     num_hidden_units_RNN=num_hidden_units_RNN,
@@ -440,7 +453,8 @@ class SACRNNAgent(SACBaseAgent):
 
         network_critic_params = dict(
                                     network = RNNStateAction,
-                                    input_shape=critic_input_shape,
+                                    input_shape=critic_input_shape_mushroom,
+                                    input_shape_=critic_input_shape,
                                     output_shape=(1,),
                                     hidden_layers_RNN=hidden_layers_RNN,
                                     num_hidden_units_RNN=num_hidden_units_RNN,

@@ -5,7 +5,7 @@ __all__ = ['BaseAgent']
 
 # %% ../../nbs/40_base_agents/10_base_agents.ipynb 4
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Tuple
 import numpy as np
 
 from ..envs.base import BaseEnvironment
@@ -123,4 +123,18 @@ class BaseAgent():
             return input
         else:
             raise ValueError("Input type not recognized.")
-        
+
+    @staticmethod
+    def convert_recursively_to_int(
+        input = List | Tuple, #
+    ) -> List | Tuple:
+
+        """convert all elements of a list or tuple to int"""
+
+        if isinstance(input, list):
+            return [BaseAgent.convert_recursively_to_int(item) for item in input]
+        elif isinstance(input, tuple):
+            return tuple(BaseAgent.convert_recursively_to_int(item) for item in input)
+        else:
+            # If it's not a list or tuple, convert to int directly
+            return int(input)

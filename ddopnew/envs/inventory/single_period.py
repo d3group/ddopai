@@ -98,8 +98,11 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         if truncated:
 
-            observation = np.zeros_like(self.observation_space.sample()) if self.observation_space is not None else None
-            demand = np.zeros_like(self.action_space.sample())
+            # observation = np.zeros_like(self.observation_space.sample()) if self.observation_space is not None else None
+            # demand = np.zeros_like(self.action_space.sample())
+
+            observation, self.demand = self.get_observation()
+
 
             return observation, reward, terminated, truncated, info
         

@@ -117,7 +117,10 @@ class MushroomBaseAgent(BaseAgent):
                 observation = preprocessor(observation)
             
             # add batch dimension back to mimic mushroom_rl library
-            observation = np.expand_dims(observation, axis=0)
+            if isinstance(observation, list):
+                observation = [np.expand_dims(obs, axis=0) for obs in observation]
+            else:
+                observation = np.expand_dims(observation, axis=0)
             action = self.predict_(observation)
 
             return action
@@ -284,17 +287,28 @@ class MushroomBaseAgent(BaseAgent):
     @staticmethod
     # input tuple or list of tuples
     def add_batch_dimension_for_shape(
-                        input_shape: Tuple | List[Tuple],
+                        input_shape: Tuple | List, # The list can be nested, at the lowest lever there must be at tuple
                         batch_dim: int = 1,
                         ) -> Tuple | List[Tuple]:
 
-        """ Add batch dimension to the shape of the input to 
+        """ Recursively add batch dimension to the shape of the input to 
         ensure torchinfo works correctly """
 
         if isinstance(input_shape, tuple):
-            input_shape = (batch_dim,) + input_shape
+            # Check if all elements in the tuple are integers or numpy integers
+            invalid_elements = [dim for dim in input_shape if not isinstance(dim, int)]
+            invalid_elemenst_types = [type(dim) for dim in invalid_elements]
+            
+            if invalid_elements:
+                raise ValueError(f"All elements in the tuple must be integers. Got {input_shape} with invalid elements: {invalid_elemenst_types}")
+            
+            return (batch_dim,) + input_shape
+            
+            return (batch_dim,) + input_shape
+
         elif isinstance(input_shape, list):
-            input_shape = [(batch_dim,) + shape for shape in input_shape]
+            return [MushroomBaseAgent.add_batch_dimension_for_shape(shape, batch_dim) for shape in input_shape]
+
         else:
             raise ValueError("Input shape must be tuple or list of tuples")
 

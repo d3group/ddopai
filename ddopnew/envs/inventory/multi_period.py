@@ -158,10 +158,12 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
 
         if truncated:
 
-            observation = self.observation_space.sample()
-            for key, value in observation.items():
-                observation[key] = np.zeros_like(value)
-            demand = np.zeros_like(self.action_space.sample())
+            # observation = self.observation_space.sample()
+            # for key, value in observation.items():
+            #     observation[key] = np.zeros_like(value)
+            # demand = np.zeros_like(self.action_space.sample())
+
+            observation, self.demand = self.get_observation()
 
             return observation, reward, terminated, truncated, info
         

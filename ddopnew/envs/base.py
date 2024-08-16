@@ -236,7 +236,7 @@ class BaseEnvironment(gym.Env, ABC):
             raise ValueError("start_index must be an integer or 'random'")
 
         self.max_index = self.dataloader.len_train if self.mode == "train" else self.dataloader.len_val if self.mode == "val" else self.dataloader.len_test
-        # self.max_index -= 1
+        self.max_index -= 1
         self.max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
     
         truncated = self.set_index(self.start_index) # assuming we only start randomly during training.

@@ -106,6 +106,8 @@ class ConvertDictSpace():
     """  
 
     A utility class to process a dictionary of numpy arrays, with options to preserve or flatten the time dimension.
+
+    Note, this class is only used to preprocess output from the environment without batch dimension.
     
     """
 
@@ -124,7 +126,7 @@ class ConvertDictSpace():
 
     def __call__(self, 
                 input: Dict, # Observation as dict of with numpy arrays
-                flatten: True,
+                flatten: bool = True, # whether to flatten composite spaces (non-composite spaces will depend on self.keep_time_dim)
                 ) -> List[np.ndarray] | np.ndarray: 
 
         """
@@ -161,20 +163,32 @@ class ConvertDictSpace():
             obs_1d = np.concatenate(obs_1d, axis=0)
             if flatten:
                 # create a single one dimnensional vector
+                # print(obs_2d.shape, obs_1d.shape)
+                # print(np.concatenate([obs_2d.flatten(), obs_1d], axis=0).shape)
                 return np.concatenate([obs_2d.flatten(), obs_1d], axis=0)
             else:
                 return [obs_2d, obs_1d]
         else:
+            if obs[0].ndim == 1:
+                return np.concatenate(obs, axis=0)
+            else:
+                return np.concatenate(obs, axis=1)
+
             return np.concatenate(obs, axis=0)
 
     def determine_output_shape(self,
         sample_input: Dict, #
+        flat: bool = False # if the flattend output shape should be returned
         ) -> Tuple | List:
+
         """
         Determine the output shape based on the input dictionary.
         """
 
-        output = self.__call__(sample_input)
+        if flat:
+            output = self.__call__(sample_input, flatten=True)
+        else:
+            output = self.__call__(sample_input, flatten=False)
         if isinstance(output, list):
             return [output[0].shape, output[1].shape]
         else:

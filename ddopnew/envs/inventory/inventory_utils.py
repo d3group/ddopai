@@ -41,7 +41,6 @@ class OrderPipeline():
 
         ) -> None:
 
-    
         self.set_param('num_units', num_units, shape=(1,), new=True)
         self.set_param('lead_time_mean', lead_time_mean, shape=(self.num_units[0],), new=True)
         self.set_param('lead_time_variance', lead_time_variance, shape=(self.num_units[0],), new=True)
@@ -53,6 +52,11 @@ class OrderPipeline():
         else:
             self.set_param('max_lead_time', max_lead_time, shape=(self.num_units[0],), new=True)
         self.set_param('min_lead_time', min_lead_time, shape=(self.num_units[0],), new=True)
+
+        if self.max_lead_time is None:
+            self.max_lead_time = self.lead_time_mean
+        if self.min_lead_time is None:
+            self.min_lead_time = 1
 
         self.check_max_min_mean_lt()
   
