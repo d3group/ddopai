@@ -3,14 +3,14 @@
 # %% auto 0
 __all__ = ['SACBaseAgent', 'SACAgent', 'SACRNNAgent']
 
-# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 3
+# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 4
 import logging
 
 # set logging level to INFO
 logging.basicConfig(level=logging.INFO)
 
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, Callable, Any
 import numpy as np
 import os
 
@@ -33,7 +33,7 @@ from copy import deepcopy
 
 import time
 
-# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 4
+# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 5
 class SACBaseAgent(MushroomBaseAgent):
 
     """
@@ -156,14 +156,35 @@ class SACBaseAgent(MushroomBaseAgent):
         logging.info("Actor network (mu network):")
         if logging.getLogger().isEnabledFor(logging.INFO):
             input_size = self.add_batch_dimension_for_shape(actor_mu_params["input_shape"])
-            print(summary(self.actor, input_size=input_size, device=self.device))
+            if isinstance(input_size, list):
+                input_tensors = [
+                    torch.randn(1, *actor_mu_params["input_shape"][0]).to(self.device),
+                    torch.randn(1, *actor_mu_params["input_shape"][1]).to(self.device)
+                ]
+            else:
+                input_tensors = torch.randn(1, *actor_mu_params["input_shape"]).to(self.device)
+            input_tuple = (input_tensors,)
+            print(summary(self.actor, input_data=input_tuple, device=self.device))
             time.sleep(0.2)
 
         logging.info("################################################################################")
         logging.info("Critic network:")
         if logging.getLogger().isEnabledFor(logging.INFO):
             input_size = self.add_batch_dimension_for_shape(critic_params["input_shape"])
-            print(summary(self.critic, input_size=input_size, device=self.device))
+            if len(input_size) == 3:
+                input_tensors_state = [
+                    torch.randn(1, *critic_params["input_shape"][0]).to(self.device),
+                    torch.randn(1, *critic_params["input_shape"][1]).to(self.device)
+                ]
+                input_tensors_action = torch.randn(1, *critic_params["input_shape"][2]).to(self.device)
+                input_tuple = (input_tensors_state, input_tensors_action)
+            else:
+                input_tuple = (
+                    torch.randn(1, *critic_params["input_shape"][0]).to(self.device),
+                    torch.randn(1, *critic_params["input_shape"][1]).to(self.device)
+                )
+
+            print(summary(self.critic, input_data=input_tuple, device=self.device))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions
@@ -199,7 +220,7 @@ class SACBaseAgent(MushroomBaseAgent):
 
         return action
 
-# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 5
+# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 6
 class SACAgent(SACBaseAgent):
 
     """
@@ -236,16 +257,21 @@ class SACAgent(SACBaseAgent):
                 obsprocessors: list | None = None,      # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = "SAC",
+                observation_space_shape = None, # optional when it cannot be inferred from environment_info (e.g. for dict spaces)
+                action_space_shape = None, # optional when it cannot be inferred from environment_info (e.g. for dict spaces)
                 ):
 
         # The standard SAC agent needs a 2D input, so we need to flatten the time dimension
         flatten_time_dim_processor = FlattenTimeDimNumpy(allow_2d=True, batch_dim_included=False)
         obsprocessors = (obsprocessors or []) + [flatten_time_dim_processor]
 
-        # determine shapes
-        actor_input_shape = self.get_input_shape(environment_info.observation_space) # Note: This can be a list or tuple
-        actor_output_shape = environment_info.action_space.shape # Note: This can be a list or tuple
-        critic_input_shape = [actor_input_shape, actor_output_shape,] # Note: This can be a list or tuple
+        # determine observation and action shapes
+        obs_space_shape = observation_space_shape or self.get_input_shape(environment_info.observation_space)
+        act_space_shape = action_space_shape or environment_info.action_space.shape
+
+        actor_input_shape = obs_space_shape # Note: This can be a list or tuple 
+        actor_output_shape = act_space_shape # Note: This can be a list or tuple
+        critic_input_shape = [obs_space_shape, act_space_shape,] # Note: This can be a list or tuple
 
         # Set networks (use classes, not instances)
         actor_mu_network = MLPActor
@@ -311,7 +337,7 @@ class SACAgent(SACBaseAgent):
             network_critic_params=network_critic_params,
         ) 
 
-# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 7
+# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 8
 class SACRNNAgent(SACBaseAgent):
 
     """
@@ -352,19 +378,32 @@ class SACRNNAgent(SACBaseAgent):
                 obsprocessors: list | None = None,      # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = "SAC",
+                observation_space_shape = None, # optional when it cannot be inferred from environment_info (e.g. for dict spaces)
+                action_space_shape = None, # optional when it cannot be inferred from environment_info (e.g. for dict spaces)
                 ):
 
         # # The standard SAC agent needs a 2D input, so we need to flatten the time dimension
         # flatten_time_dim_processor = FlattenTimeDimNumpy(allow_2d=True, batch_dim_included=False)
         # obsprocessors = (obsprocessors or []) + [flatten_time_dim_processor]
 
-        if len(environment_info.observation_space.shape) == 1:
-            raise ValueError("The SACRNNAgent is only implemented for 2D input shapes (num_time_steps, num_features)")
+        # determine observation and action shapes
+        obs_space_shape = observation_space_shape or self.get_input_shape(environment_info.observation_space, flatten_time_dim=False)
+        act_space_shape = action_space_shape or environment_info.action_space.shape
+
+        if isinstance(obs_space_shape, list) and len(obs_space_shape[0]) == 1 or len(obs_space_shape) == 1:
+            raise ValueError("The RNN-based SAC needs at least one 2D input (time x features)")
+
 
         # determine shapes
-        actor_input_shape = self.get_input_shape(environment_info.observation_space, flatten_time_dim=False) # Note: This can be a list or tuple
-        actor_output_shape = environment_info.action_space.shape # Note: This can be a list or tuple
-        critic_input_shape = [actor_input_shape, actor_output_shape,] # Note: This can be a list or tuple
+        actor_input_shape = obs_space_shape # Note: This can be a list or tuple
+        actor_output_shape = act_space_shape # Note: This can be a list or tuple
+        if isinstance(obs_space_shape, list) and all(isinstance(x, tuple) for x in obs_space_shape):
+            critic_input_shape = obs_space_shape + [act_space_shape]
+        else:
+            critic_input_shape = [obs_space_shape, act_space_shape]
+
+        print(actor_input_shape)
+        print(critic_input_shape)
 
         # Set networks (use classes, not instances)
         actor_mu_network = RNNActor
