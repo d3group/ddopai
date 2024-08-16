@@ -88,8 +88,14 @@ class TD3Agent(MushroomBaseAgent):
         learning_rate_critic = learning_rate_critic or learning_rate_actor
         lossfunction = self.get_loss_function(loss)
 
-        actor_input_shape = self.get_input_shape(environment_info.observation_space)
-        actor_output_shape = environment_info.action_space.shape
+        input_shape = self.get_input_shape(environment_info.observation_space)
+        output_shape = environment_info.action_space.shape
+
+        input_shape = self.convert_recursively_to_int(input_shape)
+        output_shape = self.convert_recursively_to_int(output_shape)
+
+        actor_input_shape = input_shape
+        actor_output_shape = output_shape
         critic_input_shape = (actor_input_shape[0] + actor_output_shape[0],) # check how this works when RNN and mixed agents are used
 
         actor_params = dict(network=MLPActor,
