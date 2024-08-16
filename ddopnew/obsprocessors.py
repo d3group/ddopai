@@ -144,7 +144,7 @@ class ConvertDictSpace():
                 raise TypeError(f"Expected input to be a dictionary of numpy arrays, but got {type(value)} instead.")
 
             if self.hybrid_space_params is not None:
-                if key in self.hybrid_space_params["time"]:
+                if key in self.hybrid_space_params["time_series_input"]:
                     obs_2d.append(value)
                     if counter != 0:
                         assert obs_2d[counter].shape[0] == obs_2d[counter-1].shape[0], "All time dimensions must be the same."

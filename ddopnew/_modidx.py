@@ -588,23 +588,6 @@ d = { 'settings': { 'branch': 'main',
                                                                                                                 'ddopnew/envs/inventory/base.py'),
                                              'ddopnew.envs.inventory.base.BaseInventoryEnv.set_observation_space': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.set_observation_space',
                                                                                                                      'ddopnew/envs/inventory/base.py')},
-            'ddopnew.envs.inventory.base 2': { 'ddopnew.envs.inventory.base 2.BaseInventoryEnv': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv',
-                                                                                                   'ddopnew/envs/inventory/base 2.py'),
-                                               'ddopnew.envs.inventory.base 2.BaseInventoryEnv.__init__': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.__init__',
-                                                                                                            'ddopnew/envs/inventory/base '
-                                                                                                            '2.py'),
-                                               'ddopnew.envs.inventory.base 2.BaseInventoryEnv.get_observation': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.get_observation',
-                                                                                                                   'ddopnew/envs/inventory/base '
-                                                                                                                   '2.py'),
-                                               'ddopnew.envs.inventory.base 2.BaseInventoryEnv.reset': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.reset',
-                                                                                                         'ddopnew/envs/inventory/base '
-                                                                                                         '2.py'),
-                                               'ddopnew.envs.inventory.base 2.BaseInventoryEnv.set_action_space': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.set_action_space',
-                                                                                                                    'ddopnew/envs/inventory/base '
-                                                                                                                    '2.py'),
-                                               'ddopnew.envs.inventory.base 2.BaseInventoryEnv.set_observation_space': ( '21_envs_inventory/base_inventory_env.html#baseinventoryenv.set_observation_space',
-                                                                                                                         'ddopnew/envs/inventory/base '
-                                                                                                                         '2.py')},
             'ddopnew.envs.inventory.inventory_utils': { 'ddopnew.envs.inventory.inventory_utils.OrderPipeline': ( '21_envs_inventory/inventory_utils.html#orderpipeline',
                                                                                                                   'ddopnew/envs/inventory/inventory_utils.py'),
                                                         'ddopnew.envs.inventory.inventory_utils.OrderPipeline.__init__': ( '21_envs_inventory/inventory_utils.html#orderpipeline.__init__',
@@ -627,39 +610,6 @@ d = { 'settings': { 'branch': 'main',
                                                                                                                         'ddopnew/envs/inventory/inventory_utils.py'),
                                                         'ddopnew.envs.inventory.inventory_utils.OrderPipeline.step': ( '21_envs_inventory/inventory_utils.html#orderpipeline.step',
                                                                                                                        'ddopnew/envs/inventory/inventory_utils.py')},
-            'ddopnew.envs.inventory.inventory_utils 2': { 'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline': ( '21_envs_inventory/inventory_utils.html#orderpipeline',
-                                                                                                                      'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                      '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.__init__': ( '21_envs_inventory/inventory_utils.html#orderpipeline.__init__',
-                                                                                                                               'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                               '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.check_max_min_mean_lt': ( '21_envs_inventory/inventory_utils.html#orderpipeline.check_max_min_mean_lt',
-                                                                                                                                            'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                            '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.check_stochasticity': ( '21_envs_inventory/inventory_utils.html#orderpipeline.check_stochasticity',
-                                                                                                                                          'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                          '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.draw_lead_times': ( '21_envs_inventory/inventory_utils.html#orderpipeline.draw_lead_times',
-                                                                                                                                      'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                      '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.get_orders_arriving': ( '21_envs_inventory/inventory_utils.html#orderpipeline.get_orders_arriving',
-                                                                                                                                          'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                          '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.get_pipeline': ( '21_envs_inventory/inventory_utils.html#orderpipeline.get_pipeline',
-                                                                                                                                   'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                   '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.reset': ( '21_envs_inventory/inventory_utils.html#orderpipeline.reset',
-                                                                                                                            'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                            '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.set_param': ( '21_envs_inventory/inventory_utils.html#orderpipeline.set_param',
-                                                                                                                                'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                                '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.shape': ( '21_envs_inventory/inventory_utils.html#orderpipeline.shape',
-                                                                                                                            'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                            '2.py'),
-                                                          'ddopnew.envs.inventory.inventory_utils 2.OrderPipeline.step': ( '21_envs_inventory/inventory_utils.html#orderpipeline.step',
-                                                                                                                           'ddopnew/envs/inventory/inventory_utils '
-                                                                                                                           '2.py')},
             'ddopnew.envs.inventory.multi_period': { 'ddopnew.envs.inventory.multi_period.MultiPeriodEnv': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv',
                                                                                                              'ddopnew/envs/inventory/multi_period.py'),
                                                      'ddopnew.envs.inventory.multi_period.MultiPeriodEnv.__init__': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.__init__',
@@ -672,39 +622,12 @@ d = { 'settings': { 'branch': 'main',
                                                                                                                                    'ddopnew/envs/inventory/multi_period.py'),
                                                      'ddopnew.envs.inventory.multi_period.MultiPeriodEnv.step_': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.step_',
                                                                                                                    'ddopnew/envs/inventory/multi_period.py')},
-            'ddopnew.envs.inventory.multi_period 2': { 'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv',
-                                                                                                                 'ddopnew/envs/inventory/multi_period '
-                                                                                                                 '2.py'),
-                                                       'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv.__init__': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.__init__',
-                                                                                                                          'ddopnew/envs/inventory/multi_period '
-                                                                                                                          '2.py'),
-                                                       'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv.get_observation': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.get_observation',
-                                                                                                                                 'ddopnew/envs/inventory/multi_period '
-                                                                                                                                 '2.py'),
-                                                       'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv.reset': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.reset',
-                                                                                                                       'ddopnew/envs/inventory/multi_period '
-                                                                                                                       '2.py'),
-                                                       'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv.set_observation_space': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.set_observation_space',
-                                                                                                                                       'ddopnew/envs/inventory/multi_period '
-                                                                                                                                       '2.py'),
-                                                       'ddopnew.envs.inventory.multi_period 2.MultiPeriodEnv.step_': ( '21_envs_inventory/multi_period_envs.html#multiperiodenv.step_',
-                                                                                                                       'ddopnew/envs/inventory/multi_period '
-                                                                                                                       '2.py')},
             'ddopnew.envs.inventory.single_period': { 'ddopnew.envs.inventory.single_period.NewsvendorEnv': ( '21_envs_inventory/single_period_envs.html#newsvendorenv',
                                                                                                               'ddopnew/envs/inventory/single_period.py'),
                                                       'ddopnew.envs.inventory.single_period.NewsvendorEnv.__init__': ( '21_envs_inventory/single_period_envs.html#newsvendorenv.__init__',
                                                                                                                        'ddopnew/envs/inventory/single_period.py'),
                                                       'ddopnew.envs.inventory.single_period.NewsvendorEnv.step_': ( '21_envs_inventory/single_period_envs.html#newsvendorenv.step_',
                                                                                                                     'ddopnew/envs/inventory/single_period.py')},
-            'ddopnew.envs.inventory.single_period 2': { 'ddopnew.envs.inventory.single_period 2.NewsvendorEnv': ( '21_envs_inventory/single_period_envs.html#newsvendorenv',
-                                                                                                                  'ddopnew/envs/inventory/single_period '
-                                                                                                                  '2.py'),
-                                                        'ddopnew.envs.inventory.single_period 2.NewsvendorEnv.__init__': ( '21_envs_inventory/single_period_envs.html#newsvendorenv.__init__',
-                                                                                                                           'ddopnew/envs/inventory/single_period '
-                                                                                                                           '2.py'),
-                                                        'ddopnew.envs.inventory.single_period 2.NewsvendorEnv.step_': ( '21_envs_inventory/single_period_envs.html#newsvendorenv.step_',
-                                                                                                                        'ddopnew/envs/inventory/single_period '
-                                                                                                                        '2.py')},
             'ddopnew.experiment_functions': { 'ddopnew.experiment_functions.EarlyStoppingHandler': ( '30_experiment_functions/experiment_functions.html#earlystoppinghandler',
                                                                                                      'ddopnew/experiment_functions.py'),
                                               'ddopnew.experiment_functions.EarlyStoppingHandler.__init__': ( '30_experiment_functions/experiment_functions.html#earlystoppinghandler.__init__',
