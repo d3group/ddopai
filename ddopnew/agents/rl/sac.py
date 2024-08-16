@@ -183,7 +183,8 @@ class SACBaseAgent(MushroomBaseAgent):
                     state_mlp_sample = torch.randn(batch_dim, *critic_params["input_shape"][0][1]).to(self.device)
                     state_sample = torch.cat((state_sample, state_mlp_sample), dim=1)
             input_tuple = (state_sample, action_sample)
-            print(summary(self.critic, input_data=input_tuple, device=self.device))
+            summary(self.critic, input_data=input_tuple, device=self.device)
+            # print(summary(self.critic, input_data=input_tuple, device=self.device))
 
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """ Get the list of networks in the agent for the save and load functions
