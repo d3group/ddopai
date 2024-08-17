@@ -229,7 +229,8 @@ def set_up_earlystoppinghandler(config_train: Dict) -> object: #
     if "early_stopping_patience" in config_train or "early_stopping_warmup" in config_train:
         warmup = config_train["early_stopping_warmup"] if "early_stopping_warmup" in config_train else 0
         patience = config_train["early_stopping_patience"] if "early_stopping_patience" in config_train else 0
-        earlystoppinghandler = EarlyStoppingHandler(warmup=warmup, patience=warmup)
+
+        earlystoppinghandler = EarlyStoppingHandler(warmup=warmup, patience=patience)
     else:
         earlystoppinghandler = None
 

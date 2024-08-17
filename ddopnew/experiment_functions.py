@@ -50,6 +50,9 @@ class EarlyStoppingHandler():
         self.criteria = criteria
         self.direction = direction
 
+        print("warmup", warmup)
+        print("patience", patience)
+
     def add_result(self,
                     J: float, # Return (discounted rewards) of the last epoch
                     R: float, # Total rewards of the last epoch
