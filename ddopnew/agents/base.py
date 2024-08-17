@@ -48,10 +48,16 @@ class BaseAgent():
         Internal logic of the agent to be implemented in draw_action_ method.
         """
 
-        observation = self.add_batch_dim(observation)
+        batch_added = False
+        if not isinstance(observation, dict):
+            observation = self.add_batch_dim(observation)
+            batch_added = True
 
         for obsprocessor in self.obsprocessors:
             observation = obsprocessor(observation)
+            if not isinstance(observation, dict) and not batch_added:
+                observation = self.add_batch_dim(observation)
+                batch_added = True
 
         action = self.draw_action_(observation)
         

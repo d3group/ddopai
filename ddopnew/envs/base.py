@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['BaseEnvironment']
 
-# %% ../../nbs/20_base_env/10_base_env.ipynb 3
+# %% ../../nbs/20_base_env/10_base_env.ipynb 4
 import gymnasium as gym
 from abc import ABC, abstractmethod
 from typing import Union, List
@@ -12,7 +12,7 @@ import numpy as np
 from ..utils import MDPInfo, Parameter, set_param
 import time
 
-# %% ../../nbs/20_base_env/10_base_env.ipynb 4
+# %% ../../nbs/20_base_env/10_base_env.ipynb 5
 class BaseEnvironment(gym.Env, ABC):
 
     """

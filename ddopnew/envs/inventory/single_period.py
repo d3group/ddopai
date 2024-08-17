@@ -43,6 +43,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         self.print=False
 
         num_SKUs = dataloader.num_units if num_SKUs is None else num_SKUs
+
         if not isinstance(num_SKUs, int):
             raise ValueError("num_SKUs must be an integer.")
         
@@ -155,7 +156,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         self.sl_distribution = sl_distribution
         self.check_sl_distribution
 
-        super.__init__(underage_cost=underage_cost,
+        super().__init__(underage_cost=underage_cost,
                         overage_cost=overage_cost,
                         q_bound_low=q_bound_low,
                         q_bound_high=q_bound_high,
@@ -176,9 +177,9 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
             if self.underage_cost is None or self.overage_cost is None:
                 raise ValueError("Either sl_test_val or underage_cost and overage_cost must be provided.")
             sl = self.underage_cost / (self.underage_cost + self.overage_cost)
-            self.set_param("sl", sl, shape=(num_SKUs[0],), new=True)
+            self.set_param("sl", sl, shape=(self.num_SKUs[0],), new=True)
 
-    def determin_cost(self, action: np.ndarray) -> np.ndarray:
+    def determine_cost(self, action: np.ndarray) -> np.ndarray:
         """
         Determine the cost per SKU given the action taken. The cost is the sum of underage and overage costs.
         """
@@ -215,7 +216,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         spaces = {}
         if isinstance(shape, tuple):
             if samples_dim_included:
-                feature_shape = feature_shape[1:] # assumed that the first dimension is the number of samples
+                shape = shape[1:] # assumed that the first dimension is the number of samples
             spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
         
         elif feature_shape is None:
@@ -228,6 +229,18 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
 
         self.observation_space = gym.spaces.Dict(spaces)
 
+    @staticmethod # staticmethod such that the dataloader can also use the funciton
+    def draw_parameter(distribution, sl_bound_low, sl_bound_high, samples):
+        
+        if distribution == "fixed":
+            sl = np.random.uniform(sl_bound_low, sl_bound_high, size=(samples,))
+        elif distribution == "uniform":
+            sl = np.random.uniform(sl_bound_low, sl_bound_high, size=(samples,))
+        else:
+            raise ValueError("sl_distribution not recognized.")
+        
+        return sl
+
     def get_observation(self):
         
         """
@@ -236,14 +249,9 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         """
         
         X_item, Y_item = self.dataloader[self.index]
-
+        
         if self.mode == "train":
-            if self.sl_distribution == "fixed":
-                sl = self.sl.copy()
-            elif self.sl_distribution == "uniform":
-                sl = np.random.uniform(self.sl_bound_low, self.sl_bound_high, size=(self.num_SKUs[0],))
-            else:
-                raise ValueError("sl_distribution not recognized.")
+            sl = self.draw_parameter(self.sl_distribution, self.sl_bound_low, self.sl_bound_high, samples = self.num_SKUs[0])
         else:
             sl = self.sl.copy() # evaluate on fixed sls
         
@@ -265,3 +273,19 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
 
     def set_val_test_sl(self, sl_test_val):
         self.set_param("sl", sl_test_val, shape=(self.num_SKUs[0],), new=False)
+
+    def update_cu_co(self, cu=None, co=None):
+
+        if not hasattr(self, "underage_cost") or not hasattr(self, "overage_cost"):
+            logging.warning("Underage and overage costs were not set previously, setting them as new parameters.")
+            self.set_param("underage_cost", cu, shape=(self.num_SKUs[0],), new=True)
+            self.set_param("overage_cost", co, shape=(self.num_SKUs[0],), new=True)
+        
+        if cu is not None:
+            self.set_param("underage_cost", cu, shape=(self.num_SKUs[0],), new=False)
+        if co is not None:
+            self.set_param("overage_cost", co, shape=(self.num_SKUs[0],), new=False)
+        
+        sl = self.underage_cost / (self.underage_cost + self.overage_cost)
+
+        self.set_param("sl", sl, shape=(self.num_SKUs[0],), new=False)

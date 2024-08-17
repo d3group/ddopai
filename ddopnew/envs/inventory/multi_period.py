@@ -198,7 +198,7 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
 
         return observation, Y_item
 
-
+        
     def reset(self,
         start_index: int | str = None, # index to start from
         state: np.ndarray = None # initial state
