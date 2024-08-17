@@ -14,6 +14,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
 
+import warnings
+
 # %% ../../nbs/00_utils/20_torch_loss_functions.ipynb 4
 def quantile_loss(
     input: torch.Tensor,
@@ -31,8 +33,13 @@ def quantile_loss(
         )
 
     expanded_input, expanded_target = torch.broadcast_tensors(input, target)
-    
+
+    # print(expanded_input.size(), expanded_target.size(), quantile.size())
+    # print(quantile)
+
     loss = torch.max((expanded_target - expanded_input) * quantile, (expanded_input - expanded_target) * (1 - quantile))
+
+    # print(losks.size())
 
     if reduction == 'mean':
         return loss.mean()
@@ -64,19 +71,30 @@ class TorchQuantileLoss(_Loss):
 
         """
 
-        if isinstance(quantile, Parameter):
-            quantile = quantile.get_value()
-        
-        quantile = torch.tensor(quantile, dtype=input.dtype, device=input.device)
+        quantile = self.convert_quantile(quantile, input_dtype=input.dtype, device=input.device)
             
-        if not (target.shape[1] == input.shape[1] == quantile.shape[0]):
+        if not (target.shape == input.shape == quantile.shape):
             warnings.warn(
-                f"Mismatch in dimensions: target dimension 2 size ({target.size(2)}), input dimension 2 size ({input.size(2)}), "
-                f"and quantile dimension 1 size ({quantile.size(1)}) must be the same. "
+                f"Mismatch in dimensions: target dimension ({target.shape}), input dimension ({input.shape}), "
+                f"and quantile dimension ({quantile.shape}) must be the same. "
                 "This will likely lead to incorrect results due to broadcasting. "
                 "Please ensure they have the same size.",
                 stacklevel=2,
             )
 
         return quantile_loss(input, target, quantile, reduction=self.reduction)
+    
+    def convert_quantile(self, quantile: Parameter | np.ndarray, input_dtype: torch.dtype = torch.float32, device: torch.device = torch.device('cpu')) -> torch.Tensor:
+        
+        if isinstance(quantile, Parameter):
+            quantile =  quantile.get_value()
+        elif isinstance(quantile, np.ndarray):
+            quantile = torch.tensor(quantile, dtype=input_dtype, device=device)
+        elif isinstance(quantile, torch.Tensor):
+            # ensure dtype and device are the same as the input tensor
+            quantile = quantile.to(dtype=input_dtype, device=device)
+        else:
+            raise ValueError(f"quantile must be of type Parameter, np.ndarray, or torch.Tensor, but got {type(quantile)}")
+
+        return quantile
 
