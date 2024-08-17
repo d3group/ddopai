@@ -50,9 +50,6 @@ class EarlyStoppingHandler():
         self.criteria = criteria
         self.direction = direction
 
-        print("warmup", warmup)
-        print("patience", patience)
-
     def add_result(self,
                     J: float, # Return (discounted rewards) of the last epoch
                     R: float, # Total rewards of the last epoch
@@ -337,6 +334,7 @@ def run_experiment( agent: BaseAgent,
                 stop = False
 
             if stop:
+                log_info(R, J, n_epochs-epoch-1, tracking, "val")
                 logging.info(f"Early stopping after {epoch+1} epochs")
                 break
         
@@ -393,6 +391,7 @@ def run_experiment( agent: BaseAgent,
                 stop = False
 
             if stop:
+                log_info(R, J, n_epochs-epoch-1, tracking, "val")
                 logging.info(f"Early stopping after {epoch+1} epochs")
                 break
         
