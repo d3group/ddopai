@@ -226,7 +226,7 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
         logging.debug("truncated: %s", truncated)
 
         sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
-
+        
         obs = next_obs
         
         dataset.append((sample, info))
@@ -334,6 +334,7 @@ def run_experiment( agent: BaseAgent,
                 stop = False
 
             if stop:
+                log_info(R, J, n_epochs-epoch-1, tracking, "val")
                 logging.info(f"Early stopping after {epoch+1} epochs")
                 break
         
@@ -390,6 +391,7 @@ def run_experiment( agent: BaseAgent,
                 stop = False
 
             if stop:
+                log_info(R, J, n_epochs-epoch-1, tracking, "val")
                 logging.info(f"Early stopping after {epoch+1} epochs")
                 break
         
