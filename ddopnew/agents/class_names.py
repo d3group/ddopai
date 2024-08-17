@@ -6,11 +6,20 @@ __all__ = ['AGENT_CLASSES']
 # %% ../../nbs/40_base_agents/10_AGENT_CLASSES.ipynb 3
 AGENT_CLASSES = {
     "RandomAgent": "ddopnew.agents.saa.SAA",
+
     "SAA": "ddopnew.agents.newsvendor.saa.NewsvendorSAAagent",
     "wSAA": "ddopnew.agents.newsvendor.saa.NewsvendorRFwSAAagent",
     "RFwSAA": "ddopnew.agents.newsvendor.saa.NewsvendorRFwSAAagent",
+
     "lERM": "ddopnew.agents.newsvendor.erm.NewsvendorlERMAgent",
     "DLNV": "ddopnew.agents.newsvendor.erm.NewsvendorDLAgent",
+    "DLNVRNN": "ddopnew.agents.newsvendor.erm.NewsvendorDLRNNAgent",
+    "DLNVTransformer": "ddopnew.agents.newsvendor.erm.NewsvendorDLTransformerAgent",
+
+    "lERMMeta": "ddopnew.agents.newsvendor.erm.NewsvendorlERMMetaAgent",
+    "DLNVMeta": "ddopnew.agents.newsvendor.erm.NewsvendorDLMetaAgent",
+    "DLNVRNNMeta": "ddopnew.agents.newsvendor.erm.NewsvendorDLRNNMetaAgent",
+    "DLNVTransformerMeta": "ddopnew.agents.newsvendor.erm.NewsvendorDLTransformerMetaAgent",
 
     "SAC": "ddopnew.agents.rl.sac.SACAgent",
     "SACRNN": "ddopnew.agents.rl.sac.SACRNNAgent",
