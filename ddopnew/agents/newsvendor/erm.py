@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['SGDBaseAgent', 'NVBaseAgent', 'NewsvendorlERMAgent', 'NewsvendorDLAgent', 'BaseMetaAgent', 'NewsvendorlERMMetaAgent',
-           'NewsvendorDLMetaAgent']
+           'NewsvendorDLMetaAgent', 'NewsvendorDLTransformerAgent']
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 3
 import logging
@@ -45,7 +45,8 @@ class SGDBaseAgent(BaseAgent):
             obsprocessors: Optional[List] = None,     # default: []
             torch_obsprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
-            agent_name: str | None = None
+            agent_name: str | None = None,
+            test_batch_size: int = 1024,
             ):
 
         # Initialize default values for mutable arguments
@@ -62,6 +63,7 @@ class SGDBaseAgent(BaseAgent):
         self.set_loss_function()
         self.set_optimizer(optimizer_params)
         self.set_learning_rate_scheduler(learning_rate_scheduler)
+        self.test_batch_size = test_batch_size
 
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
 
@@ -190,27 +192,37 @@ class SGDBaseAgent(BaseAgent):
         
         return action
 
+    @staticmethod
+    def split_into_batches(X: np.ndarray, batch_size: int) -> List[np.ndarray]: #
+        """ Split the input into batches of the specified size """
+        return [X[i:i+batch_size] for i in range(0, len(X), batch_size)]
+
     def predict(self, X: np.ndarray) -> np.ndarray: #
         """ Do one forward pass of the model and return the prediction """
-
-        # TODO handle if X is larger than some size, then split into batches
 
         device = next(self.model.parameters()).device
         self.model.eval()
 
-        X = torch.tensor(X, dtype=torch.float32)
-        for torch_obsprocessor in self.torch_obsprocessors:
-            X = torch_obsprocessor(X)
-        X = X.to(device)
+        batches = self.split_into_batches(X, self.test_batch_size)
 
-        with torch.no_grad():
+        y_pred_full = []
+        for batch in batches:
+            X = torch.tensor(X, dtype=torch.float32)
+            for torch_obsprocessor in self.torch_obsprocessors:
+                X = torch_obsprocessor(X)
+            X = X.to(device)
 
-            y_pred = self.model(X)
+            with torch.no_grad():
 
+                y_pred = self.model(X)
 
-        y_pred = y_pred.cpu().numpy()
+            y_pred = y_pred.cpu().numpy()
 
-        return y_pred
+            y_pred_full.append(y_pred)
+        
+        y_pred_full = np.concatenate(y_pred_full, axis=0)
+
+        return y_pred_full
 
     def train(self):
         """set the internal state of the agent and its model to train"""
@@ -300,6 +312,7 @@ class NVBaseAgent(SGDBaseAgent):
                 torch_obsprocessors: list | None = None,  # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = None,
+                test_batch_size: int = 1024,
                 ):
 
         cu = self.convert_to_numpy_array(cu)
@@ -319,7 +332,8 @@ class NVBaseAgent(SGDBaseAgent):
             obsprocessors=obsprocessors,
             torch_obsprocessors=torch_obsprocessors,
             device=device,
-            agent_name=agent_name
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
         )   
         
     def set_loss_function(self):
@@ -357,7 +371,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 obsprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
-                agent_name: str | None = "lERM"
+                agent_name: str | None = "lERM",
+                test_batch_size: int = 1024,
                 ):
 
         # Handle mutable defaults unique to this class
@@ -383,7 +398,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
             obsprocessors=obsprocessors,
             torch_obsprocessors=torch_obsprocessors,
             device=device,
-            agent_name=agent_name
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
         )
     def set_model(self, input_shape, output_shape):
 
@@ -423,6 +439,7 @@ class NewsvendorDLAgent(NVBaseAgent):
                 obsprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
+                test_batch_size: int = 1024,
                 ):
 
         # Handle mutable defaults unique to this class
@@ -450,7 +467,8 @@ class NewsvendorDLAgent(NVBaseAgent):
             obsprocessors=obsprocessors,
             torch_obsprocessors=torch_obsprocessors,
             device=device,
-            agent_name=agent_name
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
         )
         
     def set_model(self, input_shape, output_shape):
@@ -528,7 +546,8 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
                 obsprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
-                agent_name: str | None = "lERMMeta"
+                agent_name: str | None = "lERMMeta",
+                test_batch_size: int = 1024,
                 ):
 
         self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
@@ -547,7 +566,8 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
             obsprocessors=obsprocessors,
             torch_obsprocessors=torch_obsprocessors,
             device=device,
-            agent_name=agent_name
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
         )
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 37
@@ -583,6 +603,7 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
                 obsprocessors: list | None = None,  # default: []
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
+                test_batch_size: int = 1024,
                 ):
 
         self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
@@ -603,5 +624,75 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
 
             obsprocessors=obsprocessors,
             torch_obsprocessors=torch_obsprocessors,
-            agent_name=agent_name
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
         )
+
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 38
+class NewsvendorDLTransformerAgent(NVBaseAgent):
+
+    """
+    # TODO ADD DOCSTRING
+    """
+
+    def __init__(self, 
+                environment_info: MDPInfo,
+                dataloader: BaseDataLoader,
+                cu: np.ndarray | Parameter,
+                co: np.ndarray | Parameter,
+                input_shape: Tuple,
+                output_shape: Tuple,
+                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                
+                # parameters in yaml file
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                model_params: dict | None = None,  # default: {"hidden_layers": [64, 64], "drop_prob": 0.0, "batch_norm": False, "relu_output": False}
+                dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                device: str = "cpu", # "cuda" or "cpu"
+
+                obsprocessors: list | None = None,  # default: []
+                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
+                agent_name: str | None = "DLNV",
+                test_batch_size: int = 1024,
+                ):
+
+        # Handle mutable defaults unique to this class
+        default_model_params = {
+            "hidden_layers": [64, 64],
+            "drop_prob": 0.0,
+            "batch_norm": False,
+            "relu_output": False
+            }
+
+        self.model_params = self.update_model_params(default_model_params, model_params or {})
+        
+        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
+
+        super().__init__(
+            environment_info=environment_info,
+            dataloader=dataloader,
+            cu=cu,
+            co=co,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            optimizer_params=optimizer_params,
+            learning_rate_scheduler=learning_rate_scheduler,
+            dataloader_params=dataloader_params,
+            obsprocessors=obsprocessors,
+            torch_obsprocessors=torch_obsprocessors,
+            device=device,
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
+        )
+        
+    def set_model(self, input_shape, output_shape):
+        
+        """Set the model for the agent to an MLP"""
+
+        if len(input_shape) == 1:
+            raise ValueError("Input shape must be at least 2D for Transformer model")
+
+        output_size = output_shape[0]
+
+        from ddopnew.approximators import Transformer
+        self.model = Transformer(input_size=input_size, output_size=output_size, **self.model_params)
