@@ -21,7 +21,7 @@ import torch
 from .tracking import get_git_hash, get_library_version
 from .agents.class_names import AGENT_CLASSES
 from .dataloaders.tabular import XYDataLoader
-from .datasets import DatasetLoader
+from .datasets.default_datasets import DatasetLoader
 from .experiment_functions import EarlyStoppingHandler, test_agent
 
 import wandb
