@@ -56,9 +56,9 @@ class MLP(nn.Module):
         for num_neurons in hidden_layers:
             layers.append(nn.Linear(last_size, num_neurons))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(p=drop_prob))
             if batch_norm:
                 layers.append(nn.BatchNorm1d(num_neurons))
+            layers.append(nn.Dropout(p=drop_prob))
             last_size = num_neurons
 
         # Output layer

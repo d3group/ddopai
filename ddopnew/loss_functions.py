@@ -36,7 +36,8 @@ def pinball_loss(
     check_parameter_types(Y_true, Y_pred, underage_cost, overage_cost)
 
     # assert shapes
-    assert Y_true.shape == Y_pred.shape, "y_true and y_pred must have the same shape, but got {} and {}".format(Y_true.shape, Y_pred.shape)
+    assert Y_true.shape == Y_pred.shape, f"y_true and y_pred must have the same shape, but got {Y_true.shape} and {Y_pred.shape}"
+
     
     loss = np.maximum(Y_true - Y_pred, 0) * underage_cost + np.maximum(Y_pred - Y_true, 0) * overage_cost
 
@@ -61,7 +62,7 @@ def quantile_loss(
     check_parameter_types(Y_true, Y_pred, quantile)
     
     # assert shapes
-    assert Y_true.shape == Y_pred.shape, "y_true and y_pred must have the same shape"
+    assert Y_true.shape == Y_pred.shape, f"y_true and y_pred must have the same shape, but got {Y_true.shape} and {Y_pred.shape}"
     
     loss = np.maximum((Y_true - Y_pred) * quantile, (Y_pred - Y_true) * (1 - quantile))
 
