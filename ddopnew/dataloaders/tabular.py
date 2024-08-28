@@ -278,11 +278,14 @@ class MultiShapeLoader(BaseDataLoader):
     """
     
     def __init__(self,
+        # mandatory data
         demand: pd.DataFrame, # Demand data of shape time x SKU
-        SKU_features: pd.DataFrame, # Features constant over time of shape SKU x SKU_features
         time_features: pd.DataFrame, # Features constant over SKU of shape time x time_features
         time_SKU_features: pd.DataFrame, # Features varying over time and SKU of shape time x (time_SKU_features*SKU) with double index
-        mask: pd.DataFrame, # Mask of shape time x SKU telling which SKUs are available at which time (can be used as mask during trainig or added to features)
+        
+        # optional data
+        mask: pd.DataFrame = None, # Mask of shape time x SKU telling which SKUs are available at which time (can be used as mask during trainig or added to features)
+        SKU_features: pd.DataFrame = None, # Features constant over time of shape SKU x SKU_features - only for algorithms learning across SKUs
         
         val_index_start: Union[int, None] = None, # Validation index start on the time dimension
         test_index_start: Union[int, None] = None, # Test index start on the time dimension
@@ -292,49 +295,54 @@ class MultiShapeLoader(BaseDataLoader):
         lag_window_params: Union[dict] = None, # default: {'lag_window': 0, 'include_y': False, 'pre_calc': True}
         normalize_features: Union[dict] = None, # default: {'normalize': True, 'ignore_one_hot': True}
         engineered_SKU_features: Union[dict] = None, # default: ["mean_demand", "std_demand", "kurtosis_demand", "skewness_demand", "percentile_10_demand", "percentile_30_demand", "median_demand", "percentile_70_demand", "percentile_90_demand", "inter_quartile_range"]
+        use_engineered_SKU_features: bool = False, # if engineered features shall be used
         include_non_available: bool = False, # if timestep/SKU combination where the SKU was not available for sale shall be included. If included, it will be used as feature, otherwise as mask.
-        train_subset: int = False ,# if only a subset of SKUs is used for training. Will always contain in_sample_val_test_SKUs and then fills the rest with random SKUs
+        train_subset: int = None ,# if only a subset of SKUs is used for training. Will always contain in_sample_val_test_SKUs and then fills the rest with random SKUs
         train_subset_SKUs: List = None, # if train_subset is set, specific SKUs can be provided
-        SKU_as_batch: bool = False # if get_index during training gets an index for the time dimension (in batch) or from time*SKU dimension
+        meta_learn_units: bool = False, # if units (SKUs) are trained in the batch dimension to meta-learn across SKUs
+        demand_normalization: str = 'minmax' # 'standard' or 'minmax'
     ):
-
-        normalize_features = normalize_features or {'normalize': True, 'ignore_one_hot': True}
-        lag_window_params = lag_window_params or {'lag_window': 0, 'include_y': False, 'pre_calc': False}
-        self.lag_window_params = lag_window_params
-        self.train_index_start = self.lag_window_params["lag_window"] # start index for training data
-        self.train_index_start += self.lag_window_params["include_y"] # if lag demand is included as feature need one more timestep
-        engineered_SKU_features = engineered_SKU_features or ["mean_demand", "std_demand", "kurtosis_demand", "skewness_demand", "percentile_10_demand", "percentile_30_demand", "median_demand", "percentile_70_demand", "percentile_90_demand", "inter_quartile_range"]
-
+     
+        logging.info("Setting main env attributes")
+        # Set data
         self.demand = demand
         self.SKU_features = SKU_features
         self.time_features = time_features
         self.time_SKU_features = time_SKU_features
         self.mask = mask
-        self.num_time_SKU_features = len(self.time_SKU_features.columns.get_level_values(0).unique())
-        self.num_units = len(self.demand.columns)
-        self.num_features = len(self.SKU_features.columns) + len(self.time_features.columns) + self.num_time_SKU_features
-        if engineered_SKU_features is not None:
-            self.num_features += len(engineered_SKU_features)
-        if lag_window_params["include_y"]:
-            self.num_features += 1
-        if include_non_available:
-            self.num_features += 1
 
+        # Set default values for dict inputs:
+        normalize_features = normalize_features or {'normalize': True, 'ignore_one_hot': True}
+        lag_window_params = lag_window_params or {'lag_window': 0, 'include_y': False, 'pre_calc': False}
+        self.lag_window_params = lag_window_params # lag window parameters saved as attribute
+        engineered_SKU_features = engineered_SKU_features or ["mean_demand", "std_demand", "kurtosis_demand", "skewness_demand", "percentile_10_demand", "percentile_30_demand", "median_demand", "percentile_70_demand", "percentile_90_demand", "inter_quartile_range"]
+        if not use_engineered_SKU_features:
+            engineered_SKU_features = None
+
+        # Set further training parameters
+        self.include_non_available = include_non_available
+        self.meta_learn_units = meta_learn_units
+        train_subset, train_subset_SKUs = self.set_train_subset(train_subset, train_subset_SKUs) # set the attributes train_subset and train_subset_SKUs
+        self.demand_normalization = demand_normalization
+
+        # Some necessary flags
+        ## Whether the features are already normalized
         self.normalized_in_sample_SKUs = False
         self.normalized_out_of_sample_val_SKUs = False
         self.normalized_out_of_sample_test_SKUs = False
-
-        self.include_non_available = include_non_available
-        self.train_subset = train_subset
-        self.train_subset_SKUs = train_subset_SKUs
-        self.SKU_as_batch = SKU_as_batch
-
-        self.SKU_type = "in_sample" # or "out_of_sample_val" or "out_of_sample_test" # affecting the SKU-dimension
+        self.added_engineereed_features_to_in_sample_SKUs = False
+        self.added_engineereed_features_to_out_of_sample_val_SKUs = False
+        self.added_engineereed_features_to_out_of_sample_test_SKUs = False
+        ## What data to return in the __getitem__ method
+        self.SKU_type = "in_sample" # or "out_of_sample_val" or "out_of_sample_test" # What kind of SKU retruning in __getitem__
         self.dataset_type = "train" # or "val" or "test", affecting the time-dimension
 
         logging.info("Setting indices for validation and test set")
+        # Determine train, val, test indices (time dimension only!)
         self.val_index_start = val_index_start
         self.test_index_start = test_index_start
+        self.train_index_start = self.lag_window_params["lag_window"] # start index for training data later to allow for lag features
+        self.train_index_start += self.lag_window_params["include_y"] # if lag demand is included as feature need one more timestep
 
         # train index ends either at the start of the validation set, the start of the test set or at the end of the dataset
         if self.val_index_start is not None:
@@ -343,90 +351,163 @@ class MultiShapeLoader(BaseDataLoader):
             self.train_index_end = self.test_index_start-1
         else:
             self.train_index_end = len(self.demand)-1
-        
+
         logging.info("Setting out-of-sample SKUs")
-        # print("Number of SKUs in dataset:", self.demand.shape[1])
+        # set out-of-sample SKUs - note that this is not done by indecing, but the SKUs data will be
+        # removed from the in-sample data and stored in separate attributes. Therefore, there are no
+        # index attributes for out-of-sample SKUs. The feature attributes are stored by the function below.
+        self.out_of_sample_val_SKUs, self.out_of_sample_test_SKUs = self.set_out_of_sample_SKUs(out_of_sample_val_SKUs, out_of_sample_test_SKUs)
+
+        logging.info("Identifying training and in-sample validation and test SKUs")
+        self.in_sample_val_test_SKUs = self.set_in_sample_val_test_SKUs(in_sample_val_test_SKUs) # need to determine index later after out-of-sample units are removed
+        self.train_SKUs = self.identify_train_SKUs(train_subset, train_subset_SKUs) # need to determine index later after out-of-sample units are removed 
+        if self.in_sample_val_test_SKUs is None:
+            self.in_sample_val_test_SKUs = self.train_SKUs # validation and training SKUs are teh same
+
+        logging.info("Determine number of units and features")
+        # Num units is relevant for the output dimension when validating and testing. If the model is not trained as a 
+        # meta learner it is identicall in traing, and validation/testing. If it is trained as a meta learner, the output
+        # dimension is the number of in_sample_val_test_SKUs, iregardless of the number of SKUs in the training set.
+        self.num_units = len(self.in_sample_val_test_SKUs) if self.in_sample_val_test_SKUs is not None else len(self.demand.columns)
+        
+        # Determine number of features
+        self.num_time_SKU_features = len(self.time_SKU_features.columns.get_level_values(0).unique())
+        if lag_window_params["include_y"]:
+            self.num_time_SKU_features += 1 # lag demand is time and SKU specific
+        if include_non_available:
+            self.num_time_SKU_features += 1 # non-availability is time and SKU specific
+        self.num_time_features = len(self.time_features.columns)
+        self.num_SKU_features = len(self.SKU_features.columns) if self.SKU_features is not None else 0
+        if engineered_SKU_features is not None:
+            self.num_SKU_features += len(engineered_SKU_features) # engineered features are SKU specific
+
+        # print("xxxxxxx Number features per type:")
+        # print("num_time_SKU_features:", self.num_time_SKU_features)
+        # print("num_time_features:", self.num_time_features)
+        # print("num_SKU_features:", self.num_SKU_features)
+
+        # Determine total number of features per datapoint
+        self.num_features = self.num_SKU_features + self.num_time_features + self.num_time_SKU_features
+
+        if engineered_SKU_features is not None:
+            logging.info("Creating engineered SKU features for training data")
+            engineered_SKU_features = self.build_engineered_SKU_features(engineered_SKU_features, self.demand.iloc[:self.train_index_end+1]) # only for training data initially
+            self.SKU_features = pd.concat([self.SKU_features, engineered_SKU_features.transpose()], axis=1)
+            self.added_engineereed_features_to_in_sample_SKUs = True
+        
+        logging.info("Normalizing in-sample SKU features (based on training timesteps)")
+        self.normalize_features_in_sample(normalize=normalize_features["normalize"], ignore_one_hot=normalize_features["ignore_one_hot"],initial_normalization=True)
+
+        logging.info("Saving data as numpy and saving indices")
+        # store row and column indices of demand, SKU_features time_features mask and then convert to numpy array
+        logging.info("--Saving indices")
+
+        self.in_sample_val_test_SKUs_indices = self.demand.columns.get_indexer(self.in_sample_val_test_SKUs) if self.in_sample_val_test_SKUs is not None else None
+        self.train_SKUs_indices = self.demand.columns.get_indexer(self.train_SKUs)
+
+        self.demand_indices = self.save_indices(self.demand)
+        self.SKU_features_indices = self.save_indices(self.SKU_features) if self.SKU_features is not None else None
+        self.time_features_indices = self.save_indices(self.time_features)
+        self.time_SKU_features_indices = self.save_indices(self.time_SKU_features)
+        self.mask_indices = self.save_indices(self.mask)
+
+        logging.info("--Converting to numpy")
+        self.demand = self.demand.to_numpy()
+        self.SKU_features = self.SKU_features.to_numpy() if self.SKU_features is not None else None
+        self.time_features = self.time_features.to_numpy()
+        self.time_SKU_features = self.time_SKU_features.to_numpy()
+        self.mask = self.mask.to_numpy()
+
+        self.len_train_time = self.train_index_end-self.train_index_start+1
+
+        if self.meta_learn_units:
+            logging.info("--Creating time-SKU index for training data")
+            self.sku_time_index = [(i, j) for i in range(len(self.train_SKUs_indices)) for j in range(self.len_train_time)]
+
+        super().__init__()
+
+    def set_train_subset(self, train_subset, train_subset_SKUs):
+        """ Prepare setting the attributes train_subset and train_subset_SKUs """
+
+        if train_subset is not None and train_subset < 1:
+            raise ValueError('train_subset must be an integer larger than 0')
+
+        if train_subset_SKUs is not None and not isinstance(train_subset_SKUs, list):
+            raise ValueError('train_subset_SKUs must be a list of SKUs')
+
+        if train_subset_SKUs is not None:
+            if train_subset is None:
+                logging.info("--Infering train_subset from train_subset_SKUs")
+                train_subset = len(train_subset_SKUs)
+            else:
+                if train_subset != len(train_subset_SKUs):
+                    raise ValueError('train_subset_SKUs must have the same length as train_subset')
+        
+        return train_subset, train_subset_SKUs
+
+    def set_in_sample_val_test_SKUs(self, in_sample_val_test_SKUs):
+
+        if in_sample_val_test_SKUs is None:
+            in_sample_val_test_SKUs_indices = None
+        else:
+            if not self.meta_learn_units:
+                raise ValueError('in_sample_val_test_SKUs can only be set if meta_learn_units is True/n \
+                otherwise the output dimension needs to be the same for training and validation/testing')
+            if not set(in_sample_val_test_SKUs).issubset(self.demand.columns):
+                raise ValueError('in_sample_val_test_SKUs must be a subset of all SKUs')
+
+        return in_sample_val_test_SKUs
+            
+    def identify_train_SKUs(self, train_subset, train_subset_SKUs):
+        """ determine which SKUs are used for training, validation and testing """
+        
+        if train_subset is not None:
+
+            if train_subset_SKUs is not None:
+                # check that all train_SKUs are in demand.collumns
+                if not set(train_subset_SKUs).issubset(self.demand.columns):
+                    raise ValueError('train_subset_SKUs must be a subset of all training SKUs')
+                if self.in_sample_val_test_SKUs is not None:
+                    if not set(self.in_sample_val_test_SKUs).issubset(train_subset_SKUs):
+                        raise ValueError('train_subset_SKUs must contain in_sample_val_test_SKUs')
+            else:
+                if self.in_sample_val_test_SKUs is not None and train_subset < len(self.in_sample_val_test_SKUs):
+                    raise ValueError(f'train_subset ({train_subset}) must be equal or larger than the number of in_sample_val_test_SKUs ({len(self.in_sample_val_test_SKUs)})')
+                train_subset_SKUs = self.in_sample_val_test_SKUs if self.in_sample_val_test_SKUs is not None else []
+                remaining_SKUs = self.demand.columns.difference(train_subset_SKUs)
+                additional_SKUs = np.random.choice(remaining_SKUs, train_subset-len(train_subset_SKUs), replace=False)
+                train_SKUs = np.concatenate((train_subset_SKUs, additional_SKUs))
+                # order train_SKUs as in demand.columns
+                train_subset_SKUs = [sku for sku in self.demand.columns if sku in train_SKUs]
+        else:
+            train_subset_SKUs = self.demand.columns # val and test SKUs have been removed before, only training SKUs remain 
+
+        return train_subset_SKUs
+    
+    def set_out_of_sample_SKUs(self, out_of_sample_val_SKUs, out_of_sample_test_SKUs):
+
         for sku, attr_suffix in [(out_of_sample_val_SKUs, 'val'), (out_of_sample_test_SKUs, 'test')]:
             if sku is not None:
+                logging.info(f"--Setting out-of-sample {attr_suffix} SKUs")
+                
+                # Set attributes for out-of-sample SKUs
                 setattr(self, f'demand_out_of_sample_{attr_suffix}', self.demand.loc[:, sku])
                 setattr(self, f'SKU_features_out_of_sample_{attr_suffix}', self.SKU_features.loc[sku])
                 setattr(self, f'time_SKU_features_out_of_sample_{attr_suffix}', # here SKU are in columns on index level 2
-                        self.time_SKU_features.loc[:, pd.IndexSlice[:, sku]])   
+                        self.time_SKU_features.loc[:, pd.IndexSlice[:, sku]]) 
                 setattr(self, f'mask_out_of_sample_{attr_suffix}', self.mask.loc[:, sku])
-                # time_features are independent of SKU
+                # time_features are independent of SKU, so no need to set them
 
+                # Remove out-of-sample SKUs from in-sample data
                 self.demand.drop(columns=sku, inplace=True)
                 self.SKU_features.drop(index=sku, inplace=True)
                 for single_sku in sku if isinstance(sku, list) else [sku]:
                     columns_to_drop = self.time_SKU_features.columns.get_loc_level(single_sku, level=1)
                     self.time_SKU_features.drop(columns=self.time_SKU_features.columns[columns_to_drop[0]], inplace=True)
                 self.mask.drop(columns=sku, inplace=True)
-        self.in_sample_val_test_SKUs = in_sample_val_test_SKUs
+
+        return out_of_sample_val_SKUs, out_of_sample_test_SKUs
         
-        logging.info("Identifying training SKUs")
-        self.identify_train_SKUs()
-
-        logging.info("Creating engineered SKU features for training data")
-        engineered_SKU_features = self.build_engineered_SKU_features(engineered_SKU_features, self.demand.iloc[:self.train_index_end+1]) # only for training data initially
-        self.SKU_features = pd.concat([self.SKU_features, engineered_SKU_features.transpose()], axis=1)
-        
-        logging.info("Normalizing in-sample SKU features (based on training timesteps)")
-        self.normalize_features_in_sample(**normalize_features, initial_normalization=True)
-
-        # store row and column indices of demand, SKU_features time_features mask and then convert to numpy array
-
-        self.demand_indices = self.save_indices(self.demand)
-        self.SKU_features_indices = self.save_indices(self.SKU_features)
-        self.time_features_indices = self.save_indices(self.time_features)
-        self.time_SKU_features_indices = self.save_indices(self.time_SKU_features)
-        self.mask_indices = self.save_indices(self.mask)
-
-        self.demand = self.demand.to_numpy()
-        self.SKU_features = self.SKU_features.to_numpy()
-        self.time_features = self.time_features.to_numpy()
-        self.time_SKU_features = self.time_SKU_features.to_numpy()
-        self.mask = self.mask.to_numpy()
-
-        self.len_train_time = self.train_index_end-self.train_index_start+1
-        if SKU_as_batch:
-            logging.info("Creating time-SKU index for training data")
-            self.sku_time_index = [(i, j) for i in range(self.train_SKUs_indices.shape[0]) for j in range(self.len_train_time)]
-
-        super().__init__()
-
-    def identify_train_SKUs(self):
-        """ determine which SKUs are used for training, validation and testing """
-
-        if self.train_subset:
-
-            if self.train_subset_SKUs is not None:
-                if len(self.train_subset_SKUs) != self.train_subset:
-                    raise ValueError('train_subset_SKUs must have the same length as train_subset')
-                train_SKUs = self.train_subset_SKUs
-                # check that all train_SKUs are in demand.collumns
-                if not set(train_SKUs).issubset(self.demand.columns):
-                    raise ValueError('train_subset_SKUs must be a subset of all training SKUs')
-                if self.in_sample_val_test_SKUs is not None:
-                    if not set(self.in_sample_val_test_SKUs).issubset(train_SKUs):
-                        raise ValueError('train_subset_SKUs must contain in_sample_val_test_SKUs')
-            else:
-                if self.in_sample_val_test_SKUs is not None and self.train_subset <= len(self.in_sample_val_test_SKUs):
-                    raise ValueError('train_subset must be equal or larger than the number of in_sample_val_test_SKUs')
-                train_SKUs = self.in_sample_val_test_SKUs if self.in_sample_val_test_SKUs is not None else []
-                remaining_SKUs = self.demand.columns.difference(train_SKUs)
-                additional_SKUs = np.random.choice(remaining_SKUs, self.train_subset-len(train_SKUs), replace=False)
-                train_SKUs = np.concatenate((train_SKUs, additional_SKUs))
-    
-        else:
-            train_SKUs = self.demand.columns # val and test SKUs have been removed before, only training SKUs remain
-        
-        self.train_SKUs = train_SKUs
-
-        self.train_SKUs_indices = self.demand.columns.get_indexer(self.train_SKUs)
-        if self.in_sample_val_test_SKUs is not None:
-            self.in_sample_val_test_SKUs_indices = self.demand.columns.get_indexer(self.in_sample_val_test_SKUs)
-        
-
     @staticmethod
     def build_engineered_SKU_features(engineered_SKU_features: List, demand: pd.DataFrame):
 
@@ -482,27 +563,45 @@ class MultiShapeLoader(BaseDataLoader):
             if self.normalized_in_sample_SKUs:
                 raise ValueError('Features already normalized')
 
-            self.scaler_demand = StandardScaler()
-            self.scaler_SKU_features = StandardScaler()
+            if self.demand_normalization == 'minmax':
+                self.scaler_demand = MinMaxScaler()
+            elif self.demand_normalization == 'standard':
+                self.scaler_demand = StandardScaler()
+            else:
+                raise ValueError('demand_normalization must be either "minmax" or "standard"')
+            self.scaler_SKU_features = StandardScaler() if self.SKU_features is not None else None
             self.scaler_time_features = StandardScaler()
             self.scaler_time_SKU_features= [StandardScaler() for _ in range(self.num_time_SKU_features)]
 
             if initial_normalization:
-            
-                logging.info("--Normalizing demand")
-                self.scaler_demand.fit(self.demand[:self.train_index_end+1])
-                transformed_demand = self.scaler_demand.transform(self.demand)
-                self.demand.iloc[:,:] = transformed_demand
 
-                logging.info("--Normalizing SKU features")
-                continuous_features = [col for col in self.SKU_features.columns if not self.is_one_hot(self.SKU_features[col])]
-                if len(continuous_features) > 0:
-                    self.scaler_SKU_features.fit(self.SKU_features[continuous_features]) # SKU features are already calculated based on training index
-                    transformed_SKU_features = self.scaler_SKU_features.transform(self.SKU_features[continuous_features])
-                    self.SKU_features[continuous_features] = transformed_SKU_features
+                logging.info("--Normalizing demand")
+                # # Normalizing per SKU on time dimension
+                # self.scaler_demand.fit(self.demand[:self.train_index_end+1])
+                # transformed_demand = self.scaler_demand.transform(self.demand)
+                # self.demand.iloc[:,:] = transformed_demand
+
+                # TEMPORARY
+                # if scale_demand:
+                demand_numpy = self.demand.to_numpy()
+                demand_max_per_product = np.max(demand_numpy[:self.train_index_end+1], axis=0)
+                non_zero_max = np.where(demand_max_per_product == 0, 1, demand_max_per_product)
+                demand_numpy = demand_numpy / non_zero_max
+                demand_numpy = demand_numpy.round(2)
+                self.demand = pd.DataFrame(demand_numpy, columns=self.demand.columns)
+
+                if self.SKU_features is not None:
+                    logging.info("--Normalizing SKU features")
+                    # Normalizing across SKUs, no time dimension present
+                    continuous_features = [col for col in self.SKU_features.columns if not self.is_one_hot(self.SKU_features[col])] if ignore_one_hot else self.SKU_features.columns
+                    if len(continuous_features) > 0:
+                        self.scaler_SKU_features.fit(self.SKU_features[continuous_features]) # SKU features are already calculated based on training index
+                        transformed_SKU_features = self.scaler_SKU_features.transform(self.SKU_features[continuous_features])
+                        self.SKU_features[continuous_features] = transformed_SKU_features
 
                 logging.info("--Normalizing time features")
-                continuous_features = [col for col in self.time_features.columns if not self.is_one_hot(self.time_features[col])]
+                # Normalizting time features (no SKU dimension)
+                continuous_features = [col for col in self.time_features.columns if not self.is_one_hot(self.time_features[col])] if ignore_one_hot else self.time_features.columns
                 if len(continuous_features) > 0:
                     self.scaler_time_features.fit(self.time_features.loc[:self.train_index_end+1,continuous_features]) # each column to be normalized
                     transformed_time_features = self.scaler_time_features.transform(self.time_features.loc[:,continuous_features])
@@ -513,10 +612,11 @@ class MultiShapeLoader(BaseDataLoader):
                 for i, feature in enumerate(self.time_SKU_features.columns.get_level_values(0).unique()):
                     # Select all columns corresponding to the current feature in level 0
                     feature_df = self.time_SKU_features.xs(key=feature, axis=1, level=0)
-                    if not self.is_one_hot_across_skus(feature_df):
-                        self.scaler_time_SKU_features[i].fit(feature_df[:self.train_index_end+1])
-                        transformed_feature_df = self.scaler_time_SKU_features[i].transform(feature_df)
-                        self.time_SKU_features.loc[:, (feature, slice(None))] = transformed_feature_df
+                    if not ignore_one_hot:
+                        if not self.is_one_hot_across_skus(feature_df):
+                            self.scaler_time_SKU_features[i].fit(feature_df[:self.train_index_end+1])
+                            transformed_feature_df = self.scaler_time_SKU_features[i].transform(feature_df)
+                            self.time_SKU_features.loc[:, (feature, slice(None))] = transformed_feature_df
             
                 self.normalized_in_sample_SKUs = True
 
@@ -535,17 +635,17 @@ class MultiShapeLoader(BaseDataLoader):
 
     def get_time_SKU_idx(self, idx):
 
-        """ get time and SKU index by index, depending on the dataset type (train, val, test)"""
+        """ get time and SKU index by index, depending on the dataset type (train, val, test) """
+
+        # print("mode of dataloader when getting item:", self.dataset_type)
 
         if self.dataset_type == "train":
 
-            if self.SKU_as_batch:
+            if self.meta_learn_units:
                 if idx >= len(self.sku_time_index):
                     raise IndexError(f'index {idx} out of range{len(self.sku_time_index)}')
                 idx_sku, idx_time, = self.sku_time_index[idx]
                 idx_skus = [idx_sku]
-
-                print(idx_time, idx_sku)
 
             else:
                 if idx+self.train_index_start > self.train_index_end:
@@ -577,9 +677,11 @@ class MultiShapeLoader(BaseDataLoader):
 
         return idx_time, idx_skus
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
 
         """ get item by index, depending on the dataset type (train, val, test)"""
+
+        # print("mode of dataloader when getting item:", self.dataset_type)
 
         lag_window = self.lag_window_params["lag_window"]
         include_y = self.lag_window_params["include_y"]
@@ -587,7 +689,6 @@ class MultiShapeLoader(BaseDataLoader):
         idx_time, idx_skus = self.get_time_SKU_idx(idx)
         num_skus = len(idx_skus)
 
-        print(idx_time, idx_skus)
         demand = self.demand[idx_time, idx_skus]
 
         item = np.empty((1,lag_window+1, self.num_features, num_skus))
@@ -601,28 +702,34 @@ class MultiShapeLoader(BaseDataLoader):
                 assert idx_time_t-1 >= 0
                 lag_demand = self.demand[idx_time_t-1, idx_skus]
 
-            SKU_features = self.SKU_features[idx_skus].transpose()
+            if self.SKU_features is not None:
+                SKU_features = self.SKU_features[idx_skus].transpose()
+                len_SKU_features = len(SKU_features)
+                item_t[:,:len(SKU_features),:] = SKU_features
+            else:
+                len_SKU_features = 0
+
             time_features = self.time_features[idx_time_t]
             # repeate time_SKU_features for all SKUs with SKU as last dimension 
             time_features = np.repeat(time_features[:, np.newaxis], num_skus, axis=1)
-
-            time_SKU_features = np.empty((self.num_time_SKU_features, num_skus))
-            for i, idx_sku in enumerate(idx_skus):
-                SKU_indices = [len(self.train_SKUs)*i+idx_sku for i in range(self.num_time_SKU_features)]
-                time_SKU_features[:,i] = self.time_SKU_features[idx_time_t, SKU_indices]
-            len_SKU_features = len(SKU_features)
             len_time_features = len(time_features)
-            
-            item_t[:,:len(SKU_features),:] = SKU_features
             item_t[:,len_SKU_features:(len_SKU_features+len_time_features),:] = time_features
-            item_t[:,(len_SKU_features+len_time_features):(len_SKU_features+len_time_features+self.num_time_SKU_features),:] = time_SKU_features
 
-            if self.include_non_available:
-                if self.include_y:
-                    item_t[:,-2,:] = lag_demand
-                item_t[:,-1,:] = self.mask[idx_time,idx_skus]
+            num_time_SKU_features_without_lag_demand = self.num_time_SKU_features-1 if include_y else self.num_time_SKU_features
+            time_SKU_features = np.empty((num_time_SKU_features_without_lag_demand, num_skus))
+            for i, idx_sku in enumerate(idx_skus):
+                SKU_indices = [len(self.train_SKUs)*i+idx_sku for i in range(num_time_SKU_features_without_lag_demand)]
+                time_SKU_features[:,i] = self.time_SKU_features[idx_time_t, SKU_indices]
+            
+            item_t[:,(len_SKU_features+len_time_features):(len_SKU_features+len_time_features+num_time_SKU_features_without_lag_demand),:] = time_SKU_features
+
+            if include_y:
+                item_t[:,-1,:] = lag_demand # last item always lag demand
+                if self.include_non_available:
+                    item_t[:,-2,:] = self.mask[idx_time,idx_skus]
             else:
-                item_t[:,-1,:] = lag_demand
+                if self.include_non_available:
+                    item_t[:,-1,:] = self.mask[idx_time,idx_skus]
 
             item[:,t,:,:] = item_t
         
@@ -631,12 +738,22 @@ class MultiShapeLoader(BaseDataLoader):
                 item = item.squeeze(1) 
             else:
                 raise ValueError('Lag window is 0, but item has more than one time dimension')
-        if self.SKU_as_batch:
-            if item.shape[-1] == 1:
-                item = item.squeeze(-1) 
+        if self.meta_learn_units:
+            if self.dataset_type == "train":
+                if item.shape[-1] == 1:
+                    item = item.squeeze(-1) 
+                else:
+                    raise ValueError('SKU as batch, but item has more than one SKU dimension')
+        else:
+            if item.shape[-1] != 1:
+                raise ValueError('Num_units dimension must be 1 if not meta-learning')
             else:
-                raise ValueError('SKU as batch, but item has more than one SKU dimension')
-    
+                item = item.squeeze(-1)
+
+        if item.shape[0] != 1:
+            raise ValueError('Batch dimension must be 1')
+        item = item.squeeze(0) # remove batch dimension
+
         return item, demand
 
     def __len__(self):
@@ -644,16 +761,20 @@ class MultiShapeLoader(BaseDataLoader):
     
     @property
     def X_shape(self):
-        return (len_train_time, self.num_features, self.num_units)
+
+        if self.meta_learn_units:
+            return (len(self.time_features), self.lag_window_params["lag_window"]+1, self.num_features)
+        else:
+            return (len(self.time_features), self.lag_window_params["lag_window"]+1, self.num_features) # check if there will be a difference.
     
     @property
     def Y_shape(self):
-        return (len_train_time, self.num_units)
+        return (len(self.time_features), self.num_units) # using num of val_test SKUs
 
     @property
     def len_train(self):
-        if self.SKU_as_batch:
-            return len(self.sku_time_index)
+        if self.meta_learn_units:
+            return len(self.sku_time_index) # sku_time_index contains only timesteps that are in the training set and skus in the training set.
         else:
             return self.len_train_time
 
@@ -661,57 +782,65 @@ class MultiShapeLoader(BaseDataLoader):
     def len_val(self):
         if self.val_index_start is None:
             raise ValueError('no validation set defined')
-        return self.test_index_start-self.val_index_start
+        return self.test_index_start-self.val_index_start # validating and testing is always along the time demension (units are a separate dimension)
 
     @property
     def len_test(self):
         if self.test_index_start is None:
             raise ValueError('no test set defined')
-        return len(self.demand)-self.test_index_start
+        return len(self.demand)-self.test_index_start # validating and testing is always along the time demension (units are a separate dimension)
 
     def get_all_X(self,
                 dataset_type: str = 'train' # can be 'train', 'val', 'test', 'all'
                 ): 
 
-        raise NotImplementedError('Not implemented yet')
+        logging.info("Retrieving all X data")
 
-        # """
-        # Returns the entire features dataset.
-        # Return either the train, val, test, or all data.
-        # """
+        """
+        Returns the entire features dataset.
+        Return either the train, val, test, or all data.
+        """
 
-        # if dataset_type == 'train':
-        #     return self.X[:self.val_index_start].copy() if self.X is not None else None
-        # elif dataset_type == 'val':
-        #     return self.X[self.val_index_start:self.test_index_start].copy() if self.X is not None else None
-        # elif dataset_type == 'test':
-        #     return self.X[self.test_index_start:].copy() if self.X is not None else None
-        # elif dataset_type == 'all':
-        #     return self.X.copy() if self.X is not None else None
-        # else:
-        #     raise ValueError('dataset_type not recognized')
+        print("mode of dataloader when getting item:", self.dataset_type)
+
+        if dataset_type == 'train':
+
+            X = np.empty((self.len_train, self.lag_window_params["lag_window"]+1, self.num_features))
+
+            for i in range(self.len_train):
+                X[i], _ = self[i]
+
+        elif dataset_type == 'val':
+            raise NotImplementedError('Not implemented yet')
+        elif dataset_type == 'test':
+            raise NotImplementedError('Not implemented yet')
+        elif dataset_type == 'all':
+            raise NotImplementedError('Not implemented yet')
+        else:
+            raise ValueError('dataset_type not recognized')
+
+        return X
 
     def get_all_Y(self,
                 dataset_type: str = 'train' # can be 'train', 'val', 'test', 'all'
                 ): 
 
-        # """
-        # Returns the entire target dataset.
-        # Return either the train, val, test, or all data.
-        # """
+        """
+        Returns the entire target dataset.
+        Return either the train, val, test, or all data.
+        """
 
-        raise NotImplementedError('Not implemented yet')
-
-        # if dataset_type == 'train':
-        #     return self.Y[:self.val_index_start].copy() if self.Y is not None else None
-        # elif dataset_type == 'val':
-        #     return self.Y[self.val_index_start:self.test_index_start].copy() if self.Y is not None else None
-        # elif dataset_type == 'test':
-        #     return self.Y[self.test_index_start:].copy() if self.Y is not None else None
-        # elif dataset_type == 'all':
-        #     return self.Y.copy() if self.Y is not None else None
-        # else:
-        #     raise ValueError('dataset_type not recognized')
+        print("mode of dataloader when getting item:", self.dataset_type)
+        if dataset_type == 'train':
+            return self.demand[self.train_index_start:self.val_index_start, self.train_SKUs_indices]
+        elif dataset_type == 'val':
+            raise NotImplementedError('Not implemented yet')
+        elif dataset_type == 'test':
+            raise NotImplementedError('Not implemented yet')
+        elif dataset_type == 'all':
+            raise NotImplementedError('Not implemented yet')
+        else:
+            raise ValueError('dataset_type not recognized')
 
     @staticmethod
     def is_one_hot(column):

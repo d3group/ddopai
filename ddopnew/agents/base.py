@@ -29,7 +29,8 @@ class BaseAgent():
     def __init__(self,
                     environment_info: MDPInfo,
                     obsprocessors: list[object] | None = None,  # default is empty list
-                    agent_name: str | None = None
+                    agent_name: str | None = None,
+                    receive_batch_dim: bool = False
                  ):
 
         self.obsprocessors = obsprocessors or []
@@ -37,7 +38,7 @@ class BaseAgent():
         self.environment_info = environment_info
         self.mode = "train"
         self.print = False  # Can be used for debugging
-        self.receive_batch_dim = False
+        self.receive_batch_dim = receive_batch_dim
 
         self.agent_name = agent_name
 

@@ -255,7 +255,7 @@ def set_up_earlystoppinghandler(config_train: Dict) -> object: #
 def prep_and_run_test(
     agent,
     environment,
-    agent_dir: str,
+    agent_dir: str = None,
     save_dataset: bool = True,
     dataset_dir: str = None,
     tracking = "wandb"):
@@ -269,7 +269,9 @@ def prep_and_run_test(
             raise ValueError("If save_dataset is True, dataset_dir must be specified.")
 
     # load parameters of agent
-    agent.load(agent_dir)
+
+    if agent_dir is not None:
+        agent.load(agent_dir)
 
     # Set agent and environment to test mode
     agent.eval()

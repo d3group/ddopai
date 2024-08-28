@@ -29,6 +29,7 @@ class BaseProcessor():
             output = self.__call__(sample_input, flatten=True)
         else:
             output = self.__call__(sample_input, flatten=False)
+
         if isinstance(output, list):
             return [output_element.shape for output_element in output]
         else:
@@ -183,9 +184,6 @@ class ConvertDictSpace(BaseProcessor):
             obs_2d = np.concatenate(obs_2d, axis=0)
             obs_1d = np.concatenate(obs_1d, axis=0)
             if flatten:
-                # create a single one dimnensional vector
-                # print(obs_2d.shape, obs_1d.shape)
-                # print(np.concatenate([obs_2d.flatten(), obs_1d], axis=0).shape)
                 return np.concatenate([obs_2d.flatten(), obs_1d], axis=0)
             else:
                 return [obs_2d, obs_1d]
@@ -203,18 +201,20 @@ class AddParamsToFeatures(BaseProcessor):
     """  
 
     A utility class to process a dictionary of numpy arrays, with options to preserve or flatten the time dimension.
-
-    Note, this class is only used to preprocess output from the environment without batch dimension.
     
     """
 
     def __init__(self,
+        environment: object, # The environment object, needed to check if val or train mode,
         keep_time_dim: Optional[bool] = False, #If time timension should be flattened as well.
         hybrid: Optional[bool] = False, # If the param dim should be added as separate vector or concatenated to the features.
+        receive_batch_dim: Optional[bool] = False, # If the input contains a batch dimension.
         ):
 
+        self.environment = environment
         self.keep_time_dim = keep_time_dim
         self.hybrid = hybrid
+        self.receive_batch_dim = receive_batch_dim
 
         if not keep_time_dim and hybrid:
             raise ValueError("For flattened vector, hybrid should be be merged with features directy.")
@@ -229,20 +229,34 @@ class AddParamsToFeatures(BaseProcessor):
         Process the input dictionary by converting it to a numpy array.
         """
 
-        # print("input to processor: ", input)
         input = input.copy()
-        features = input["features"] if self.keep_time_dim else input["features"].flatten()
+        if self.receive_batch_dim:
+            features = input["features"]
+            if self.environment.mode == "train":
+                features = np.expand_dims(features, axis=0)
+                
+            if not self.keep_time_dim:
+                batch_size, time_steps, feature_dims = features.shape
+                new_shape = (batch_size, time_steps*feature_dims)
+                features = features.reshape(new_shape)
+        else:
+            features = input["features"] if self.keep_time_dim else input["features"].flatten()
         del input["features"]
 
-
         if self.hybrid:
-            obs_1d = [] # features or time X features
-            obs_2d = [] # time X features
-            obs.append(input["features"])
+            if receive_batch_dim:
+                raise NotImplementedError("Hybrid not implemented yet for batched input.")
+            else:
+                obs_1d = [] # features or time X features
+                obs_2d = [] # time X features
+                obs.append(input["features"])
         
         for counter, (key, value) in enumerate(input.items()):
             if not isinstance(value, np.ndarray):
                 raise TypeError(f"Expected input to be a dictionary of numpy arrays, but got {type(value)} instead.")
+
+            # print(features.shape)
+            # print(value.shape)
             
             if value.ndim == 1:
                 if features.ndim == 1:
@@ -252,9 +266,14 @@ class AddParamsToFeatures(BaseProcessor):
                         raise NotImplementedError("Hybrid not implemented yet.")
                     # expand value to 2d by copy time dimension
                     else:
-                        value = np.expand_dims(value, axis=0)
-                        value = np.repeat(value, features.shape[0], axis=0)
-                        features = np.concatenate([features, value.flatten()])
+                        if self.receive_batch_dim:
+                            value = np.expand_dims(value, axis=1) # the parameter needs to be provided for each sample in the batch
+                            features = np.concatenate([features, value], axis=1)
+                            # print("output:", features.shape)
+                        else:
+                            value = np.expand_dims(value, axis=0)
+                            value = np.repeat(value, features.shape[0], axis=0)
+                            features = np.concatenate([features, value.flatten()])
             else:
                 if value.shape == features.shape:
                     features = np.concatenate([features, value.flatten()])

@@ -8,20 +8,23 @@ __all__ = ['SGDBaseAgent', 'NVBaseAgent', 'NewsvendorlERMAgent', 'NewsvendorDLAg
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional, List, Tuple, Literal
 import numpy as np
 import os
-
+from tqdm import tqdm
+import time
+from IPython import get_ipython
 
 from ...envs.base import BaseEnvironment
 from ..base import BaseAgent
 from ...utils import MDPInfo, Parameter, DatasetWrapper, DatasetWrapperMeta
-from ...torch_utils.loss_functions import TorchQuantileLoss
+from ...torch_utils.loss_functions import TorchQuantileLoss, TorchPinballLoss
 from ...torch_utils.obsprocessors import FlattenTimeDim
-
 from ...dataloaders.base import BaseDataLoader
 
 import torch
+
+from torchinfo import summary
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 4
 class SGDBaseAgent(BaseAgent):
@@ -47,6 +50,7 @@ class SGDBaseAgent(BaseAgent):
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None,
             test_batch_size: int = 1024,
+            receive_batch_dim: bool = False,
             ):
 
         # Initialize default values for mutable arguments
@@ -65,7 +69,25 @@ class SGDBaseAgent(BaseAgent):
         self.set_learning_rate_scheduler(learning_rate_scheduler)
         self.test_batch_size = test_batch_size
 
-        super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
+        super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name, receive_batch_dim = receive_batch_dim)
+
+        batch_dim = 1
+        logging.info("Network architecture:")
+        if logging.getLogger().isEnabledFor(logging.INFO):
+
+            self.model.eval()
+            if any(isinstance(obsprocessor, FlattenTimeDim) for obsprocessor in self.torch_obsprocessors):
+                input_size = (batch_dim, int(np.prod(input_shape)))
+            else:
+                input_size = (batch_dim, *input_shape)
+
+            input_tensor = torch.randn(batch_dim, *input_size).to(self.device)
+            input_tuple = (input_tensor,)
+            if get_ipython() is not None:
+                print(summary(self.model, input_data=input_tuple, device=self.device))
+            else:
+                summary(self.model, input_data=input_tuple, device=self.device)
+            time.sleep(0.2)
 
         self.to(self.device)
 
@@ -145,7 +167,7 @@ class SGDBaseAgent(BaseAgent):
         self.model.train()
         total_loss=0
 
-        for i, output in enumerate(self.dataloader):
+        for i, output in enumerate(tqdm(self.dataloader)):
             
             if len(output)==3:
                 X, y, loss_function_params = output
@@ -191,7 +213,7 @@ class SGDBaseAgent(BaseAgent):
         action = self.predict(observation)
         
         return action
-
+    
     @staticmethod
     def split_into_batches(X: np.ndarray, batch_size: int) -> List[np.ndarray]: #
         """ Split the input into batches of the specified size """
@@ -211,6 +233,10 @@ class SGDBaseAgent(BaseAgent):
             for torch_obsprocessor in self.torch_obsprocessors:
                 X = torch_obsprocessor(X)
             X = X.to(device)
+
+            torch.set_printoptions(sci_mode=False)
+            print(X)
+            assert False
 
             with torch.no_grad():
 
@@ -313,12 +339,18 @@ class NVBaseAgent(SGDBaseAgent):
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = None,
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile", 
                 ):
 
         cu = self.convert_to_numpy_array(cu)
         co = self.convert_to_numpy_array(co)
         
         self.sl = cu / (cu + co) # ensure this works if cu and co are Parameters
+        self.cu = cu
+        self.co = co
+
+        self.loss_function = loss_function
 
 
         super().__init__(
@@ -334,6 +366,7 @@ class NVBaseAgent(SGDBaseAgent):
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
         )   
         
     def set_loss_function(self):
@@ -341,11 +374,19 @@ class NVBaseAgent(SGDBaseAgent):
         """Set the loss function for the model to the quantile loss. For training
         the model uses quantile loss and not the pinball loss with specific cu and 
         co values to ensure similar scale of the feedback signal during training."""
-        
-        self.loss_function_params = {"quantile": self.sl}
-        self.loss_function = TorchQuantileLoss(reduction="mean")
-        
-        logging.debug(f"Loss function set to {self.loss_function}")
+
+        if self.loss_function == "quantile":
+            self.loss_function_params = {"quantile": self.sl}
+            self.loss_function = TorchQuantileLoss(reduction="mean")
+            logging.debug(f"Loss function set to {self.loss_function}")
+
+        elif self.loss_function == "pinball":
+            self.loss_function_params = {"underage": self.cu, "overage": self.co}
+            self.loss_function = TorchPinballLoss(reduction="mean")
+            logging.debug(f"Loss function set to {self.loss_function}")
+
+        else:
+            raise ValueError(f"Loss function {self.loss_function} not supported")
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 23
 class NewsvendorlERMAgent(NVBaseAgent):
@@ -373,6 +414,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERM",
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile", 
                 ):
 
         # Handle mutable defaults unique to this class
@@ -400,6 +443,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
+            loss_function=loss_function,
         )
     def set_model(self, input_shape, output_shape):
 
@@ -440,6 +485,8 @@ class NewsvendorDLAgent(NVBaseAgent):
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
         # Handle mutable defaults unique to this class
@@ -469,6 +516,8 @@ class NewsvendorDLAgent(NVBaseAgent):
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
+            loss_function=loss_function,
         )
         
     def set_model(self, input_shape, output_shape):
@@ -548,6 +597,8 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERMMeta",
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
         self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
@@ -568,6 +619,8 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim = receive_batch_dim,
+            loss_function=loss_function,
         )
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 37
@@ -604,6 +657,8 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
         self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
@@ -626,7 +681,10 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
             torch_obsprocessors=torch_obsprocessors,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
+            loss_function=loss_function,
         )
+
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 38
 class NewsvendorDLTransformerAgent(NVBaseAgent):
@@ -654,6 +712,8 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
                 torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
         # Handle mutable defaults unique to this class
@@ -683,6 +743,8 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
+            loss_function=loss_function,
         )
         
     def set_model(self, input_shape, output_shape):
