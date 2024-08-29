@@ -346,6 +346,8 @@ class AddParamsToFeatures(BaseProcessor):
             if not isinstance(value, np.ndarray):
                 raise TypeError(f"Expected input to be a dictionary of numpy arrays, but got {type(value)} instead.")
             
+            value_shape = value.shape
+
             if value.ndim == 1:
                 if features.ndim == 1:
                     features = np.concatenate([features, value])
@@ -353,15 +355,19 @@ class AddParamsToFeatures(BaseProcessor):
                     if self.receive_batch_dim:
 
                         if features.ndim == 3: # then it is (batch x time x features)
-                            value = np.expand_dims(value, axis=0) # add batch dimension
+                            value = np.expand_dims(value, axis=-1) # add value dim (first is batch dim)
                             value = np.expand_dims(value, axis=1) # add time dimension
 
                             # TODO: check if it always should expand the features dimension
-                            value = np.repeat(value, features.shape[0], axis=0) # repeat for all time steps
+                            if value.shape[0] == 1 and features.shape[0] > 1:
+                                value = np.repeat(value, features.shape[0], axis=0)
                             value = np.repeat(value, features.shape[1], axis=1) # repeat for all time steps
                     
                         else:
-                            value = np.expand_dims(value, axis=0) # add batch dimension
+                            value = np.expand_dims(value, axis=-1) # add value dim (first is batch dim)
+                            # TODO: check if it always should expand the features dimension
+                            if value.shape[0] == 1 and features.shape[0] > 1:
+                                value = np.repeat(value, features.shape[0], axis=0) # repeat for batch
 
                         features = np.concatenate([features, value], axis=-1) # concatenate along feature dimension
 
