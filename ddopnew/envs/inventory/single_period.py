@@ -242,7 +242,12 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         if isinstance(shape, tuple):
             if samples_dim_included:
                 shape = shape[1:] # assumed that the first dimension is the number of samples
+            if self.SKUs_in_batch_dimension:
+                shape = (self.num_SKUs[0],) + shape
+            print("shape in set observation space:", shape)
             spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
+
+            
         
         elif feature_shape is None:
             pass
@@ -289,7 +294,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         if self.mode != "train":
             if hasattr(self.dataloader, "meta_learn_units") and self.dataloader.meta_learn_units: # dataloaders that train SKU in the batch dimension will put SKU dimension last for validation and test set
                 X_item = np.moveaxis(X_item, -1, 0)
-        
+ 
         self.sl_period = sl # store the service level to assess the action
         
         # print("shape in get observation:", X_item.shape)

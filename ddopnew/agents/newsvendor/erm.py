@@ -2,7 +2,7 @@
 
 # %% auto 0
 __all__ = ['SGDBaseAgent', 'NVBaseAgent', 'NewsvendorlERMAgent', 'NewsvendorDLAgent', 'BaseMetaAgent', 'NewsvendorlERMMetaAgent',
-           'NewsvendorDLMetaAgent', 'NewsvendorDLTransformerAgent']
+           'NewsvendorDLMetaAgent', 'NewsvendorDLTransformerAgent', 'NewsvendorDLTransformerMetaAgent']
 
 # %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 3
 import logging
@@ -19,7 +19,7 @@ from ...envs.base import BaseEnvironment
 from ..base import BaseAgent
 from ...utils import MDPInfo, Parameter, DatasetWrapper, DatasetWrapperMeta
 from ...torch_utils.loss_functions import TorchQuantileLoss, TorchPinballLoss
-from ...torch_utils.obsprocessors import FlattenTimeDim
+from ...obsprocessors import FlattenTimeDimNumpy
 from ...dataloaders.base import BaseDataLoader
 
 import torch
@@ -42,11 +42,11 @@ class SGDBaseAgent(BaseAgent):
             dataloader: BaseDataLoader,
             input_shape: Tuple,
             output_shape: Tuple,
+            dataset_params: Optional[dict] = None, # parameters needed to convert the dataloader to a torch dataset
+            dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
             optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
             learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
-            dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
             obsprocessors: Optional[List] = None,     # default: []
-            torch_obsprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None,
             test_batch_size: int = 1024,
@@ -56,11 +56,11 @@ class SGDBaseAgent(BaseAgent):
         # Initialize default values for mutable arguments
         optimizer_params = optimizer_params or {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
         dataloader_params = dataloader_params or {"batch_size": 32, "shuffle": True}
-        self.torch_obsprocessors = torch_obsprocessors or []
+        dataset_params = dataset_params or {}
 
         self.device = self.set_device(device)
         
-        self.set_dataloader(dataloader, dataloader_params)
+        self.set_dataloader(dataloader, dataset_params, dataloader_params)
 
         self.set_model(input_shape, output_shape)
         self.loss_function_params=None # default
@@ -76,13 +76,14 @@ class SGDBaseAgent(BaseAgent):
         if logging.getLogger().isEnabledFor(logging.INFO):
 
             self.model.eval()
-            if any(isinstance(obsprocessor, FlattenTimeDim) for obsprocessor in self.torch_obsprocessors):
+            if any(isinstance(obsprocessor, FlattenTimeDimNumpy) for obsprocessor in self.obsprocessors):
                 input_size = (batch_dim, int(np.prod(input_shape)))
             else:
                 input_size = (batch_dim, *input_shape)
 
-            input_tensor = torch.randn(batch_dim, *input_size).to(self.device)
+            input_tensor = torch.randn(*input_size).to(self.device)
             input_tuple = (input_tensor,)
+
             if get_ipython() is not None:
                 print(summary(self.model, input_data=input_tuple, device=self.device))
             else:
@@ -109,6 +110,7 @@ class SGDBaseAgent(BaseAgent):
 
     def set_dataloader(self,
                         dataloader: BaseDataLoader,
+                        dataset_params: dict,
                         dataloader_params: dict, # dict with keys: batch_size, shuffle
                         ) -> None: 
 
@@ -120,7 +122,7 @@ class SGDBaseAgent(BaseAgent):
         # check if class already have a dataloader
         if not hasattr(self, 'dataloader'):
 
-            dataset = DatasetWrapper(dataloader)
+            dataset = DatasetWrapper(dataloader, **dataset_params)
             self.dataloader = torch.utils.data.DataLoader(dataset, **dataloader_params)
 
     @abstractmethod
@@ -178,9 +180,6 @@ class SGDBaseAgent(BaseAgent):
             # convert X and y to float32
             X = X.type(torch.float32)
             y = y.type(torch.float32)
-
-            for torch_obsprocessor in self.torch_obsprocessors:
-                X = torch_obsprocessor(X)
             
             X, y = X.to(device), y.to(device)
 
@@ -230,13 +229,7 @@ class SGDBaseAgent(BaseAgent):
         y_pred_full = []
         for batch in batches:
             X = torch.tensor(X, dtype=torch.float32)
-            for torch_obsprocessor in self.torch_obsprocessors:
-                X = torch_obsprocessor(X)
             X = X.to(device)
-
-            torch.set_printoptions(sci_mode=False)
-            print(X)
-            assert False
 
             with torch.no_grad():
 
@@ -333,9 +326,9 @@ class NVBaseAgent(SGDBaseAgent):
                 output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,      # default: []
-                torch_obsprocessors: list | None = None,  # default: []
                 device: str = "cpu", # "cuda" or "cpu"
                 agent_name: str | None = None,
                 test_batch_size: int = 1024,
@@ -360,9 +353,9 @@ class NVBaseAgent(SGDBaseAgent):
             output_shape=output_shape,
             optimizer_params=optimizer_params,
             learning_rate_scheduler=learning_rate_scheduler,
+            dataset_params=dataset_params,
             dataloader_params=dataloader_params,
             obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
@@ -408,9 +401,9 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,  # default: []
-                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERM",
                 test_batch_size: int = 1024,
@@ -425,9 +418,6 @@ class NewsvendorlERMAgent(NVBaseAgent):
 
         self.model_params = self.update_model_params(default_model_params, model_params or {})
 
-        # By default automatically flatten the time dimension of data, if it is not already 2D
-        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
-
         super().__init__(
             environment_info=environment_info,
             dataloader=dataloader,
@@ -438,8 +428,8 @@ class NewsvendorlERMAgent(NVBaseAgent):
             optimizer_params=optimizer_params,
             learning_rate_scheduler=learning_rate_scheduler,
             dataloader_params=dataloader_params,
+            dataset_params=dataset_params,
             obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
@@ -453,6 +443,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
         from ddopnew.approximators import LinearModel
 
         # flatten time dim of input
+        print("input shape", input_shape)
         input_size = np.prod(input_shape)
         output_size = output_shape[0]
 
@@ -479,10 +470,10 @@ class NewsvendorDLAgent(NVBaseAgent):
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 model_params: dict | None = None,  # default: {"hidden_layers": [64, 64], "drop_prob": 0.0, "batch_norm": False, "relu_output": False}
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 device: str = "cpu", # "cuda" or "cpu"
 
                 obsprocessors: list | None = None,  # default: []
-                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
                 receive_batch_dim: bool = False,
@@ -498,8 +489,6 @@ class NewsvendorDLAgent(NVBaseAgent):
             }
 
         self.model_params = self.update_model_params(default_model_params, model_params or {})
-        
-        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
 
         super().__init__(
             environment_info=environment_info,
@@ -511,8 +500,8 @@ class NewsvendorDLAgent(NVBaseAgent):
             optimizer_params=optimizer_params,
             learning_rate_scheduler=learning_rate_scheduler,
             dataloader_params=dataloader_params,
+            dataset_params=dataset_params,
             obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
@@ -524,8 +513,8 @@ class NewsvendorDLAgent(NVBaseAgent):
         
         """Set the model for the agent to an MLP"""
 
-
         # flatten time dim of input
+        print("input shape", input_shape)
         input_size = np.prod(input_shape)
         output_size = output_shape[0]
 
@@ -538,30 +527,13 @@ class BaseMetaAgent():
     def set_meta_dataloader(
         self, 
         dataloader: BaseDataLoader,
-        dataloader_params, # dict with keys: batch_size, shuffle
-        draw_parameter_function: callable, # function to draw parameters from distribution
-        distribution: str, # distribution for params during training
-        bounds_low: Union[int, float], # lower bound for params during training
-        bounds_high: Union[int, float], # upper bound for params during training
-        obsprocessor: callable, # function to process observations
-        parameter_names: List[str] = None, # names of parameters
-        ) -> None: 
+        dataset_params: dict, # parameters needed to convert the dataloader to a torch dataset
+        dataloader_params: dict, # dict with keys: batch_size, shuffle
+        ) -> None:
 
         """ """
 
-        # check if class already have a dataloader
-
-        print("setting meta datloader")
-
-        dataset = DatasetWrapperMeta(
-            dataloader = dataloader,
-            draw_parameter_function = draw_parameter_function,
-            distribution = distribution,
-            bounds_low = bounds_low,
-            bounds_high = bounds_high,
-            obsprocessor = obsprocessor,
-            parameter_names = parameter_names,
-            )
+        dataset = DatasetWrapperMeta(dataloader, **dataset_params)
 
         self.dataloader = torch.utils.data.DataLoader(dataset, **dataloader_params)
 
@@ -578,8 +550,6 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
     """
 
     def __init__(self, 
-                # Parameters for meta Agent
-                dataset_meta_params: dict, # Parameters for meta dataloader
 
                 # Parameters for lERM agent
                 environment_info: MDPInfo,
@@ -591,9 +561,9 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,  # default: []
-                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 device: str = "cpu",  # "cuda" or "cpu"
                 agent_name: str | None = "lERMMeta",
                 test_batch_size: int = 1024,
@@ -601,7 +571,7 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
                 loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
-        self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
+        self.set_meta_dataloader(dataloader, dataset_params, dataloader_params)
 
         super().__init__(
             environment_info=environment_info,
@@ -615,7 +585,6 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
             model_params=model_params,
             dataloader_params=dataloader_params,
             obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             device=device,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
@@ -636,9 +605,6 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
     """
 
     def __init__(self, 
-                # Parameters for meta Agent
-                dataset_meta_params: dict, # Parameters for meta dataloader
-
                 environment_info: MDPInfo,
                 dataloader: BaseDataLoader,
                 cu: np.ndarray | Parameter,
@@ -650,18 +616,18 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 model_params: dict | None = None,  # default: {"hidden_layers": [64, 64], "drop_prob": 0.0, "batch_norm": False, "relu_output": False}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 device: str = "cpu", # "cuda" or "cpu"
 
                 obsprocessors: list | None = None,  # default: []
-                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
                 receive_batch_dim: bool = False,
                 loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
-        self.set_meta_dataloader(dataloader, dataloader_params, **dataset_meta_params)
+        self.set_meta_dataloader(dataloader, dataset_params, dataloader_params)
 
         super().__init__(
             environment_info=environment_info,
@@ -678,7 +644,6 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
             device=device,
 
             obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
             receive_batch_dim=receive_batch_dim,
@@ -690,7 +655,92 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
 class NewsvendorDLTransformerAgent(NVBaseAgent):
 
     """
-    # TODO ADD DOCSTRING
+    Newsvendor agent implementing Empirical Risk Minimization (ERM) approach 
+    based on a deep learning model with a Transformer architecture.
+    """
+
+    def __init__(self, 
+                environment_info: MDPInfo,
+                dataloader: BaseDataLoader,
+                cu: np.ndarray | Parameter,
+                co: np.ndarray | Parameter,
+                input_shape: Tuple,
+                output_shape: Tuple,
+                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                
+                # parameters in yaml file
+                optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
+                model_params: dict | None = None,  # default: {"max_context_length": 128, "n_layer": 3, "n_head": 8, "n_embd_per_head": 32, "rope_scaling": None, "min_multiple": 256, "gating": True, "drop_prob": 0.0, "final_activation": "identity"}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
+                dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
+                device: str = "cpu", # "cuda" or "cpu"
+
+                obsprocessors: list | None = None,  # default: []
+                agent_name: str | None = "DLNV",
+                test_batch_size: int = 1024,
+                receive_batch_dim: bool = False,
+                loss_function: Literal["quantile", "pinball"] = "quantile",
+                ):
+
+        # Handle mutable defaults unique to this class
+        default_model_params = {
+            "max_context_length": 128,
+            "n_layer": 3,
+            "n_head": 8,
+            "n_embd_per_head": 32,
+            "rope_scaling": None,
+
+            "min_multiple": 256,
+            "gating": True,
+
+            "drop_prob": 0.0,
+            "final_activation": "identity",
+            }
+        
+        self.model_params = self.update_model_params(default_model_params, model_params or {})
+
+
+        super().__init__(
+            environment_info=environment_info,
+            dataloader=dataloader,
+            cu=cu,
+            co=co,
+            input_shape=input_shape,
+            output_shape=output_shape,
+            optimizer_params=optimizer_params,
+            learning_rate_scheduler=learning_rate_scheduler,
+            dataset_params=dataset_params,
+            dataloader_params=dataloader_params,
+            obsprocessors=obsprocessors,
+            device=device,
+            agent_name=agent_name,
+            test_batch_size=test_batch_size,
+            receive_batch_dim=receive_batch_dim,
+            loss_function=loss_function,
+        )
+         
+    def set_model(self, input_shape, output_shape):
+        
+        """Set the model for the agent to an MLP"""
+
+        if len(input_shape) == 1:
+            raise ValueError("Input shape must be at least 2D for Transformer model")
+
+        output_size = output_shape[0]
+
+        from ddopnew.approximators import Transformer
+        self.model = Transformer(input_size=input_shape, output_size=output_size, **self.model_params)
+
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 39
+class NewsvendorDLTransformerMetaAgent(NewsvendorDLTransformerAgent, BaseMetaAgent):
+
+    """
+    Newsvendor agent implementing Empirical Risk Minimization (ERM) approach 
+    based on a Neural Network using the attention mechanism. In addition to the features,
+    the agent also gets the sl as input to be able to forecast the optimal order quantity
+    for different sl values. Depending on the training pipeline, this model can be 
+    adapted to become a full meta-learning algorithm cross products and cross sls.
+
     """
 
     def __init__(self, 
@@ -705,28 +755,18 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
                 model_params: dict | None = None,  # default: {"hidden_layers": [64, 64], "drop_prob": 0.0, "batch_norm": False, "relu_output": False}
+                dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 device: str = "cpu", # "cuda" or "cpu"
 
                 obsprocessors: list | None = None,  # default: []
-                torch_obsprocessors: list | None = None,  # default: [FlattenTimeDim(allow_2d=False)]
                 agent_name: str | None = "DLNV",
                 test_batch_size: int = 1024,
                 receive_batch_dim: bool = False,
                 loss_function: Literal["quantile", "pinball"] = "quantile",
                 ):
 
-        # Handle mutable defaults unique to this class
-        default_model_params = {
-            "hidden_layers": [64, 64],
-            "drop_prob": 0.0,
-            "batch_norm": False,
-            "relu_output": False
-            }
-
-        self.model_params = self.update_model_params(default_model_params, model_params or {})
-        
-        torch_obsprocessors = [FlattenTimeDim(allow_2d=True)] if torch_obsprocessors is None else torch_obsprocessors
+        self.set_meta_dataloader(dataloader, dataset_params, dataloader_params)
 
         super().__init__(
             environment_info=environment_info,
@@ -735,26 +775,17 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
             co=co,
             input_shape=input_shape,
             output_shape=output_shape,
-            optimizer_params=optimizer_params,
             learning_rate_scheduler=learning_rate_scheduler,
+
+            optimizer_params=optimizer_params,
+            model_params=model_params,
             dataloader_params=dataloader_params,
-            obsprocessors=obsprocessors,
-            torch_obsprocessors=torch_obsprocessors,
             device=device,
+
+            obsprocessors=obsprocessors,
             agent_name=agent_name,
             test_batch_size=test_batch_size,
             receive_batch_dim=receive_batch_dim,
             loss_function=loss_function,
         )
-        
-    def set_model(self, input_shape, output_shape):
-        
-        """Set the model for the agent to an MLP"""
 
-        if len(input_shape) == 1:
-            raise ValueError("Input shape must be at least 2D for Transformer model")
-
-        output_size = output_shape[0]
-
-        from ddopnew.approximators import Transformer
-        self.model = Transformer(input_size=input_size, output_size=output_size, **self.model_params)

@@ -159,6 +159,8 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
                 save_dir = f"{experiment_dir}/saved_models/best"
                 agent.save(save_dir)
 
+                print(f"Saved agent to {save_dir}")
+
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 10
 def test_agent(agent: BaseAgent,
             env: BaseEnvironment,
@@ -275,6 +277,8 @@ def run_experiment( agent: BaseAgent,
 
     experiment_dir = f"{results_dir}/{run_id}"
 
+    print(f"Experiment directory: {experiment_dir}")
+
     logging.info("Starting experiment")
 
     env.reset()
@@ -311,17 +315,21 @@ def run_experiment( agent: BaseAgent,
         log_info(R, J, n_epochs-1, tracking, "val")
 
     elif agent.train_mode == "epochs_fit":
+
+        # save initial agent
+        save_dir = f"{experiment_dir}/saved_models/best"
+        agent.save(save_dir)
         
         logging.info("Starting training with epochs fit")
         for epoch in trange(n_epochs):
-
+            
             agent.fit_epoch() # Access to dataloader provided to the agent at initialization
 
             env.val()
             agent.eval()
 
             R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
-
+            
             if ((epoch+1) % print_freq) == 0:
                 logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
             
@@ -344,6 +352,10 @@ def run_experiment( agent: BaseAgent,
         logging.info("Finished training with epochs fit")
 
     elif agent.train_mode == "env_interaction":
+
+        # save initial agent
+        save_dir = f"{experiment_dir}/saved_models/best"
+        agent.save(save_dir)
 
         logging.info("Starting training with env_interaction")
 
