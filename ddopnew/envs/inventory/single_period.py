@@ -247,14 +247,13 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
             print("shape in set observation space:", shape)
             spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
 
-            
-        
         elif feature_shape is None:
             pass
 
         else:
             raise ValueError("Shape for features must be a tuple or None")
 
+        # TODO check if this is a good desig decision
         if self.SKUs_in_batch_dimension:
             spaces["service_level"] = gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
         else:

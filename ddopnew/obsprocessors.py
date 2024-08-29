@@ -356,6 +356,8 @@ class AddParamsToFeatures(BaseProcessor):
                             value = np.expand_dims(value, axis=0) # add batch dimension
                             value = np.expand_dims(value, axis=1) # add time dimension
 
+                            # TODO: check if it always should expand the features dimension
+                            value = np.repeat(value, features.shape[0], axis=0) # repeat for all time steps
                             value = np.repeat(value, features.shape[1], axis=1) # repeat for all time steps
                     
                         else:
