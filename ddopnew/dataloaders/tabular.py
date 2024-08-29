@@ -314,6 +314,15 @@ class MultiShapeLoader(BaseDataLoader):
         self.time_SKU_features = time_SKU_features
         self.mask = mask
 
+        # convert dtypes to float
+        self.demand = self.demand.astype(float)
+        self.time_features = self.time_features.astype(float)
+        self.time_SKU_features = self.time_SKU_features.astype(float)
+        if self.SKU_features is not None:
+            self.SKU_features = self.SKU_features.astype(float)
+        if self.mask is not None:
+            self.mask = self.mask.astype(float)
+
         # Set default values for dict inputs:
         normalize_features = normalize_features or {'normalize': True, 'ignore_one_hot': True}
         lag_window_params = lag_window_params or {'lag_window': 0, 'include_y': False, 'pre_calc': False}
