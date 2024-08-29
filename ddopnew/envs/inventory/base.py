@@ -106,7 +106,6 @@ class BaseInventoryEnv(BaseEnvironment):
 
         """
 
-        
         X_item, Y_item = self.dataloader[self.index]
 
         return X_item, Y_item

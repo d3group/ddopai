@@ -9,8 +9,9 @@ logging.basicConfig(level=logging.INFO)
 
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Literal
 import pandas as pd
+import math
 
 from .base import BaseDataLoader
 
@@ -292,15 +293,17 @@ class MultiShapeLoader(BaseDataLoader):
         in_sample_val_test_SKUs: List = None, # SKUs in the training set to be used for validation and testing, out-of-sample w.r.t. time dimension
         out_of_sample_val_SKUs: List = None, # SKUs to be hold-out for validation (can be same as test if no validation on out-of-sample SKUs required)
         out_of_sample_test_SKUs: List = None, # SKUs to be hold-out for testing
-        lag_window_params: Union[dict] = None, # default: {'lag_window': 0, 'include_y': False, 'pre_calc': True}
-        normalize_features: Union[dict] = None, # default: {'normalize': True, 'ignore_one_hot': True}
+        lag_window_params: dict | None = None, # default: {'lag_window': 0, 'include_y': False, 'pre_calc': True}
+        normalize_features: dict | None = None, # default: {'normalize': True, 'ignore_one_hot': True}
         engineered_SKU_features: Union[dict] = None, # default: ["mean_demand", "std_demand", "kurtosis_demand", "skewness_demand", "percentile_10_demand", "percentile_30_demand", "median_demand", "percentile_70_demand", "percentile_90_demand", "inter_quartile_range"]
         use_engineered_SKU_features: bool = False, # if engineered features shall be used
         include_non_available: bool = False, # if timestep/SKU combination where the SKU was not available for sale shall be included. If included, it will be used as feature, otherwise as mask.
         train_subset: int = None ,# if only a subset of SKUs is used for training. Will always contain in_sample_val_test_SKUs and then fills the rest with random SKUs
         train_subset_SKUs: List = None, # if train_subset is set, specific SKUs can be provided
         meta_learn_units: bool = False, # if units (SKUs) are trained in the batch dimension to meta-learn across SKUs
-        demand_normalization: str = 'minmax' # 'standard' or 'minmax'
+        lag_demand_normalization: Literal['minmax', 'standard', 'no_normalization'] | None = "standard", # minmax, standard, no_normalization or None. If None, same demand_normalization
+        demand_normalization: Literal['minmax', 'standard', 'no_normalization'] = 'no_normalization', # 'standard' or 'minmax'
+        demand_unit_size: float | None = None # use same convention as for other dataloaders and enviornments, but here only full decimal values are allowed
     ):
      
         logging.info("Setting main env attributes")
@@ -323,8 +326,17 @@ class MultiShapeLoader(BaseDataLoader):
         self.include_non_available = include_non_available
         self.meta_learn_units = meta_learn_units
         train_subset, train_subset_SKUs = self.set_train_subset(train_subset, train_subset_SKUs) # set the attributes train_subset and train_subset_SKUs
+        self.lag_demand_normalization = lag_demand_normalization if lag_demand_normalization is not None else demand_normalization
         self.demand_normalization = demand_normalization
-
+        if demand_unit_size is not None:
+            self.demand_unit_size = int(-math.log10(demand_unit_size))
+            if self.demand_unit_size % 1 != 0:
+                raise ValueError('demand_unit_size must be a full decimal value')
+            else:
+                self.demand_unit_size = int(self.demand_unit_size)
+        else:
+            self.demand_unit_size = None
+        
         # Some necessary flags
         ## Whether the features are already normalized
         self.normalized_in_sample_SKUs = False
@@ -396,7 +408,7 @@ class MultiShapeLoader(BaseDataLoader):
             self.added_engineereed_features_to_in_sample_SKUs = True
         
         logging.info("Normalizing in-sample SKU features (based on training timesteps)")
-        self.normalize_features_in_sample(normalize=normalize_features["normalize"], ignore_one_hot=normalize_features["ignore_one_hot"],initial_normalization=True)
+        self.normalize_demand_and_features_in_sample(normalize=normalize_features["normalize"], ignore_one_hot=normalize_features["ignore_one_hot"],initial_normalization=True)
 
         logging.info("Saving data as numpy and saving indices")
         # store row and column indices of demand, SKU_features time_features mask and then convert to numpy array
@@ -413,6 +425,7 @@ class MultiShapeLoader(BaseDataLoader):
 
         logging.info("--Converting to numpy")
         self.demand = self.demand.to_numpy()
+        self.demand_lag = self.demand_lag.to_numpy()
         self.SKU_features = self.SKU_features.to_numpy() if self.SKU_features is not None else None
         self.time_features = self.time_features.to_numpy()
         self.time_SKU_features = self.time_SKU_features.to_numpy()
@@ -422,7 +435,7 @@ class MultiShapeLoader(BaseDataLoader):
 
         if self.meta_learn_units:
             logging.info("--Creating time-SKU index for training data")
-            self.sku_time_index = [(i, j) for i in range(len(self.train_SKUs_indices)) for j in range(self.len_train_time)]
+            self.sku_time_index = [(i, j) for i in self.train_SKUs_indices for j in range(self.len_train_time)]
 
         super().__init__()
 
@@ -492,7 +505,8 @@ class MultiShapeLoader(BaseDataLoader):
                 
                 # Set attributes for out-of-sample SKUs
                 setattr(self, f'demand_out_of_sample_{attr_suffix}', self.demand.loc[:, sku])
-                setattr(self, f'SKU_features_out_of_sample_{attr_suffix}', self.SKU_features.loc[sku])
+                if self.SKU_features is not None:
+                    setattr(self, f'SKU_features_out_of_sample_{attr_suffix}', self.SKU_features.loc[sku])
                 setattr(self, f'time_SKU_features_out_of_sample_{attr_suffix}', # here SKU are in columns on index level 2
                         self.time_SKU_features.loc[:, pd.IndexSlice[:, sku]]) 
                 setattr(self, f'mask_out_of_sample_{attr_suffix}', self.mask.loc[:, sku])
@@ -500,7 +514,8 @@ class MultiShapeLoader(BaseDataLoader):
 
                 # Remove out-of-sample SKUs from in-sample data
                 self.demand.drop(columns=sku, inplace=True)
-                self.SKU_features.drop(index=sku, inplace=True)
+                if self.SKU_features is not None:
+                    self.SKU_features.drop(index=sku, inplace=True)
                 for single_sku in sku if isinstance(sku, list) else [sku]:
                     columns_to_drop = self.time_SKU_features.columns.get_loc_level(single_sku, level=1)
                     self.time_SKU_features.drop(columns=self.time_SKU_features.columns[columns_to_drop[0]], inplace=True)
@@ -548,7 +563,7 @@ class MultiShapeLoader(BaseDataLoader):
 
         return pd.DataFrame(feature_values, columns=demand.columns, index=feature_names)
     
-    def normalize_features_in_sample(self,
+    def normalize_demand_and_features_in_sample(self,
         normalize: bool = True,
         ignore_one_hot: bool = True,
         initial_normalization = False # Flag if it is set before having added lag features
@@ -567,8 +582,22 @@ class MultiShapeLoader(BaseDataLoader):
                 self.scaler_demand = MinMaxScaler()
             elif self.demand_normalization == 'standard':
                 self.scaler_demand = StandardScaler()
+            elif self.demand_normalization == 'no_normalization':
+                self.scaler_demand = None
             else:
-                raise ValueError('demand_normalization must be either "minmax" or "standard"')
+                raise ValueError('demand_normalization must be either "minmax", "standard", or "no_normalization"')
+            
+            # If demand data used for lag feautures is normalized differently
+            if self.lag_demand_normalization != self.demand_normalization:
+                if self.lag_demand_normalization == 'minmax':
+                    self.scaler_demand_lag = MinMaxScaler()
+                elif self.lag_demand_normalization == 'standard':
+                    self.scaler_demand_lag = StandardScaler()
+                elif self.lag_demand_normalization == 'no_normalization':
+                    self.scaler_demand_lag = None
+                else:
+                    raise ValueError('lag_demand_normalization must be either "minmax", "standard", or "no_normalization"')
+            
             self.scaler_SKU_features = StandardScaler() if self.SKU_features is not None else None
             self.scaler_time_features = StandardScaler()
             self.scaler_time_SKU_features= [StandardScaler() for _ in range(self.num_time_SKU_features)]
@@ -576,19 +605,32 @@ class MultiShapeLoader(BaseDataLoader):
             if initial_normalization:
 
                 logging.info("--Normalizing demand")
-                # # Normalizing per SKU on time dimension
-                # self.scaler_demand.fit(self.demand[:self.train_index_end+1])
-                # transformed_demand = self.scaler_demand.transform(self.demand)
-                # self.demand.iloc[:,:] = transformed_demand
 
-                # TEMPORARY
-                # if scale_demand:
-                demand_numpy = self.demand.to_numpy()
-                demand_max_per_product = np.max(demand_numpy[:self.train_index_end+1], axis=0)
-                non_zero_max = np.where(demand_max_per_product == 0, 1, demand_max_per_product)
-                demand_numpy = demand_numpy / non_zero_max
-                demand_numpy = demand_numpy.round(2)
-                self.demand = pd.DataFrame(demand_numpy, columns=self.demand.columns)
+                # Prepare data for lag_demand
+                self.demand_lag = self.demand.copy() # store original demand values for lag demand
+
+                # Normalize demand targets
+                if self.demand_normalization != 'no_normalization':
+                    # Normalizing per SKU on time dimension
+                    self.scaler_demand.fit(self.demand[:self.train_index_end+1])
+                    transformed_demand = self.scaler_demand.transform(self.demand)
+                    self.demand.iloc[:,:] = transformed_demand
+
+                # Set unit size for demand targets
+                if self.demand_unit_size != None:
+                    self.demand = np.round(self.demand, self.demand_unit_size)
+
+                # If separate normalization for lag demand, normalize it
+                if self.lag_demand_normalization != self.demand_normalization:
+                    if self.lag_demand_normalization != 'no_normalization':
+                        self.demand_lag = self.demand.copy() # if lag demand shall be normalized, build on the normalized demand (to account for slight variations due to rounding)
+                        self.scaler_demand_lag.fit(self.demand_lag[:self.train_index_end+1])
+                        transformed_demand_lag = self.scaler_demand_lag.transform(self.demand_lag)
+                        self.demand_lag.iloc[:,:] = transformed_demand_lag
+                
+                # If lag demand shall be normalized the same way, then copy the normalized demand
+                else:
+                    self.demand_lag = self.demand.copy()
 
                 if self.SKU_features is not None:
                     logging.info("--Normalizing SKU features")
@@ -603,7 +645,7 @@ class MultiShapeLoader(BaseDataLoader):
                 # Normalizting time features (no SKU dimension)
                 continuous_features = [col for col in self.time_features.columns if not self.is_one_hot(self.time_features[col])] if ignore_one_hot else self.time_features.columns
                 if len(continuous_features) > 0:
-                    self.scaler_time_features.fit(self.time_features.loc[:self.train_index_end+1,continuous_features]) # each column to be normalized
+                    self.scaler_time_features.fit(self.time_features.loc[:, continuous_features].iloc[:self.train_index_end+1, :])
                     transformed_time_features = self.scaler_time_features.transform(self.time_features.loc[:,continuous_features])
                     self.time_features.loc[:,continuous_features] = transformed_time_features
 
@@ -612,11 +654,13 @@ class MultiShapeLoader(BaseDataLoader):
                 for i, feature in enumerate(self.time_SKU_features.columns.get_level_values(0).unique()):
                     # Select all columns corresponding to the current feature in level 0
                     feature_df = self.time_SKU_features.xs(key=feature, axis=1, level=0)
-                    if not ignore_one_hot:
-                        if not self.is_one_hot_across_skus(feature_df):
-                            self.scaler_time_SKU_features[i].fit(feature_df[:self.train_index_end+1])
-                            transformed_feature_df = self.scaler_time_SKU_features[i].transform(feature_df)
-                            self.time_SKU_features.loc[:, (feature, slice(None))] = transformed_feature_df
+
+                    should_scale = not ignore_one_hot or (not self.is_one_hot_across_skus(feature_df) if ignore_one_hot else False)
+                    if should_scale:
+                        self.scaler_time_SKU_features[i].fit(feature_df[:self.train_index_end+1])
+                        transformed_feature_df = self.scaler_time_SKU_features[i].transform(feature_df)
+                        self.time_SKU_features.loc[:, (feature, slice(None))] = transformed_feature_df
+
             
                 self.normalized_in_sample_SKUs = True
 
@@ -700,7 +744,7 @@ class MultiShapeLoader(BaseDataLoader):
 
             if include_y:
                 assert idx_time_t-1 >= 0
-                lag_demand = self.demand[idx_time_t-1, idx_skus]
+                lag_demand = self.demand_lag[idx_time_t-1, idx_skus] # need to use t-1 to get the lag
 
             if self.SKU_features is not None:
                 SKU_features = self.SKU_features[idx_skus].transpose()
@@ -733,15 +777,10 @@ class MultiShapeLoader(BaseDataLoader):
 
             item[:,t,:,:] = item_t
         
-        if lag_window == 0:
-            if item.shape[1] == 1:
-                item = item.squeeze(1) 
-            else:
-                raise ValueError('Lag window is 0, but item has more than one time dimension')
         if self.meta_learn_units:
             if self.dataset_type == "train":
                 if item.shape[-1] == 1:
-                    item = item.squeeze(-1) 
+                    item = item.squeeze(-1)
                 else:
                     raise ValueError('SKU as batch, but item has more than one SKU dimension')
         else:

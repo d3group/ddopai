@@ -97,18 +97,16 @@ class KaggleM5DatasetLoader():
         cols.insert(4, cols.pop(1))
         self.calendar = self.calendar[cols]
 
-        # TEMPORARY
-        # logging.info("--Preparing snap features")
-        # snap_features = self.calendar[["snap_CA", "snap_TX", "snap_WI"]].copy()
-        # self.calendar.drop(["snap_CA", "snap_TX", "snap_WI"], axis=1, inplace=True)
+        logging.info("--Preparing snap features")
+        snap_features = self.calendar[["snap_CA", "snap_TX", "snap_WI"]].copy()
+        self.calendar.drop(["snap_CA", "snap_TX", "snap_WI"], axis=1, inplace=True)
 
-        # TEMPORARY
-        # new_snap_features = pd.DataFrame(index=range(snap_features.shape[0]), columns=unique_mapping.index)
-        # for sku in unique_mapping.index:
-        #     state_code = sku.split('_')[-2]
-        #     snap_column = f"snap_{state_code}"
-        #     new_snap_features[sku] = snap_features[snap_column].values
-        # snap_features = new_snap_features
+        new_snap_features = pd.DataFrame(index=range(snap_features.shape[0]), columns=unique_mapping.index)
+        for sku in unique_mapping.index:
+            state_code = sku.split('_')[-2]
+            snap_column = f"snap_{state_code}"
+            new_snap_features[sku] = snap_features[snap_column].values
+        snap_features = new_snap_features
 
         logging.info("--Preparing price information")
         self.price["SKU_id"] = self.price["item_id"] + "_" + self.price["store_id"]
@@ -133,15 +131,13 @@ class KaggleM5DatasetLoader():
         self.available = self.available.reset_index()
         self.available = self.available.merge(wm_yr_wk_per_day, on="wm_yr_wk", how="right")
         self.available.drop(["wm_yr_wk"], axis=1, inplace=True)
-        # self.calendar.drop(["wm_yr_wk"], axis=1, inplace=True) # TEMPORARY
+        self.calendar.drop(["wm_yr_wk"], axis=1, inplace=True)
 
         price_multi_index = pd.MultiIndex.from_product([['Price'], self.price.columns], names=['Type', 'SKU'])
         self.price.columns = price_multi_index
-        time_SKU_features = self.price
-        # TEMPORARY
-        # snap_multi_index = pd.MultiIndex.from_product([['Snap'], snap_features.columns], names=['DataType', 'SKU'])
-        # snap_features.columns = snap_multi_index
-        # time_SKU_features = pd.concat([self.price, snap_features], axis=1)
+        snap_multi_index = pd.MultiIndex.from_product([['Snap'], snap_features.columns], names=['DataType', 'SKU'])
+        snap_features.columns = snap_multi_index
+        time_SKU_features = pd.concat([self.price, snap_features], axis=1)
        
         self.demand = self.sale
         self.SKU_features = categories # features that are not time-dependent

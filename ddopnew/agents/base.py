@@ -51,17 +51,17 @@ class BaseAgent():
 
         batch_added = False
         if not isinstance(observation, dict):
-            observation = self.add_batch_dim(observation)
+            observation = self.add_batch_dim(observation) # adds batch dim if self.receive_batch_dim is False
             batch_added = True
 
         for obsprocessor in self.obsprocessors:
-            observation = obsprocessor(observation)
-            if not isinstance(observation, dict) and not batch_added:
-                observation = self.add_batch_dim(observation)
+            observation = obsprocessor(observation) # applies all preprocessors to the dict observation
+            if not isinstance(observation, dict) and not batch_added: # checks if one of the processors has removed the dict structure
+                observation = self.add_batch_dim(observation) # adds batch dim afterwards, if self.receive_batch_dim is False    
                 batch_added = True
 
         action = self.draw_action_(observation)
-        
+
         return action
 
     @abstractmethod
