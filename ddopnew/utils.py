@@ -319,7 +319,7 @@ def set_param(obj,
         elif input.size == 1:  # Handle single-element arrays correctly
             param = np.full(shape, input.item())
         else:
-            raise ValueError("Input array must match the specified shape or be a single-element array")
+            raise ValueError("Error in setting parameter. Input array must match the specified shape or be a single-element array")
 
     elif isinstance(input, np.ndarray):
         if input.shape == shape:
@@ -327,7 +327,7 @@ def set_param(obj,
         elif input.size == 1:  # Handle single-element arrays correctly
             param = np.full(shape, input.item())
         else:
-            raise ValueError("Input array must match the specified shape or be a single-element array")
+            raise ValueError("Error in setting parameter. Input array must match the specified shape or be a single-element array")
     else:
         raise TypeError("Input must be a Parameter, scalar, or numpy array")
 
