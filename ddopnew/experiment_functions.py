@@ -159,10 +159,13 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
                 save_dir = f"{experiment_dir}/saved_models/best"
                 agent.save(save_dir)
 
+                print(f"Saved agent to {save_dir}")
+
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 10
 def test_agent(agent: BaseAgent,
             env: BaseEnvironment,
             return_dataset = False,
+            save_features = False,
             tracking = None, # other: "wandb",
             eval_step_info = False,
 ):
@@ -174,7 +177,7 @@ def test_agent(agent: BaseAgent,
     # TODO make it possible to save dataset via tracking tool
 
     # Run the test episode
-    dataset = run_test_episode(env, agent, eval_step_info)
+    dataset = run_test_episode(env, agent, eval_step_info, save_features = save_features)
 
     # Calculate the score
     R, J = calculate_score(dataset, env)
@@ -191,6 +194,7 @@ def test_agent(agent: BaseAgent,
 def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from BaseEnvironment
                         agent: BaseAgent, # Any agent inheriting from BaseAgent
                         eval_step_info: bool = False, # Print step info during evaluation
+                        save_features: bool = False, # Save features (observation) of the dataset. Can be turned off since they sometimes become very large with many lag information
 
                 ):
 
@@ -225,8 +229,11 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
         logging.debug("next observation: %s", obs)
         logging.debug("truncated: %s", truncated)
 
-        sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
-        
+        if save_features:
+            sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
+        else:
+            sample = (None, action, reward, None, terminated, truncated)
+
         obs = next_obs
         
         dataset.append((sample, info))
@@ -275,6 +282,8 @@ def run_experiment( agent: BaseAgent,
 
     experiment_dir = f"{results_dir}/{run_id}"
 
+    print(f"Experiment directory: {experiment_dir}")
+
     logging.info("Starting experiment")
 
     env.reset()
@@ -311,17 +320,21 @@ def run_experiment( agent: BaseAgent,
         log_info(R, J, n_epochs-1, tracking, "val")
 
     elif agent.train_mode == "epochs_fit":
+
+        # save initial agent
+        save_dir = f"{experiment_dir}/saved_models/best"
+        agent.save(save_dir)
         
         logging.info("Starting training with epochs fit")
         for epoch in trange(n_epochs):
-
+            
             agent.fit_epoch() # Access to dataloader provided to the agent at initialization
 
             env.val()
             agent.eval()
 
             R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
-
+            
             if ((epoch+1) % print_freq) == 0:
                 logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
             
@@ -344,6 +357,10 @@ def run_experiment( agent: BaseAgent,
         logging.info("Finished training with epochs fit")
 
     elif agent.train_mode == "env_interaction":
+
+        # save initial agent
+        save_dir = f"{experiment_dir}/saved_models/best"
+        agent.save(save_dir)
 
         logging.info("Starting training with env_interaction")
 

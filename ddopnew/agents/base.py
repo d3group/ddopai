@@ -29,7 +29,8 @@ class BaseAgent():
     def __init__(self,
                     environment_info: MDPInfo,
                     obsprocessors: list[object] | None = None,  # default is empty list
-                    agent_name: str | None = None
+                    agent_name: str | None = None,
+                    receive_batch_dim: bool = False
                  ):
 
         self.obsprocessors = obsprocessors or []
@@ -37,7 +38,7 @@ class BaseAgent():
         self.environment_info = environment_info
         self.mode = "train"
         self.print = False  # Can be used for debugging
-        self.receive_batch_dim = False
+        self.receive_batch_dim = receive_batch_dim
 
         self.agent_name = agent_name
 
@@ -50,17 +51,17 @@ class BaseAgent():
 
         batch_added = False
         if not isinstance(observation, dict):
-            observation = self.add_batch_dim(observation)
+            observation = self.add_batch_dim(observation) # adds batch dim if self.receive_batch_dim is False
             batch_added = True
 
         for obsprocessor in self.obsprocessors:
-            observation = obsprocessor(observation)
-            if not isinstance(observation, dict) and not batch_added:
-                observation = self.add_batch_dim(observation)
+            observation = obsprocessor(observation) # applies all preprocessors to the dict observation
+            if not isinstance(observation, dict) and not batch_added: # checks if one of the processors has removed the dict structure
+                observation = self.add_batch_dim(observation) # adds batch dim afterwards, if self.receive_batch_dim is False    
                 batch_added = True
 
         action = self.draw_action_(observation)
-        
+
         return action
 
     @abstractmethod
