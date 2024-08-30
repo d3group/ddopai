@@ -140,7 +140,8 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
                 J: float,
                 best_R: float,
                 best_J: float,
-                criteria: str = "J"
+                criteria: str = "J",
+                force_save = False,
                 ):
 
     """
@@ -154,12 +155,17 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
             if R == best_R:
                 save_dir = f"{experiment_dir}/saved_models/best"
                 agent.save(save_dir)
+            elif force_save:
+                save_dir = f"{experiment_dir}/saved_models/best"
+                agent.save(save_dir)
         elif criteria == "J":
             if J == best_J:
                 save_dir = f"{experiment_dir}/saved_models/best"
                 agent.save(save_dir)
+            elif force_save:
+                save_dir = f"{experiment_dir}/saved_models/best"
 
-                print(f"Saved agent to {save_dir}")
+                # print(f"Saved agent to {save_dir}")
 
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 10
 def test_agent(agent: BaseAgent,
@@ -315,7 +321,7 @@ def run_experiment( agent: BaseAgent,
 
         logging.info(f"Evaluation after training: R={R}, J={J}")
 
-        save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion)
+        save_agent(agent, experiment_dir, save_best, R, J, best_R, best_J, performance_criterion, force_save = True) # save even if not best
 
         log_info(R, J, n_epochs-1, tracking, "val")
 
