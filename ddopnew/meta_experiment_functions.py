@@ -257,6 +257,7 @@ def prep_and_run_test(
     environment,
     agent_dir: str = None,
     save_dataset: bool = True,
+    save_features: bool = False,
     dataset_dir: str = None,
     tracking = "wandb"):
     
@@ -282,7 +283,8 @@ def prep_and_run_test(
         agent,
         environment,
         return_dataset=save_dataset,
-        tracking=tracking
+        save_features=save_features,
+        tracking=tracking,
     )
 
     # Save dataset
