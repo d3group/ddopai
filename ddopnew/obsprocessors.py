@@ -285,8 +285,6 @@ class AddParamsToFeaturesLEGACY(BaseProcessor):
                     features = np.concatenate([features, value.flatten()])
                 else:
                     raise ValueError(f"Expected input to have the same shape as features, but got {value.shape} instead (feature shape: {features.shape}).")
-
-        print(features.shape)
         
         if self.environment.mode == "train":
             if len(features.shape) == 3:
