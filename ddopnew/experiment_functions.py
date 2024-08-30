@@ -165,6 +165,7 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
 def test_agent(agent: BaseAgent,
             env: BaseEnvironment,
             return_dataset = False,
+            save_features = False,
             tracking = None, # other: "wandb",
             eval_step_info = False,
 ):
@@ -176,7 +177,7 @@ def test_agent(agent: BaseAgent,
     # TODO make it possible to save dataset via tracking tool
 
     # Run the test episode
-    dataset = run_test_episode(env, agent, eval_step_info)
+    dataset = run_test_episode(env, agent, eval_step_info, save_features = save_features)
 
     # Calculate the score
     R, J = calculate_score(dataset, env)
@@ -193,6 +194,7 @@ def test_agent(agent: BaseAgent,
 def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from BaseEnvironment
                         agent: BaseAgent, # Any agent inheriting from BaseAgent
                         eval_step_info: bool = False, # Print step info during evaluation
+                        save_features: bool = False, # Save features (observation) of the dataset. Can be turned off since they sometimes become very large with many lag information
 
                 ):
 
@@ -227,8 +229,11 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
         logging.debug("next observation: %s", obs)
         logging.debug("truncated: %s", truncated)
 
-        sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
-        
+        if save_features:
+            sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
+        else:
+            sample = (None, action, reward, None, terminated, truncated)
+
         obs = next_obs
         
         dataset.append((sample, info))
