@@ -167,13 +167,11 @@ class DatasetWrapper(Dataset):
     """
 
     def __init__(self, 
-            dataloader: BaseDataLoader # Any dataloader that inherits from BaseDataLoader
+            dataloader: BaseDataLoader, # Any dataloader that inherits from BaseDataLoader
+            obsprocessors: List = None # processors (to mimic the environment processors)
             ):
-        """
-
-
-        """
         self.dataloader = dataloader
+        self.obsprocessors = obsprocessors or []
     
     def __getitem__(self, idx):
         """
@@ -182,7 +180,21 @@ class DatasetWrapper(Dataset):
         """
 
         # create tuple of items
-        return self.dataloader[idx]
+
+        output = self.dataloader[idx]
+
+        X = output[0]
+
+        X = np.expand_dims(X, axis=0) # single datapoints are always returned without batch dimension, need to add for obsprocessors
+
+        for obsprocessor in self.obsprocessors:
+            X = obsprocessor(X)
+        
+        X = np.squeeze(X, axis=0) # remove batch dimension
+
+        output = (X, *output[1:])
+        
+        return output
 
 
     def __len__(self):
@@ -220,13 +232,13 @@ class DatasetWrapperMeta(DatasetWrapper):
             parameter_names: List[str] = None, # names of the parameters
             bounds_low: Union[int, float] | List = 0, # lower bound for params during training, can be List for multiple parameters
             bounds_high: Union[int, float] | List = 1, # upper bound for params during training, can be List for multiple parameters
-            obsprocessor: callable = None # processor to combine features and parameters
+            obsprocessors: List = None # processors (to mimic the environment processors)
             ):
 
         if isinstance(distribution, list) or isinstance(bounds_low, list) or isinstance(bounds_high, list):
             raise NotImplementedError("Multiple parameters not yet implemented")
-        if obsprocessor is None:
-            raise ValueError("Obsprocessor must be provided")
+        if obsprocessors is None:
+            raise ValueError("Obsprocessors must be provided")
         
         self.distribution = [distribution]
         self.bounds_low = [bounds_low]
@@ -235,7 +247,7 @@ class DatasetWrapperMeta(DatasetWrapper):
         self.dataloader = dataloader
 
         self.draw_parameter = draw_parameter_function
-        self.obsprocessor = obsprocessor
+        self.obsprocessors = obsprocessors
 
         self.parameter_names = parameter_names
     
@@ -245,7 +257,10 @@ class DatasetWrapperMeta(DatasetWrapper):
 
         """
 
-        features, demand = self.dataloader[idx]
+        features, demand = self.dataloader[idx] 
+
+        features = np.expand_dims(features, axis=0) # add batch dimension as meta environments also return a batch dimension (needed for obsprocessor)
+
         params = {}
         for i in range(len(self.distribution)):
             param = self.draw_parameter(self.distribution[0], self.bounds_low[0], self.bounds_high[0], samples=1) # idx always gets a single sample
@@ -254,9 +269,11 @@ class DatasetWrapperMeta(DatasetWrapper):
         obs = params.copy()
         obs["features"] = features
 
-        obs = self.obsprocessor(obs)
+        for obsprocessor in self.obsprocessors:
+            obs = obsprocessor(obs)
 
-        # create tuple of items
+        obs = np.squeeze(obs, axis=0) # remove batch dimension after observation has been processed as the pytorch dataloader adds the batch dimension
+
         return obs, demand, params
 
 # %% ../nbs/00_utils/00_utils.ipynb 27
@@ -286,12 +303,11 @@ def set_param(obj,
 
     if input is None:
         param = None
-        
+
     elif isinstance(input, Parameter):
         if input.shape != shape:
             raise ValueError("Parameter shape must be equal to the shape specified for this environment parameter")
         param = input
-    
     
     elif isinstance(input, (int, float)):
         param = np.full(shape, input)
@@ -303,7 +319,7 @@ def set_param(obj,
         elif input.size == 1:  # Handle single-element arrays correctly
             param = np.full(shape, input.item())
         else:
-            raise ValueError("Input array must match the specified shape or be a single-element array")
+            raise ValueError("Error in setting parameter. Input array must match the specified shape or be a single-element array")
 
     elif isinstance(input, np.ndarray):
         if input.shape == shape:
@@ -311,7 +327,7 @@ def set_param(obj,
         elif input.size == 1:  # Handle single-element arrays correctly
             param = np.full(shape, input.item())
         else:
-            raise ValueError("Input array must match the specified shape or be a single-element array")
+            raise ValueError("Error in setting parameter. Input array must match the specified shape or be a single-element array")
     else:
         raise TypeError("Input must be a Parameter, scalar, or numpy array")
 
