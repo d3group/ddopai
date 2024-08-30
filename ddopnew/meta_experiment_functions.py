@@ -3,7 +3,7 @@
 # %% auto 0
 __all__ = ['set_warnings', 'prep_experiment', 'init_wandb', 'track_libraries_and_git', 'import_config',
            'transfer_lag_window_to_env', 'get_ddop_data', 'download_data', 'set_indices', 'set_up_env',
-           'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up', 'select_agent']
+           'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up', 'select_agent', 'merge_with_namespace']
 
 # %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 3
 from abc import ABC, abstractmethod
@@ -343,3 +343,55 @@ def select_agent(agent_name: str) -> type: #
         return getattr(module, class_name)
     else:
         raise ValueError(f"Unknown agent name: {agent_name}")
+
+# %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 28
+def merge_with_namespace(target_dict, source_dict, target_dict_name):
+    
+    """
+    Merge source_dict into target_dict, using the keys as namespaces.
+    For example, if target_dict_name is "agent", the key "agent-epsilon" in source_dict will be merged into target_dict["epsilon"].
+    The function is to merge hyperparameters from a config file with the default hyperparameters from the yaml files
+
+    Args:
+        target_dict (dict): Target dictionary
+        source_dict (dict): Source dictionary
+        target_dict_name (str): Name of the target dictionary
+
+    Returns:
+        dict: Merged dictionary
+
+    """
+    
+    for namespaced_key, value in source_dict.items():
+        keys = namespaced_key.split('-')
+
+        if keys[0] != target_dict_name:
+            continue
+
+        keys = keys[1:]
+
+        d = target_dict
+    
+        # Check if keys already exist in target_dict
+        exists = True
+        for key in keys:
+            if key not in d:
+                exists = False
+                break
+            if isinstance(d[key], dict):
+                d = d[key]
+                continue
+            else:
+                break
+
+        # If all keys are present, overwrite the value
+        if exists:
+            prev = d[key]
+            d[key] = value
+            print(f"Overwriting in key {namespaced_key} value {prev} with value {value}")
+        else:
+            # exception if key is not present in target_dict
+            print(f"Key {namespaced_key} not found in {target_dict_name}.")
+            raise ValueError(f"Key {namespaced_key} not found in {target_dict_name}.")
+
+    return target_dict
