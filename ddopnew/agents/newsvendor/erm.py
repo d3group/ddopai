@@ -8,7 +8,7 @@ __all__ = ['SGDBaseAgent', 'NVBaseAgent', 'NewsvendorlERMAgent', 'NewsvendorDLAg
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Union, Optional, List, Tuple, Literal
+from typing import Union, Optional, List, Tuple, Literal, Callable, Dict
 import numpy as np
 import os
 from tqdm import tqdm
@@ -21,6 +21,7 @@ from ...utils import MDPInfo, Parameter, DatasetWrapper, DatasetWrapperMeta
 from ...torch_utils.loss_functions import TorchQuantileLoss, TorchPinballLoss
 from ...obsprocessors import FlattenTimeDimNumpy
 from ...dataloaders.base import BaseDataLoader
+from ...ml_utils import LRSchedulerPerStep
 
 import torch
 
@@ -45,7 +46,7 @@ class SGDBaseAgent(BaseAgent):
             dataset_params: Optional[dict] = None, # parameters needed to convert the dataloader to a torch dataset
             dataloader_params: Optional[dict] = None, # default: {"batch_size": 32, "shuffle": True}
             optimizer_params: Optional[dict] = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-            learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+            learning_rate_scheduler_params: Dict | None = None, # default: None. If dict, then first key is "scheduler" and the rest are the parameters
             obsprocessors: Optional[List] = None,     # default: []
             device: str = "cpu", # "cuda" or "cpu"
             agent_name: str | None = None,
@@ -66,7 +67,7 @@ class SGDBaseAgent(BaseAgent):
         self.loss_function_params=None # default
         self.set_loss_function()
         self.set_optimizer(optimizer_params)
-        self.set_learning_rate_scheduler(learning_rate_scheduler)
+        self.set_learning_rate_scheduler(learning_rate_scheduler_params)
         self.test_batch_size = test_batch_size
 
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name, receive_batch_dim = receive_batch_dim)
@@ -154,10 +155,19 @@ class SGDBaseAgent(BaseAgent):
             else:
                 raise ValueError(f"Optimizer {optimizer} not supported")
         
-    def set_learning_rate_scheduler(self, learning_rate_scheduler: None = None): #
+    def set_learning_rate_scheduler(self, learning_rate_scheduler_params): #
         """ Set learning rate scheudler (can be None) """
-        if learning_rate_scheduler is not None:
-            raise NotImplementedError("Learning rate scheduler not implemented yet")
+
+        if learning_rate_scheduler_params is not None:
+
+            params = learning_rate_scheduler_params.copy()
+            scheduler_type = params["scheduler"]
+            del params["scheduler"]
+            if scheduler_type == "LRSchedulerPerStep":
+                self.learning_rate_scheduler = LRSchedulerPerStep(self.optimizer, **params)
+            else:
+                raise ValueError(f"Learning rate scheduler {scheduler_type} not supported")
+
         else:
             self.learning_rate_scheduler = None
 
@@ -196,6 +206,9 @@ class SGDBaseAgent(BaseAgent):
 
             loss.backward()
             self.optimizer.step()
+
+            if self.learning_rate_scheduler is not None:
+                self.learning_rate_scheduler.step()
         
             total_loss += loss.item()
         
@@ -325,7 +338,7 @@ class NVBaseAgent(SGDBaseAgent):
                 input_shape: Tuple,
                 output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params = None,  # TODO: add base class for learning rate scheduler for typing
                 dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
                 obsprocessors: list | None = None,      # default: []
@@ -352,7 +365,7 @@ class NVBaseAgent(SGDBaseAgent):
             input_shape=input_shape,
             output_shape=output_shape,
             optimizer_params=optimizer_params,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
             dataset_params=dataset_params,
             dataloader_params=dataloader_params,
             obsprocessors=obsprocessors,
@@ -399,7 +412,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
                 input_shape: Tuple,
                 output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
                 dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
@@ -426,7 +439,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
             input_shape=input_shape,
             output_shape=output_shape,
             optimizer_params=optimizer_params,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
             dataloader_params=dataloader_params,
             dataset_params=dataset_params,
             obsprocessors=obsprocessors,
@@ -464,7 +477,7 @@ class NewsvendorDLAgent(NVBaseAgent):
                 co: np.ndarray | Parameter,
                 input_shape: Tuple,
                 output_shape: Tuple,
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params: Dict | None = None,  
                 
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
@@ -498,7 +511,7 @@ class NewsvendorDLAgent(NVBaseAgent):
             input_shape=input_shape,
             output_shape=output_shape,
             optimizer_params=optimizer_params,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
             dataloader_params=dataloader_params,
             dataset_params=dataset_params,
             obsprocessors=obsprocessors,
@@ -559,7 +572,7 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
                 input_shape: Tuple,
                 output_shape: Tuple,
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params = None,  # TODO: add base class for learning rate scheduler for typing
                 model_params: dict | None = None,  # default: {"relu_output": False}
                 dataset_params: dict | None = None, # parameters needed to convert the dataloader to a torch dataset
                 dataloader_params: dict | None = None,  # default: {"batch_size": 32, "shuffle": True}
@@ -581,7 +594,7 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
             input_shape=input_shape,
             output_shape=output_shape,
             optimizer_params=optimizer_params,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
             model_params=model_params,
             dataloader_params=dataloader_params,
             obsprocessors=obsprocessors,
@@ -666,7 +679,7 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
                 co: np.ndarray | Parameter,
                 input_shape: Tuple,
                 output_shape: Tuple,
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params: Dict | None = None,
                 
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
@@ -708,7 +721,7 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
             input_shape=input_shape,
             output_shape=output_shape,
             optimizer_params=optimizer_params,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
             dataset_params=dataset_params,
             dataloader_params=dataloader_params,
             obsprocessors=obsprocessors,
@@ -750,7 +763,7 @@ class NewsvendorDLTransformerMetaAgent(NewsvendorDLTransformerAgent, BaseMetaAge
                 co: np.ndarray | Parameter,
                 input_shape: Tuple,
                 output_shape: Tuple,
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params: Dict | None = None, 
                 
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
@@ -775,7 +788,7 @@ class NewsvendorDLTransformerMetaAgent(NewsvendorDLTransformerAgent, BaseMetaAge
             co=co,
             input_shape=input_shape,
             output_shape=output_shape,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
 
             optimizer_params=optimizer_params,
             model_params=model_params,
