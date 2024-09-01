@@ -164,8 +164,7 @@ def save_agent(agent: BaseAgent, # Any agent inheriting from BaseAgent
                 agent.save(save_dir)
             elif force_save:
                 save_dir = f"{experiment_dir}/saved_models/best"
-
-                # print(f"Saved agent to {save_dir}")
+                agent.save(save_dir)
 
 # %% ../nbs/30_experiment_functions/10_experiment_functions.ipynb 10
 def test_agent(agent: BaseAgent,
