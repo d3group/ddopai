@@ -424,6 +424,7 @@ class MultiShapeLoader(BaseDataLoader):
         logging.info("--Saving indices")
 
         self.in_sample_val_test_SKUs_indices = self.demand.columns.get_indexer(self.in_sample_val_test_SKUs) if self.in_sample_val_test_SKUs is not None else None
+
         self.train_SKUs_indices = self.demand.columns.get_indexer(self.train_SKUs)
 
         self.demand_indices = self.save_indices(self.demand)
@@ -695,6 +696,7 @@ class MultiShapeLoader(BaseDataLoader):
         if self.dataset_type == "train":
 
             if self.meta_learn_units:
+
                 if idx >= len(self.sku_time_index):
                     raise IndexError(f'index {idx} out of range{len(self.sku_time_index)}')
                 idx_sku, idx_time, = self.sku_time_index[idx]
@@ -734,8 +736,6 @@ class MultiShapeLoader(BaseDataLoader):
 
         """ get item by index, depending on the dataset type (train, val, test)"""
 
-        # print("mode of dataloader when getting item:", self.dataset_type)
-
         lag_window = self.lag_window_params["lag_window"]
         include_y = self.lag_window_params["include_y"]
 
@@ -768,12 +768,14 @@ class MultiShapeLoader(BaseDataLoader):
             len_time_features = len(time_features)
             item_t[:,len_SKU_features:(len_SKU_features+len_time_features),:] = time_features
 
-            num_time_SKU_features_without_lag_demand = self.num_time_SKU_features-1 if include_y else self.num_time_SKU_features
+            num_time_SKU_features_without_lag_demand = self.num_time_SKU_features-include_y-self.include_non_available
+            
             time_SKU_features = np.empty((num_time_SKU_features_without_lag_demand, num_skus))
             for i, idx_sku in enumerate(idx_skus):
+
                 SKU_indices = [len(self.train_SKUs)*i+idx_sku for i in range(num_time_SKU_features_without_lag_demand)]
                 time_SKU_features[:,i] = self.time_SKU_features[idx_time_t, SKU_indices]
-            
+
             item_t[:,(len_SKU_features+len_time_features):(len_SKU_features+len_time_features+num_time_SKU_features_without_lag_demand),:] = time_SKU_features
 
             if include_y:
