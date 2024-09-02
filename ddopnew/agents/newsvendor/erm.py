@@ -624,7 +624,7 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
                 co: np.ndarray | Parameter,
                 input_shape: Tuple,
                 output_shape: Tuple,
-                learning_rate_scheduler = None,  # TODO: add base class for learning rate scheduler for typing
+                learning_rate_scheduler_params = None,  # TODO: add base class for learning rate scheduler for typing
                 
                 # parameters in yaml file
                 optimizer_params: dict | None = None,  # default: {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
@@ -649,7 +649,7 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
             co=co,
             input_shape=input_shape,
             output_shape=output_shape,
-            learning_rate_scheduler=learning_rate_scheduler,
+            learning_rate_scheduler_params=learning_rate_scheduler_params,
 
             optimizer_params=optimizer_params,
             model_params=model_params,
