@@ -78,6 +78,8 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         """
 
+        print("action shape:", action.shape)
+
         # Most agent give by default a batch dimension which is not needed for a single period action.
         # If action shape size is 2 and the first dimensiion is 1, then remove it
         if action.ndim == 2 and action.shape[0] == 1:
@@ -244,7 +246,6 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
                 shape = shape[1:] # assumed that the first dimension is the number of samples
             if self.SKUs_in_batch_dimension:
                 shape = (self.num_SKUs[0],) + shape
-            print("shape in set observation space:", shape)
             spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
 
         elif feature_shape is None:
