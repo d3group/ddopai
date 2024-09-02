@@ -78,8 +78,6 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
 
         """
 
-        print("action shape:", action.shape)
-
         # Most agent give by default a batch dimension which is not needed for a single period action.
         # If action shape size is 2 and the first dimensiion is 1, then remove it
         if action.ndim == 2 and action.shape[0] == 1:
