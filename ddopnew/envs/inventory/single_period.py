@@ -244,7 +244,6 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
                 shape = shape[1:] # assumed that the first dimension is the number of samples
             if self.SKUs_in_batch_dimension:
                 shape = (self.num_SKUs[0],) + shape
-            print("shape in set observation space:", shape)
             spaces["features"] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=np.float32)
 
         elif feature_shape is None:

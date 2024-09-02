@@ -241,6 +241,9 @@ class SGDBaseAgent(BaseAgent):
 
         y_pred_full = []
         for batch in batches:
+
+            X = batch
+
             X = torch.tensor(X, dtype=torch.float32)
             X = X.to(device)
 
