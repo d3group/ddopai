@@ -883,10 +883,13 @@ class MultiShapeLoader(BaseDataLoader):
                     if self.lag_demand_normalization != 'no_normalization':
                         
                         self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
+                        
+                        self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                         self.scaler_out_of_sample_test_demand_lag.fit(self.demand_lag_out_of_sample_test[:self.train_index_end+1])
                         transformed_demand_lag = self.scaler_out_of_sample_test_demand_lag.transform(self.demand_lag_out_of_sample_test)
                         self.demand_lag_out_of_sample_test.iloc[:,:] = transformed_demand_lag
                         
+                        self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
                         self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
                         self.scaler_out_of_sample_val_demand_lag.fit(self.demand_lag_out_of_sample_val[:self.train_index_end+1])
                         transformed_demand_lag = self.scaler_out_of_sample_val_demand_lag.transform(self.demand_lag_out_of_sample_val)
