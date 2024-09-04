@@ -899,6 +899,7 @@ class MultiShapeLoader(BaseDataLoader):
                     self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                     self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
                     
+                    
                 if self.SKU_features is not None:
                     logging.info("--Normalizing SKU features")
                     # Normalizing across SKUs, no time dimension present
