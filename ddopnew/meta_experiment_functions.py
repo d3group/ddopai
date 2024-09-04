@@ -279,6 +279,7 @@ def prep_and_run_test(
     save_dataset: bool = True,
     save_features: bool = False,
     dataset_dir: str = None,
+    eval_step_info = False,
     tracking = "wandb"):
     
     """
@@ -305,6 +306,7 @@ def prep_and_run_test(
         return_dataset=save_dataset,
         save_features=save_features,
         tracking=tracking,
+        eval_step_info=eval_step_info,
     )
 
     # Save dataset
