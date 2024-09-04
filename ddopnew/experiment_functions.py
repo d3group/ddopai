@@ -251,6 +251,7 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
             step += 1
             sys.stdout.write(f"\rStep {step}")
             sys.stdout.flush()
+
     if eval_step_info:
         print()
 
