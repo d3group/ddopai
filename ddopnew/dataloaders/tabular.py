@@ -861,35 +861,32 @@ class MultiShapeLoader(BaseDataLoader):
                 self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                 self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
 
-                print(np.sum(self.demand_lag_out_of_sample_val))
-                print(np.sum(self.demand_lag_out_of_sample_test))
-                print(np.sum(self.demand_out_of_sample_val))
-                print(np.sum(self.demand_out_of_sample_test))
-            
-
                 # Normalize demand targets
                 if self.demand_normalization != 'no_normalization':
                     # Normalizing per SKU on time dimension
                     self.scaler_out_of_sample_test_demand.fit(self.demand_out_of_sample_test[:self.train_index_end+1])
                     transformed_demand = self.scaler_out_of_sample_test_demand.transform(self.demand_lag_out_of_sample_test)
-                    self.demand_lag_out_of_sample_test.iloc[:,:] = transformed_demand
+                    self.demand_out_of_sample_test.iloc[:,:] = transformed_demand
 
                     self.scaler_out_of_sample_val_demand.fit(self.demand_out_of_sample_val[:self.train_index_end+1])
                     transformed_demand = self.scaler_out_of_sample_val_demand.transform(self.demand_lag_out_of_sample_val)
-                    self.demand_lag_out_of_sample_val.iloc[:,:] = transformed_demand
+                    self.demand_out_of_sample_val.iloc[:,:] = transformed_demand
                 
                 # Set unit size for demand targets
                 if self.demand_unit_size != None:
-                    self.demand_lag_out_of_sample_test = np.round(self.demand_lag_out_of_sample_test, self.demand_unit_size)
-                    self.demand_lag_out_of_sample_val = np.round(self.demand_lag_out_of_sample_val, self.demand_unit_size)
+                    self.demand_out_of_sample_test = np.round(self.demand_out_of_sample_test, self.demand_unit_size)
+                    self.demand_out_of_sample_val = np.round(self.demand_out_of_sample_val, self.demand_unit_size)
 
                 # If separate normalization for lag demand, normalize it
                 if self.lag_demand_normalization != self.demand_normalization:
                     if self.lag_demand_normalization != 'no_normalization':
+                        
+                        self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                         self.scaler_out_of_sample_test_demand_lag.fit(self.demand_lag_out_of_sample_test[:self.train_index_end+1])
                         transformed_demand_lag = self.scaler_out_of_sample_test_demand_lag.transform(self.demand_lag_out_of_sample_test)
                         self.demand_lag_out_of_sample_test.iloc[:,:] = transformed_demand_lag
                         
+                        self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
                         self.scaler_out_of_sample_val_demand_lag.fit(self.demand_lag_out_of_sample_val[:self.train_index_end+1])
                         transformed_demand_lag = self.scaler_out_of_sample_val_demand_lag.transform(self.demand_lag_out_of_sample_val)
                         self.demand_lag_out_of_sample_val.iloc[:,:] = transformed_demand_lag
@@ -898,7 +895,6 @@ class MultiShapeLoader(BaseDataLoader):
                 else:
                     self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                     self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
-                    
                     
                 if self.SKU_features is not None:
                     logging.info("--Normalizing SKU features")
@@ -935,6 +931,12 @@ class MultiShapeLoader(BaseDataLoader):
                         self.time_SKU_features_out_of_sample_val.loc[:, (feature, slice(None))] = transformed_feature_df
             
                 self.normalized_out_of_sample_SKUs = True
+
+                print(self.demand_out_of_sample_test)
+                print(self.demand_out_of_sample_val)
+
+                print(self.demand_lag_out_of_sample_test)
+                print(self.demand_lag_out_of_sample_val)
 
             else:
                 raise NotImplementedError('Training data can only normalized during initialization - later normlization not implemented yet')
