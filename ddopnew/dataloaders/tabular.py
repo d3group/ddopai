@@ -860,6 +860,11 @@ class MultiShapeLoader(BaseDataLoader):
 
                 self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
                 self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
+
+                print(np.sum(self.demand_lag_out_of_sample_val))
+                print(np.sum(self.demand_lag_out_of_sample_test))
+                print(np.sum(self.demand_out_of_sample_val))
+                print(np.sum(self.demand_out_of_sample_test))
             
 
                 # Normalize demand targets
@@ -888,11 +893,11 @@ class MultiShapeLoader(BaseDataLoader):
                         self.scaler_out_of_sample_val_demand_lag.fit(self.demand_lag_out_of_sample_val[:self.train_index_end+1])
                         transformed_demand_lag = self.scaler_out_of_sample_val_demand_lag.transform(self.demand_lag_out_of_sample_val)
                         self.demand_lag_out_of_sample_val.iloc[:,:] = transformed_demand_lag
-   
+                    
                 # If lag demand shall be normalized the same way, then copy the normalized demand
                 else:
-                    self.demand_lag_out_of_sample_test = self.demand_lag_out_of_sample_test.copy()
-                    self.demand_lag_out_of_sample_val = self.demand_lag_out_of_sample_val.copy()
+                    self.demand_lag_out_of_sample_test = self.demand_out_of_sample_test.copy()
+                    self.demand_lag_out_of_sample_val = self.demand_out_of_sample_val.copy()
                     
                 if self.SKU_features is not None:
                     logging.info("--Normalizing SKU features")
