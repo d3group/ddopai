@@ -313,6 +313,7 @@ class MultiShapeLoader(BaseDataLoader):
         # Set data
         self.demand = demand
         self.SKU_features = SKU_features
+        self.SKU_features_out_of_sample_val, self.SKU_features_out_of_sample_test = None, None # will be overwritten if relevant
         self.time_features = time_features
         self.time_SKU_features = time_SKU_features
         self.mask = mask
