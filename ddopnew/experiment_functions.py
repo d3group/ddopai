@@ -352,6 +352,10 @@ def run_experiment( agent: BaseAgent,
             agent.eval()
 
             R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
+
+            if return_score:
+                R_list.append(R)
+                J_list.append(J)
             
             if ((epoch+1) % print_freq) == 0:
                 logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
@@ -371,10 +375,6 @@ def run_experiment( agent: BaseAgent,
         
             env.train()
             agent.train()
-
-            if return_score:
-                R_list.append(R)
-                J_list.append(J)
 
         logging.info("Finished training with epochs fit")
 
@@ -418,6 +418,10 @@ def run_experiment( agent: BaseAgent,
 
             R, J = test_agent(agent, env, tracking = tracking, eval_step_info=eval_step_info)
 
+            if return_score:
+                R_list.append(R)
+                J_list.append(J)
+
             if ((epoch+1) % print_freq) == 0:
                 logging.info(f"Epoch {epoch+1}: R={R}, J={J}")
             
@@ -436,10 +440,6 @@ def run_experiment( agent: BaseAgent,
         
             env.train()
             agent.train()
-
-            if return_score:
-                R_list.append(R)
-                J_list.append(J)
 
     else:
         raise ValueError("Unknown train mode")
