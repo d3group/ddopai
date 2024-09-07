@@ -325,7 +325,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
             # print index
             print("total index:", self.index)
             print("first inf encountered:", np.argwhere(np.isinf(X_item))[0])
-
+            
             assert False
 
         if self.mode == "train":
