@@ -276,6 +276,8 @@ def run_experiment( agent: BaseAgent,
                     print_freq: int = 10,
 
                     eval_step_info = False,
+
+                    return_score = False,
                 ):
 
     """
@@ -283,6 +285,10 @@ def run_experiment( agent: BaseAgent,
     of the agent is direct, epochs_fit or env_interaction and runs the experiment accordingly.
 
     """
+
+    if return_score:
+        R_list = []
+        J_list = []
 
     # use start_time as id if no run_id is given
     if run_id is None:
@@ -327,6 +333,10 @@ def run_experiment( agent: BaseAgent,
 
         log_info(R, J, n_epochs-1, tracking, "val")
 
+        if return_score:
+            R_list.append(R)
+            J_list.append(J)
+
     elif agent.train_mode == "epochs_fit":
 
         # save initial agent
@@ -361,6 +371,10 @@ def run_experiment( agent: BaseAgent,
         
             env.train()
             agent.train()
+
+            if return_score:
+                R_list.append(R)
+                J_list.append(J)
 
         logging.info("Finished training with epochs fit")
 
@@ -423,7 +437,14 @@ def run_experiment( agent: BaseAgent,
             env.train()
             agent.train()
 
+            if return_score:
+                R_list.append(R)
+                J_list.append(J)
+
     else:
         raise ValueError("Unknown train mode")
+
+    if return_score:
+        return R_list, J_list
 
     logging.info(f"Evaluation after training: R={R}, J={J}")
