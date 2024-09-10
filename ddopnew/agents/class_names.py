@@ -13,6 +13,8 @@ AGENT_CLASSES = {
     "wSAA": "ddopnew.agents.newsvendor.saa.NewsvendorRFwSAAagent",
     "RFwSAA": "ddopnew.agents.newsvendor.saa.NewsvendorRFwSAAagent",
 
+    "XGB": "ddopnew.agents.newsvendor.erm.NewsvendorXGBAgent",
+
     "lERM": "ddopnew.agents.newsvendor.erm.NewsvendorlERMAgent",
     "DLNV": "ddopnew.agents.newsvendor.erm.NewsvendorDLAgent",
     "DLNVRNN": "ddopnew.agents.newsvendor.erm.NewsvendorDLRNNAgent",
