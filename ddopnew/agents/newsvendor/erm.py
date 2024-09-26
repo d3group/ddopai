@@ -219,7 +219,7 @@ class SGDBaseAgent(BaseAgent):
             test_batch_size: int = 1024,
             receive_batch_dim: bool = False,
             ):
-
+        
         # Initialize default values for mutable arguments
         optimizer_params = optimizer_params or {"optimizer": "Adam", "lr": 0.01, "weight_decay": 0.0}
         dataloader_params = dataloader_params or {"batch_size": 32, "shuffle": True}
