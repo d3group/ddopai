@@ -307,6 +307,7 @@ class MultiShapeLoader(BaseDataLoader):
         demand_normalization: Literal['minmax', 'standard', 'no_normalization'] = 'no_normalization', # 'standard' or 'minmax'
         demand_unit_size: float | None = None, # use same convention as for other dataloaders and enviornments, but here only full decimal values are allowed
         provide_additional_target: bool = False, # follows ICL convention by providing actual demand to token, with the last token receiving 0
+        permutate_inputs: bool = False, # if the inputs shall be permutated during training for meta-learning
     ):
      
         logging.info("Setting main env attributes")
@@ -317,6 +318,7 @@ class MultiShapeLoader(BaseDataLoader):
         self.time_features = time_features
         self.time_SKU_features = time_SKU_features
         self.mask = mask
+        self.permutate_inputs = permutate_inputs
 
         # convert dtypes to float
         self.demand = self.demand.astype(float)
@@ -1114,6 +1116,18 @@ class MultiShapeLoader(BaseDataLoader):
             additional_info[:, :, current_index, :] = np.expand_dims(additional_target, axis=0)
 
         item[:,:,-extra_info:,:] = additional_info
+
+        if self.dataset_type == "train":
+            if self.permutate_inputs:
+                start_index_to_permutate = len_SKU_features
+                end_index_to_permutate = item.shape[2]
+                if self.provide_additional_target:
+                    end_index_to_permutate -= 1 # target shall always be at the end
+                indices_for_permutation = np.arange(start_index_to_permutate, end_index_to_permutate)
+                print("original order:", indices_for_permutation)
+                indices = np.random.permutation(indices_for_permutation)
+                item[:,:,(start_index_to_permutate):end_index_to_permutate,:] = item[:,:,(indices),:]
+                print("new order:", indices)
 
         if self.meta_learn_units:
             if self.dataset_type == "train":
