@@ -164,7 +164,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             self.set_param("sl", sl, shape=(self.num_SKUs[0],))
 
 
-# %% ../../../nbs/21_envs_inventory/20_single_period_envs.ipynb 14
+# %% ../../../nbs/21_envs_inventory/20_single_period_envs.ipynb 15
 class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
     def __init__(self,
 
