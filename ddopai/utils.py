@@ -278,7 +278,7 @@ class DatasetWrapperMeta(DatasetWrapper):
 
         return obs, demand, params
 
-# %% ../nbs/00_utils/00_utils.ipynb 27
+# %% ../nbs/00_utils/00_utils.ipynb 26
 def merge_dictionaries(dict1, dict2):
     """ Merge two dictionaries. If a key is found in both dictionaries, raise a KeyError. """
     for key in dict2:
@@ -289,7 +289,7 @@ def merge_dictionaries(dict1, dict2):
     merged_dict = {**dict1, **dict2}
     return merged_dict
 
-# %% ../nbs/00_utils/00_utils.ipynb 29
+# %% ../nbs/00_utils/00_utils.ipynb 28
 def set_param(obj,
                 name: str, # name of the parameter (will become the attribute name)
                 input: Parameter | int | float | np.ndarray | List | None , # input value of the parameter
