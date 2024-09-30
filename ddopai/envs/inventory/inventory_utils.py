@@ -26,6 +26,7 @@ import time
 
 # %% ../../../nbs/21_envs_inventory/00_inventory_utils.ipynb 4
 class OrderPipeline():
+   
     """
     Class to handle the order pipeline in the inventory environments. It is used to keep track of the orders
     that are placed. It can account for fixed and variable lead times.

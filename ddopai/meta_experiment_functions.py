@@ -51,7 +51,7 @@ def set_warnings (logging_level):
 # %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 7
 def prep_experiment(
     project_name: str,
-    libraries_to_track: List[str] = ["ddopnew"],
+    libraries_to_track: List[str] = ["ddopai"],
     config_train_name: str = "config_train",
     config_agent_name: str = "config_agent",
     config_env_name: str = "config_env",
@@ -358,7 +358,7 @@ def clean_up(agent, environment):
 
     return None, None
 
-# %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 27
+# %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 25
 def select_agent(agent_name: str) -> type: #
     """ Select an agent class from a list of agent names and return the class"""
     if agent_name in AGENT_CLASSES:
@@ -368,7 +368,7 @@ def select_agent(agent_name: str) -> type: #
     else:
         raise ValueError(f"Unknown agent name: {agent_name}")
 
-# %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 28
+# %% ../nbs/30_experiment_functions/20_meta_experiment_functions.ipynb 26
 def merge_with_namespace(target_dict, source_dict, target_dict_name):
     
     """

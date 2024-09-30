@@ -641,7 +641,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
 
         """Set the model for the agent to a linear model"""
 
-        from ddopnew.approximators import LinearModel
+        from ddopai.approximators import LinearModel
 
         # flatten time dim of input
         print("input shape", input_shape)
@@ -650,7 +650,7 @@ class NewsvendorlERMAgent(NVBaseAgent):
 
         self.model = LinearModel(input_size=input_size, output_size=output_size, **self.model_params)
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 30
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 31
 class NewsvendorDLAgent(NVBaseAgent):
 
     """
@@ -719,10 +719,10 @@ class NewsvendorDLAgent(NVBaseAgent):
         input_size = np.prod(input_shape)
         output_size = output_shape[0]
 
-        from ddopnew.approximators import MLP
+        from ddopai.approximators import MLP
         self.model = MLP(input_size=input_size, output_size=output_size, **self.model_params)
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 36
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 37
 class BaseMetaAgent():
 
     def set_meta_dataloader(
@@ -738,7 +738,7 @@ class BaseMetaAgent():
 
         self.dataloader = torch.utils.data.DataLoader(dataset, **dataloader_params)
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 37
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 38
 class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
 
     """
@@ -793,7 +793,7 @@ class NewsvendorlERMMetaAgent(NewsvendorlERMAgent, BaseMetaAgent):
             loss_function=loss_function,
         )
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 38
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 39
 class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
 
     """
@@ -852,7 +852,7 @@ class NewsvendorDLMetaAgent(NewsvendorDLAgent, BaseMetaAgent):
         )
 
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 39
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 40
 class NewsvendorDLTransformerAgent(NVBaseAgent):
 
     """
@@ -929,10 +929,10 @@ class NewsvendorDLTransformerAgent(NVBaseAgent):
 
         output_size = output_shape[0]
 
-        from ddopnew.approximators import Transformer
+        from ddopai.approximators import Transformer
         self.model = Transformer(input_size=input_shape, output_size=output_size, **self.model_params)
 
-# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 40
+# %% ../../../nbs/41_NV_agents/11_NV_erm_agents.ipynb 41
 class NewsvendorDLTransformerMetaAgent(NewsvendorDLTransformerAgent, BaseMetaAgent):
 
     """
