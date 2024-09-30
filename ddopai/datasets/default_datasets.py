@@ -18,7 +18,7 @@ import zipfile
 
 # %% ../../nbs/90_datasets/default_datasets.ipynb 6
 def get_all_release_tags(token=None):
-    url = "https://api.github.com/repos/opimwue/ddopai/releases"
+    url = "https://api.github.com/repos/d3group/ddopai/releases"
     headers = {'Authorization': f'Bearer {token}'} if token else {}
     response = requests.get(url, headers=headers)
     
@@ -43,7 +43,7 @@ def get_release_tag(dataset_type, version, token=None):
     return release_tag
 
 def get_dataset_url(dataset_type, dataset_number, release_tag, token=None):
-    api_url = f"https://api.github.com/repos/opimwue/ddopai/releases/tags/{release_tag}"
+    api_url = f"https://api.github.com/repos/d3group/ddopai/releases/tags/{release_tag}"
     headers = {'Authorization': f'Bearer {token}'} if token else {}
     response = requests.get(api_url, headers=headers)
 
