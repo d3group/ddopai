@@ -301,7 +301,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
 
         # print("env mode:", self.mode)
         # print("dataloader mode:", self.dataloader.dataset_type)
-        
+
         X_item, Y_item = self.dataloader[self.index]
 
         # check if any value in X_item is nan.

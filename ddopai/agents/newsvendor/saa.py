@@ -22,7 +22,6 @@ from ...obsprocessors import FlattenTimeDimNumpy
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils.validation import check_array
 
-
 # %% ../../../nbs/41_NV_agents/10_NV_saa_agents.ipynb 4
 class BaseSAAagent(BaseAgent):
 

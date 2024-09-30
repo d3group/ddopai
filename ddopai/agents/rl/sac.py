@@ -349,7 +349,7 @@ class SACAgent(SACBaseAgent):
             network_critic_params=network_critic_params,
         ) 
 
-# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 8
+# %% ../../../nbs/51_RL_agents/10_SAC_agents.ipynb 9
 class SACRNNAgent(SACBaseAgent):
 
     """

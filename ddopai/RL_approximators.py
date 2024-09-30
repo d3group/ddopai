@@ -6,7 +6,10 @@
 __all__ = ['RNNWrapper', 'BaseApproximator', 'BaseApproximatorMLP', 'RNNMLPHybrid', 'BaseApproximatorRNN', 'MLPStateAction',
            'MLPState', 'MLPActor', 'RNNActor', 'RNNStateAction']
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 4
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 3
+# import logging
+# logging_level = logging.DEBUG
+
 from abc import ABC, abstractmethod
 from typing import Union, Tuple, List
 import numpy as np
@@ -18,7 +21,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import time
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 5
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 4
 class RNNWrapper(nn.Module):
     def __init__(self, rnn_cell_class, *args, **kwargs):
         """
@@ -52,7 +55,7 @@ class RNNWrapper(nn.Module):
 
         return SpecificRNNWrapper
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 6
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 5
 class BaseApproximator():
 
     """ Some basic functions for approximators """
@@ -142,7 +145,7 @@ class BaseApproximator():
         """ Forward pass through the network - overwrite this if necessary """
         return self.model(x)
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 7
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 6
 class BaseApproximatorMLP(BaseApproximator, nn.Module):
 
     """ Some basic functions for approximators """
@@ -195,7 +198,7 @@ class BaseApproximatorMLP(BaseApproximator, nn.Module):
 
         self.model = model
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 8
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 7
 class RNNMLPHybrid(nn.Module, BaseApproximator):
 
     """ A hybrid model combining an RNN and an MLP """
@@ -294,7 +297,7 @@ class RNNMLPHybrid(nn.Module, BaseApproximator):
 
         return x
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 9
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 8
 class BaseApproximatorRNN(BaseApproximator, nn.Module):
 
     """ Some basic functions for approximators """
@@ -351,7 +354,7 @@ class BaseApproximatorRNN(BaseApproximator, nn.Module):
 
         
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 10
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 9
 class MLPStateAction(BaseApproximatorMLP):
 
     """Multilayer perceptron model for critic networks that take
@@ -396,7 +399,7 @@ class MLPStateAction(BaseApproximatorMLP):
         # return q
         return torch.squeeze(q)
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 11
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 10
 class MLPState(BaseApproximatorMLP):
 
     """Multilayer perceptron model for critic networks that take
@@ -436,7 +439,7 @@ class MLPState(BaseApproximatorMLP):
         # return q.squeeze()
         return q
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 12
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 11
 class MLPActor(BaseApproximatorMLP):
 
     """Multilayer perceptron model for critic networks that take
@@ -475,7 +478,7 @@ class MLPActor(BaseApproximatorMLP):
 
         return a
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 13
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 12
 class RNNActor(BaseApproximatorRNN):
 
     """Multilayer perceptron model for critic networks that take
@@ -577,7 +580,7 @@ class RNNActor(BaseApproximatorRNN):
         
         return self.model(rnn_input, mlp_input)
 
-# %% ../nbs/60_approximators/21_critic_networks.ipynb 14
+# %% ../nbs/60_approximators/21_critic_networks.ipynb 13
 class RNNStateAction(BaseApproximatorRNN):
 
     """Multilayer perceptron model for critic networks that take

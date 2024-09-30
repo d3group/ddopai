@@ -5,7 +5,10 @@
 # %% auto 0
 __all__ = ['BaseAgent']
 
-# %% ../../nbs/40_base_agents/10_base_agents.ipynb 4
+# %% ../../nbs/40_base_agents/10_base_agents.ipynb 3
+# import logging
+# logging_level = logging.DEBUG
+
 from abc import ABC, abstractmethod
 from typing import Union, Optional, List, Tuple
 import numpy as np
@@ -18,7 +21,7 @@ import numbers
 # from sklearn.utils.validation import check_array
 # import numbers
 
-# %% ../../nbs/40_base_agents/10_base_agents.ipynb 5
+# %% ../../nbs/40_base_agents/10_base_agents.ipynb 4
 class BaseAgent():
 
     """  
