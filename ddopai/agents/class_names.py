@@ -6,8 +6,8 @@
 __all__ = ['AGENT_CLASSES']
 
 # %% ../../nbs/30_agents/40_base_agents/10_AGENT_CLASSES.ipynb 3
-AGENT_CLASSES = {
-    "RandomAgent": "ddopai.agents.saa.SAA",
+AGENT_CLASSES = { 
+    "RandomAgent": "ddopai.agents.saa.SAA", #
 
     "SAA": "ddopai.agents.newsvendor.saa.NewsvendorSAAagent",
     "wSAA": "ddopai.agents.newsvendor.saa.NewsvendorRFwSAAagent",

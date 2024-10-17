@@ -502,8 +502,6 @@ class MultiShapeLoader(BaseDataLoader):
             self.time_SKU_features_out_of_sample_test = self.time_SKU_features_out_of_sample_test.to_numpy()
             self.mask_out_of_sample_test = self.mask_out_of_sample_test.to_numpy()
 
-        
-
         ############ final params ############
         self.len_train_time = self.train_index_end-self.train_index_start+1
 
@@ -1051,7 +1049,6 @@ class MultiShapeLoader(BaseDataLoader):
             len_SKUs = len(self.train_SKUs)
         
         time_features = self.time_features # time features independent of SKU
-
 
         lag_window = self.lag_window_params["lag_window"]
         include_y = self.lag_window_params["include_y"]
