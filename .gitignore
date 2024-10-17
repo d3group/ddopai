@@ -20,7 +20,7 @@ tags
 *.pth
 *.joblib
 *.npy
-
+*.csv
 
 
 
