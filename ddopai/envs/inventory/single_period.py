@@ -161,7 +161,7 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
             self.set_param("sl", sl, shape=(self.num_SKUs[0],))
 
 
-# %% ../../../nbs/20_environments/21_envs_inventory/20_single_period_envs.ipynb 15
+# %% ../../../nbs/20_environments/21_envs_inventory/20_single_period_envs.ipynb 17
 class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
     def __init__(self,
 
@@ -221,7 +221,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
             sl = self.underage_cost / (self.underage_cost + self.overage_cost)
             self.set_param("sl", sl, shape=(self.num_SKUs[0],), new=True)
 
-    def determine_cost(self, action: np.ndarray) -> np.ndarray:
+    def determine_cost(self, action: np.ndarray) -> np.ndarray: #
         """
         Determine the cost per SKU given the action taken. The cost is the sum of underage and overage costs.
         """
@@ -278,7 +278,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         self.observation_space = gym.spaces.Dict(spaces)
 
     @staticmethod # staticmethod such that the dataloader can also use the funciton
-    def draw_parameter(distribution, sl_bound_low, sl_bound_high, samples):
+    def draw_parameter(distribution, sl_bound_low, sl_bound_high, samples): #
         
         if distribution == "fixed":
             sl = np.random.uniform(sl_bound_low, sl_bound_high, size=(samples,))
@@ -289,7 +289,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         
         return sl
 
-    def get_observation(self):
+    def get_observation(self): #
         
         """
         Return the current observation. This function is for the simple case where the observation
@@ -342,7 +342,7 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
 
         return {"features": X_item, "service_level": sl}, Y_item
 
-    def check_evaluation_metric(self):
+    def check_evaluation_metric(self): #
         if self.evaluation_metric not in ["pinball_loss", "quantile_loss"]:
             raise ValueError("evaluation_metric must be either 'pinball_loss' or 'quantile_loss'.")
         if self.evaluation_metric == "pinball_loss" and (self.underage_cost is None or self.overage_cost is None):
@@ -350,9 +350,9 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
         if self.evaluation_metric == "quantile_loss" and (self.sl_test_val is None):
             raise ValueError("sl_test_val must be provided for quantile loss.")
     
-    def check_sl_distribution(self):
+    def check_sl_distribution(self): #
         if self.sl_distribution not in ["fixed", "uniform"]:
             raise ValueError("sl_distribution must be 'uniform' or 'fixed'.")
 
-    def set_val_test_sl(self, sl_test_val):
+    def set_val_test_sl(self, sl_test_val): #
         self.set_param("sl", sl_test_val, shape=(self.num_SKUs[0],), new=False)

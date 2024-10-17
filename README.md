@@ -12,3 +12,71 @@ pip install ddopai
 ## What is ddopai?
 
 To be written.
+
+## What is the difference to Gymnasium and how to convert Gymnasium Environments?
+
+To make any enviroment compatible with mushroomRL and other agents
+defined within ddopai, there are some additional requirements when
+defining the environment. Instead of inheriting from `gym.Env`, the
+environment should inherit from `ddopai.envs.base.BaseEnvironment`. This
+base class provides some additional necessary methods and attributes to
+ensure compatibility with the agents. Below are the steps to convert a
+Gym environment to a ddopai environment. We strongly recommend you to
+also look at the implementation of the NewsvendorEnv
+(nbs/20_environments/21_envs_inventory/20_single_period_envs.ipynb) as
+an example.
+
+#### 1. Initialization and Parameter Setup
+
+- In the `__init__` method of your environment, ensure that any
+  environment-specific parameters are added using the `set_param(...)`
+  method. This guarantees the correct types and shapes for the
+  parameters.
+- Define the action and observation spaces using `set_action_space()`
+  and `set_observation_space()` respectively. These should be called
+  within the `__init__` method, rather than defining the spaces
+  directly.
+- In the `__init__`, and MDPInfo object needs to be created
+  `mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train`)
+
+#### 2. Handling Train, Validation, Test, and Horizon
+
+- Implement or override the `train()`, `val()`, and `test()` methods to
+  configure the correct datasets for each phase, ensuring no data
+  leakage. The base class provides these methods, but you may need to
+  adapt them based on your environment.
+- Update the `mdp_info` to set the horizon (episode length). For
+  validation and testing, the horizon corresponds to the length of the
+  dataset, while for training, the horizon is determined by the
+  `horizon_train` parameter. If `horizon_train` is `"use_all_data"`, the
+  full dataset is used; if it’s an integer, a random subset is used.
+
+#### 3. Step Method
+
+- The `step()` method is handled in the base class, so instead of
+  overriding it, implement a `step_(self, action)` method for the
+  specific environment. This method should return a tuple:
+  `(observation, reward, terminated, truncated, info)`.
+- The next observation should be constructed using the
+  `get_observation()` method, which must be called inside the `step_()`
+  method. Make sure to correctly pass the demand (or equivalent) to the
+  next step to calculate rewards.
+
+#### 4. Pre- and Post-Processing
+
+- Action post-processing should be done within the environment, in the
+  `step()` method, to ensure the action is in the correct form for the
+  environment.
+- Observation pre-processing, however, is handled by the agent in
+  MushroomRL. This processing takes place in the agent’s `draw_action()`
+  method.
+
+#### 5. Reset Method
+
+- The `reset()` method must differentiate between the training,
+  validation, and testing modes, and it should consider the
+  `horizon_train` parameter for training.
+- After setting up the mode and horizon, call `reset_index()` (with an
+  integer index or `"random"`) to initialize the environment. Finally,
+  use `get_observation()` to provide the initial observation to the
+  agent.

@@ -18,8 +18,7 @@ import time
 class BaseEnvironment(gym.Env, ABC):
 
     """
-
-    Base class for environments enforcing a common interface.
+    Base class for environments enforcing a common interface that works with MushroomRL, as well as other RL libraries.
     """
 
     def __init__(self,
@@ -94,14 +93,14 @@ class BaseEnvironment(gym.Env, ABC):
         return self.return_truncation_handler(observation, reward, terminated, truncated, info)
     
     def add_postprocessor(self, postprocessor: object): # post-processor object that can be called via the "__call__" method
-        """Add a postprocessor to the agent"""
+        """Add a postprocessor (also called actionprocessor) to the agent"""
         self.postprocessors.append(postprocessor)
 
-    @staticmethod
+    @abstractmethod
     def step_(self, action):
         """
-        Step function of the environment. It is a wrapper around the step function that handles the return_truncation
-        attribute of the environment. It must return the following: observation, reward, terminated, truncated, info
+        Step function of the environment. This function contains the logic of the environment and must be provided.
+        It will be called by the step function that applies the actionprocessor and handles the return_truncation attribute.
 
         """
         pass
