@@ -60,7 +60,7 @@ class MushroomBaseAgent(BaseAgent):
     def add_obsprocessor(self, obsprocessor: object): 
         """Add an obsprocessor to the agent - overwrites the base
         class method to add the obsprocessor to the MushroomRL agent
-        as preprocessor. Postprocessors stay with the base class"""
+        as preprocessor"""
         self.agent.add_preprocessor(obsprocessor)
 
     @property
@@ -98,10 +98,8 @@ class MushroomBaseAgent(BaseAgent):
         Draw an action based on the fitted model (see predict method)
         """
 
-        # Remove batch dimension if it is one
-        if observation.shape[0] == 1:
-            observation = observation[0]
-
+        observation = self.remove_batch_dim(observation)
+    
         if self.mode=="train":
             action = self.agent.draw_action(observation)
         else:
@@ -113,18 +111,21 @@ class MushroomBaseAgent(BaseAgent):
         """ Do one forward pass of the model directly and return the prediction"""
 
         if self.mode=="eval":
-
-            # Apply pre-processors of the mushroom agent
-            for preprocessor in self.agent.preprocessors:
-                observation = preprocessor(observation)
             
+            # Apply pre-processors of the mushroom agent
+            
+            batch_removed = False
+
+            for preprocessor in self.agent.preprocessors:
+                observation = preprocessor(observation) # applies all preprocessors to the dict observation
+
             # add batch dimension back to mimic mushroom_rl library
             if isinstance(observation, list):
                 observation = [np.expand_dims(obs, axis=0) for obs in observation]
             else:
                 observation = np.expand_dims(observation, axis=0)
             action = self.predict_(observation)
-
+            
             return action
         else:
             raise ValueError("Model is in train mode. Use draw_action method instead.")
@@ -315,4 +316,28 @@ class MushroomBaseAgent(BaseAgent):
             raise ValueError("Input shape must be tuple or list of tuples")
 
         return input_shape
+
+    import numpy as np
+
+    @staticmethod
+    def remove_batch_dim(input: np.ndarray | dict[str, np.ndarray]) -> np.ndarray | dict[str, np.ndarray]: #
+        
+        """
+        Remove the batch dimension from the input array or from each value in the dictionary of arrays.
+        Assumes the batch dimension is the first dimension (axis=0).
+        
+        """
+        
+        # Check if the input is a numpy array or a dict of numpy arrays
+        if isinstance(input, np.ndarray):
+            # Remove the batch dimension by squeezing the first axis (axis=0)
+            return np.squeeze(input, axis=0)
+        elif isinstance(input, dict):
+            # Remove the batch dimension from each numpy array in the dict
+            return {key: np.squeeze(arr, axis=0) for key, arr in input.items()}
+        else:
+            raise TypeError("Input must be a numpy array or a dictionary of numpy arrays.")
+
+
+    
         

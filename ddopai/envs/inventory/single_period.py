@@ -99,6 +99,8 @@ class NewsvendorEnv(BaseInventoryEnv, ABC):
         # Set index will set the index and return True if the index is out of bounds
         truncated = self.set_index()
 
+        print("index:", self.index, "truncated:", truncated)
+
         if truncated:
 
             # observation = np.zeros_like(self.observation_space.sample()) if self.observation_space is not None else None

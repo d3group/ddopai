@@ -102,8 +102,6 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
 
         """
 
-        # Most agent give by default a batch dimension which is not needed for a single period action.
-        # If action shape size is 2 and the first dimensiion is 1, then remove it
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)  # Remove the first dimension
 
@@ -112,22 +110,9 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
 
         orders_arriving = self.order_pipeline.step(action) # add orders to pipeline and get arriving orders
 
-        # print("action:", action)
-        # print("unit cost:", self.variable_ordering_cost)
-        # print("variable_ordering_cost:", variable_ordering_cost)
-
-        # print("unit_fixed_ordering_cost:", self.fixed_ordering_cost)
-        # print("fixed_ordering_cost:", fixed_ordering_cost)
-
-        # print("old inventory:", self.inventory)
-        # print("orders arriving:", orders_arriving)
-        # print("demand:", self.demand)
-
         self.inventory += orders_arriving
         self.inventory -= self.demand
         self.inventory = np.minimum(self.inventory, self.max_inventory)
-
-        
 
         # check where the inventory is below 0
         underage_quantity = np.maximum(-self.inventory, 0)
@@ -160,12 +145,10 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
 
         if truncated:
 
-            # observation = self.observation_space.sample()
-            # for key, value in observation.items():
-            #     observation[key] = np.zeros_like(value)
-            # demand = np.zeros_like(self.action_space.sample())
-
-            observation, self.demand = self.get_observation()
+            if self.mode == "test" or self.mode == "val":
+                observation, self.demand = None, None
+            else:
+                observation, self.demand = self.get_observation()
 
             return observation, reward, terminated, truncated, info
         
@@ -188,7 +171,6 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
         is only an x,y pair. For more complex observations, this function should be overwritten.
 
         """
-
         
         X_item, Y_item = self.dataloader[self.index]
 

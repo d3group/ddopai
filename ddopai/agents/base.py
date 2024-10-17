@@ -48,23 +48,17 @@ class BaseAgent():
         self.agent_name = agent_name
 
     def draw_action(self, observation: np.ndarray) -> np.ndarray: #
-
+        
         """
         Main interfrace to the environemnt. Applies preprocessors to the observation.
         Internal logic of the agent to be implemented in draw_action_ method.
         """
 
-        batch_added = False
-        if not isinstance(observation, dict):
-            observation = self.add_batch_dim(observation) # adds batch dim if self.receive_batch_dim is False
-            batch_added = True
+        observation = self.add_batch_dim(observation) # adds batch dim if self.receive_batch_dim is False
 
         for obsprocessor in self.obsprocessors:
             observation = obsprocessor(observation) # applies all preprocessors to the dict observation
-            if not isinstance(observation, dict) and not batch_added: # checks if one of the processors has removed the dict structure
-                observation = self.add_batch_dim(observation) # adds batch dim afterwards, if self.receive_batch_dim is False    
-                batch_added = True
-
+        
         action = self.draw_action_(observation)
 
         return action
@@ -89,7 +83,7 @@ class BaseAgent():
         """
         self.mode = "eval"
     
-    def add_batch_dim(self, input: np.ndarray) -> np.ndarray: #
+    def add_batch_dim(self, input: np.ndarray | dict[str, np.ndarray]) -> np.ndarray | dict[str, np.ndarray]: #
         
         """
         Add a batch dimension to the input array if it doesn't already have one.
@@ -102,8 +96,15 @@ class BaseAgent():
             # If the batch dimension is expected, return the input as is
             return input
         else:
-            # Add a batch dimension by expanding the dimensions of the input
-            return np.expand_dims(input, axis=0)
+            # Check if the input is a numpy array or a dict of numpy arrays
+            if isinstance(input, np.ndarray):
+                # Add a batch dimension by expanding the dimensions of the numpy array
+                return np.expand_dims(input, axis=0)
+            elif isinstance(input, dict):
+                # Add a batch dimension to each numpy array in the dict
+                return {key: np.expand_dims(arr, axis=0) for key, arr in input.items()}
+            else:
+                raise TypeError("Input must be a numpy array or a dictionary of numpy arrays.")
         
     def save(self):
         """Save the agent's parameters to a file."""

@@ -117,9 +117,10 @@ class NewsvendorXGBAgent(BaseAgent):
         
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
 
-        # check if FlattenTimeDimNumpy in obsprocessors
-        if not any(isinstance(p, FlattenTimeDimNumpy) for p in self.obsprocessors):
-            self.add_obsprocessor(FlattenTimeDimNumpy(allow_2d=True))
+        # TODO: For consistency, this needs to be done outside the package when defining the experiment.
+        # # check if FlattenTimeDimNumpy in obsprocessors
+        # if not any(isinstance(p, FlattenTimeDimNumpy) for p in self.obsprocessors):
+        #     self.add_obsprocessor(FlattenTimeDimNumpy(allow_2d=True))
 
     def fit(self,
             X: np.ndarray, # features will be ignored
@@ -243,6 +244,7 @@ class SGDBaseAgent(BaseAgent):
         if logging.getLogger().isEnabledFor(logging.INFO):
 
             self.model.eval()
+            print(self.obsprocessors)
             if any(isinstance(obsprocessor, FlattenTimeDimNumpy) for obsprocessor in self.obsprocessors):
                 input_size = (batch_dim, int(np.prod(input_shape)))
             else:
@@ -644,7 +646,6 @@ class NewsvendorlERMAgent(NVBaseAgent):
         from ddopai.approximators import LinearModel
 
         # flatten time dim of input
-        print("input shape", input_shape)
         input_size = np.prod(input_shape)
         output_size = output_shape[0]
 

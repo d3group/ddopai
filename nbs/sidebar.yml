@@ -5,11 +5,9 @@ website:
       - section: Utils
         contents:
           - 00_utils/00_utils.ipynb
-          - 00_utils/01_loss_functions.ipynb
-          - 00_utils/10_postprocessors.ipynb
-          - 00_utils/11_obsprocessors.ipynb
-          - 00_utils/20_torch_loss_functions.ipynb
-          - 00_utils/30_tracking.ipynb
+          - 00_utils/20_loss_functions.ipynb
+          - 00_utils/21_torch_loss_functions.ipynb
+
       - section: Dataloaders
         contents:
           - 10_dataloaders/10_base_dataloader.ipynb
@@ -20,7 +18,10 @@ website:
           - 20_base_env/10_base_env.ipynb
           - section: Inventory environments
             contents:
-              - 21_envs_inventory/10_single_period_envs.ipynb
+              - 20_environments_21_envs_inventory/00_inventory_utils.ipynb
+              - 20_environments_21_envs_inventory/10_base_inventory_env.ipynb
+              - 20_environments_21_envs_inventory/20_single_period_envs.ipynb
+              - 20_environments_21_envs_inventory/30_multi_period_envs.ipynb
       - section: Agents
         contents:
           - 40_base_agents/10_base_agents.ipynb
@@ -41,3 +42,7 @@ website:
         contents:
           - 80_datasets/datasets.ipynb
 
+
+          # - 00_utils/10_postprocessors.ipynb
+          # - 00_utils/11_obsprocessors.ipynb
+          # - 00_utils/30_tracking.ipynb
