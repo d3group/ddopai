@@ -125,7 +125,7 @@ class BaseInventoryEnv(BaseEnvironment):
 
         truncated = self.reset_index(start_index)
 
-        print("index:", self.index)
+
 
         observation, self.demand = self.get_observation()
         

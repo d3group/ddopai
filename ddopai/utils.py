@@ -34,89 +34,12 @@ def check_parameter_types(
 class Parameter():
 
     """
-    Simple class to handle parameters in the environment. The advantage of this class is that it can be
-    used to set parameters that may change over time and accessed by multiple objects such as the 
-    environment, agent or dataloaders.
+    Legacy, not used in the current implementation.
     """
     
-    def __init__(self,
-            value: int | float | list[int] | list[float] | np.ndarray,  # the value of the parameter  
-            min_value: int | float | list[int] | list[float] | np.ndarray = None,  # the minimum value of the parameter
-            max_value: int | float | list[int] | list[float] | np.ndarray = None,  # the maximum value of the parameter
-            shape: tuple[int] = (1,)): # the shape of the parameter
+    pass
 
-        self._min_value = min_value
-        self._max_value = max_value
-        
-        self.set_value(value, shape)
-
-    def __call__(self):
-        """
-        Returns the parameter value. Alternative to get_value().
-
-        """
-        return self.get_value()
-
-    def get_value(self):
-        
-        """
-        Returns the parameter value.
-
-        """
-
-        return self._value
-
-    def set_value(self, 
-                    value: Union[int, float, List[int], List[float], np.ndarray], # the value of the parameter
-                    shape: Tuple[int] = (1,)): # the shape of the parameter
-       
-        """
-        Set the value of the parameter. The value can be a scalar, list or numpy array. The shape of the value
-        must be the same as the shape of the parameter.
-
-        All values, including scalars, are converted to numpy arrays. If the value is a scalar, it is reshaped
-        to the shape of the parameter. If the value is a list or numpy array, it must have the same shape as the
-        parameter. If the value is a scalar, it is reshaped to the shape of the parameter.
-
-        Optionally, the value can be clipped to a minimum and maximum value.
-        """
-
-        if isinstance(value, (int, float)):
-            self._value = np.array([value])
-            self._value.reshape(shape)
-        
-        elif isinstance(value, list):
-            value = np.array(value)
-            assert value.shape == shape, "Shape of value must be the same as the shape of the parameter"
-            self._value = value
-        
-        elif isinstance(value, np.ndarray):
-            assert value.shape == shape, "Shape of value must be the same as the shape of the parameter"
-            self._value = value
-        
-        else:
-            raise ValueError("Value must be a scalar or numpy array")
-
-        if self._min_value is not None:
-            self._value = np.maximum(self._value, self._min_value)
-        if self._max_value is not None:
-            self._value = np.minimum(self._value, self._max_value)
-
-    @property
-    def shape(self):
-        """
-        Returns: The shape of the table of parameters.
-        """
-        return self._value.shape
-    
-    @property
-    def size(self):
-        """
-        Returns: The size of the table of parameters.
-        """
-        return self._value.size 
-
-# %% ../nbs/00_utils/00_utils.ipynb 16
+# %% ../nbs/00_utils/00_utils.ipynb 8
 class MDPInfo():
     """
     This class is used to store the information of the environment.
@@ -158,7 +81,7 @@ class MDPInfo():
         """
         return self.observation_space.shape + self.action_space.shape
 
-# %% ../nbs/00_utils/00_utils.ipynb 20
+# %% ../nbs/00_utils/00_utils.ipynb 12
 class DatasetWrapper(Dataset):
     """
     This class is used to wrap a Pytorch Dataset around the ddopai dataloader
@@ -217,7 +140,7 @@ class DatasetWrapper(Dataset):
         else:
             raise ValueError("Dataset type must be either 'train', 'val' or 'test'")
 
-# %% ../nbs/00_utils/00_utils.ipynb 24
+# %% ../nbs/00_utils/00_utils.ipynb 16
 class DatasetWrapperMeta(DatasetWrapper):
     """
     This class is used to wrap a Pytorch Dataset around the ddopai dataloader
@@ -278,7 +201,7 @@ class DatasetWrapperMeta(DatasetWrapper):
 
         return obs, demand, params
 
-# %% ../nbs/00_utils/00_utils.ipynb 26
+# %% ../nbs/00_utils/00_utils.ipynb 18
 def merge_dictionaries(dict1, dict2):
     """ Merge two dictionaries. If a key is found in both dictionaries, raise a KeyError. """
     for key in dict2:
@@ -289,7 +212,7 @@ def merge_dictionaries(dict1, dict2):
     merged_dict = {**dict1, **dict2}
     return merged_dict
 
-# %% ../nbs/00_utils/00_utils.ipynb 28
+# %% ../nbs/00_utils/00_utils.ipynb 20
 def set_param(obj,
                 name: str, # name of the parameter (will become the attribute name)
                 input: Parameter | int | float | np.ndarray | List | None , # input value of the parameter

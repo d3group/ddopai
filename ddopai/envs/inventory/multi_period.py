@@ -181,8 +181,7 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
         }
 
         return observation, Y_item
-
-        
+ 
     def reset(self,
         start_index: int | str = None, # index to start from
         state: np.ndarray = None # initial state
@@ -200,8 +199,6 @@ class MultiPeriodEnv(BaseInventoryEnv, ABC):
         truncated = self.reset_index(start_index)
 
         observation, self.demand = self.get_observation()
-
-        # print("in reset:", observation)
         
         return observation
 

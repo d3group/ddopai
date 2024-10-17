@@ -57,6 +57,7 @@ def get_dataset_url(dataset_type, dataset_number, release_tag, token=None):
             logging.debug(f"Found dataset: {asset['name']}")
 
         if len(assets) == 0:
+            print("len assets:", len(assets))
             raise ValueError(f"Dataset {dataset_type}_dataset_{dataset_number} not found in release {release_tag}")
         elif len(assets) > 1:
             raise ValueError(f"Multiple datasets found for {dataset_type}_dataset_{dataset_number} in release {release_tag}")
@@ -87,6 +88,15 @@ def unzip_file(zip_file_path, output_dir, delete_zip_file=True):
     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
         zip_ref.extractall(output_dir)
 
+    # check if the output directory contains "__MACOSX" directory and remove it
+    macosx_dir = os.path.join(output_dir, "__MACOSX")
+    if os.path.exists(macosx_dir):
+        for file in os.listdir(macosx_dir):
+            file_path = os.path.join(macosx_dir, file)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        os.rmdir(macosx_dir)
+
     if delete_zip_file:
         os.remove(zip_file_path)
 
@@ -107,7 +117,6 @@ def load_data_from_directory(dir):
     
     return data
 
-
 # %% ../../nbs/90_datasets/default_datasets.ipynb 8
 class DatasetLoader():
 
@@ -116,12 +125,14 @@ class DatasetLoader():
     """
 
     dataset_types_univariate = [
+        
     ]
 
     dataset_types_multivariate = [
         "arma_10_10",
         "arma_2_2",
         "ar_1",
+        "bakery",
     ]
     
     def __init__(self):
