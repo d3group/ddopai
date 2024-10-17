@@ -14,35 +14,44 @@ website:
           - 10_dataloaders/12_tabular_dataloaders.ipynb
       - section: Environments
         contents:
-          - 20_base_env/10_base_env.ipynb
+          - 20_environments/20_base_env/10_base_env.ipynb
+          - 20_environments/10_actionprocessors.ipynb
           - section: Inventory environments
             contents:
-              - 20_environments_21_envs_inventory/00_inventory_utils.ipynb
-              - 20_environments_21_envs_inventory/10_base_inventory_env.ipynb
-              - 20_environments_21_envs_inventory/20_single_period_envs.ipynb
-              - 20_environments_21_envs_inventory/30_multi_period_envs.ipynb
+              - 20_environments/21_envs_inventory/00_inventory_utils.ipynb
+              - 20_environments/21_envs_inventory/10_base_inventory_env.ipynb
+              - 20_environments/21_envs_inventory/20_single_period_envs.ipynb
+              - 20_environments/21_envs_inventory/30_multi_period_envs.ipynb
       - section: Agents
         contents:
           - 30_agents/40_base_agents/10_AGENT_CLASSES.ipynb
-          - 40_base_agents/10_base_agents.ipynb
+          - 30_agents/40_base_agents/10_base_agents.ipynb
+          - 30_agents/11_obsprocessors.ipynb
+          - 30_agents/40_ml_utils.ipynb
           - section: Basic agents
             contents:
-              - 40_base_agents/11_basic_agents.ipynb
+              - 30_agents/40_base_agents/11_basic_agents.ipynb
           - section: Newsvendor_agents
             contents:
-              - 41_NV_agents/10_NV_saa_agents.ipynb
-              - 41_NV_agents/11_NV_erm_agents.ipynb
-      - section: Approximators
-        contents:  
-          - 60_approximators/11_approximators.ipynb            
+              - 30_agents/41_NV_agents/10_NV_saa_agents.ipynb
+              - 30_agents/41_NV_agents/11_NV_erm_agents.ipynb
+          - section: Reinforcement Learning agents
+            contents:
+              - 30_agents/51_RL_agents/10_mushroom_base_agent.ipynb
+              - 30_agents/51_RL_agents/10_PPO_agents.ipynb
+              - 30_agents/51_RL_agents/10_SAC_agents.ipynb
+              - 30_agents/51_RL_agents/10_TD3_agents.ipynb
+          - section: Approximators
+            contents:
+              - 30_agents/60_approximators/11_approximators.ipynb
+              - 30_agents/60_approximators/21_critic_networks.ipynb          
       - section: Experiment functions
         contents:
           - 30_experiment_functions/10_experiment_functions.ipynb
+          - 30_experiment_functions/20_meta_experiment_functions.ipynb
+          - 30_experiment_functions/30_tracking.ipynb
       - section: Datasets
         contents:
-          - 80_datasets/datasets.ipynb
-
-
-          # - 00_utils/10_postprocessors.ipynb
-          # - 00_utils/11_obsprocessors.ipynb
-          # - 00_utils/30_tracking.ipynb
+          - 90_datasets/default_datasets.ipynb
+          - 90_datasets/meta_bakery.ipynb
+          - 90_datasets/meta_kaggle_m5.ipynb
