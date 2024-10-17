@@ -115,7 +115,7 @@ class BakeryDatasetLoader():
         self.calendar = pd.get_dummies(calendar_data, columns=dummy_columns, drop_first=True)
 
         logging.info("--Preparing state-specific features")
-        # snap_features = self.calendar[["snap_CA", "snap_TX", "snap_WI"]].copy()
+        pass
         # self.calendar.drop(["snap_CA", "snap_TX", "snap_WI"], axis=1, inplace=True)
 
         # new_snap_features = pd.DataFrame(index=range(snap_features.shape[0]), columns=unique_mapping.index)
