@@ -47,9 +47,9 @@ website:
               - 30_agents/60_approximators/21_critic_networks.ipynb          
       - section: Experiment functions
         contents:
-          - 30_experiment_functions/10_experiment_functions.ipynb
-          - 30_experiment_functions/20_meta_experiment_functions.ipynb
-          - 30_experiment_functions/30_tracking.ipynb
+          - 40_experiments/10_experiment_functions.ipynb
+          - 40_experiments/20_meta_experiment_functions.ipynb
+          - 40_experiments/30_tracking.ipynb
       - section: Datasets
         contents:
           - 90_datasets/default_datasets.ipynb
