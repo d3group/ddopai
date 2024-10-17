@@ -7,7 +7,6 @@ website:
           - 00_utils/00_utils.ipynb
           - 00_utils/20_loss_functions.ipynb
           - 00_utils/21_torch_loss_functions.ipynb
-
       - section: Dataloaders
         contents:
           - 10_dataloaders/10_base_dataloader.ipynb
@@ -24,6 +23,7 @@ website:
               - 20_environments_21_envs_inventory/30_multi_period_envs.ipynb
       - section: Agents
         contents:
+          - 30_agents/40_base_agents/10_AGENT_CLASSES.ipynb
           - 40_base_agents/10_base_agents.ipynb
           - section: Basic agents
             contents:
