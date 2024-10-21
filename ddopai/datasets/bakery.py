@@ -62,16 +62,8 @@ class BakeryDatasetLoader():
             dummy_columns.append("store")
         if dummy_columns:
             categories = pd.get_dummies(unique_mapping[dummy_columns], drop_first=True)
-
-        # logging.info("--Preparing sales time series data")
-        # id = self.sale["id"]
-        # self.sale = self.sale.iloc[:,6:]
-        # self.sale["SKU_id"] = id
-        # self.sale.set_index("SKU_id", inplace=True)
-        # self.sale = self.sale.transpose()
-        # self.sale.reset_index(inplace=True, drop=True)
-        # self.sale.rename_axis(None, axis=1, inplace=True)
-        # self.sale = self.sale[unique_mapping.index]
+        else:
+            categories = None
         
         logging.info("--Preparing calendric information")
 
@@ -114,62 +106,51 @@ class BakeryDatasetLoader():
         dummy_columns = ["weekday", "month", "quarter", "season"]
         self.calendar = pd.get_dummies(calendar_data, columns=dummy_columns, drop_first=True)
 
-        logging.info("--Preparing state-specific features")
-        pass
-        # self.calendar.drop(["snap_CA", "snap_TX", "snap_WI"], axis=1, inplace=True)
+        # drop date column
+        self.calendar.drop(["date"], axis=1, inplace=True)
 
-        # new_snap_features = pd.DataFrame(index=range(snap_features.shape[0]), columns=unique_mapping.index)
-        # for sku in unique_mapping.index:
-        #     state_code = sku.split('_')[-2]
-        #     snap_column = f"snap_{state_code}"
-        #     new_snap_features[sku] = snap_features[snap_column].values
-        # snap_features = new_snap_features
+        # print(self.calendar)
+        # for column in self.calendar.columns:
+        #     print(column)
 
-        # logging.info("--Preparing price information")
-        # self.price["SKU_id"] = self.price["item_id"] + "_" + self.price["store_id"]
-        # self.price.drop(["store_id", "item_id"], axis=1, inplace=True)
-        # self.price = self.price.pivot_table(index='wm_yr_wk', columns=['SKU_id'], values='sell_price')
-        # self.price = self.price[unique_mapping.index]
+        logging.info("--Preparing demand")
 
-        # logging.info("--Creating indicator table if products are available for purchase")
-        # self.available = self.price.copy()
-        # self.available = self.available.notnull().astype(int)
-        # # fill missing values for price (indicated in the available table)
-        # self.price.fillna(0, inplace=True)
+        self.demand["store"] = self.features["store"].astype(str)   
+        self.demand["product"] = self.features["product"].astype(str)   
+        self.demand["date"] = self.features["date"]
 
-        # logging.info("--Preparing final outputs and ensure consistency of time and feature dimensions")
-        # wm_yr_wk_per_day = self.calendar[["wm_yr_wk"]]
-        # self.price = self.price.reset_index()
-        # missing_wm_yr_wk_in_price = wm_yr_wk_per_day[~wm_yr_wk_per_day["wm_yr_wk"].isin(self.price["wm_yr_wk"])]
-        # if not missing_wm_yr_wk_in_price.empty:
-        #     raise ValueError("The following wm_yr_wk values are in calendar but not in price: ", missing_wm_yr_wk_in_price.tolist())
-        # self.price = self.price.merge(wm_yr_wk_per_day, on="wm_yr_wk", how="right")
-        # self.price.drop(["wm_yr_wk"], axis=1, inplace=True)
-        # self.available = self.available.reset_index()
-        # self.available = self.available.merge(wm_yr_wk_per_day, on="wm_yr_wk", how="right")
-        # self.available.drop(["wm_yr_wk"], axis=1, inplace=True)
-        # self.calendar.drop(["wm_yr_wk"], axis=1, inplace=True)
+        self.demand["SKU_index"] = self.demand["product"] + "_" + self.demand["store"]
+        self.demand = self.demand.drop(["store", "product"], axis=1)
 
-        # price_multi_index = pd.MultiIndex.from_product([['Price'], self.price.columns], names=['Type', 'SKU'])
-        # self.price.columns = price_multi_index
-        # snap_multi_index = pd.MultiIndex.from_product([['Snap'], snap_features.columns], names=['DataType', 'SKU'])
-        # snap_features.columns = snap_multi_index
-        # time_SKU_features = pd.concat([self.price, snap_features], axis=1)
-       
-        # self.demand = self.sale
-        # self.SKU_features = categories # features that are not time-dependent
-        # self.time_features = self.calendar # features that are time-dependent
-        # self.time_SKU_features = time_SKU_features # features taht are time- and SKU-dependent
-        # self.mask = self.available # A mask that can either mask datapoints during training or be used as a feature
+        self.demand = self.demand.pivot(index="date", columns="SKU_index", values="demand")
 
+        # sort the columns
+        self.demand = self.demand.reindex(sorted(self.demand.columns), axis=1)
 
-               
-        self.demand = None
-        self.SKU_features = None # features that are not time-dependent
-        self.time_features = None # features that are time-dependent
-        self.time_SKU_features = None # features taht are time- and SKU-dependent
+        logging.info("--Preparing SKU-specific features")
+
+        logging.info("--Preparing SKU-time-specific features")
+
+        self.time_SKU_features = self.features.drop(["weekday", "month", "year", "is_holiday_next2days"], axis=1).copy()
+
+        self.time_SKU_features["SKU_index"] = self.time_SKU_features["product"].astype(str) + "_" + self.time_SKU_features["store"].astype(str)
+        self.time_SKU_features = self.time_SKU_features.drop(["store", "product"], axis=1)
+
+        self.time_SKU_features.set_index(['date', 'SKU_index'], inplace=True)
+
+        df_unstacked = self.time_SKU_features.unstack('SKU_index')
+
+        df_unstacked = df_unstacked.sort_index(axis=0).sort_index(axis=1)
+
+        self.time_SKU_features = df_unstacked
+
+        self.time_SKU_features.sort_index(axis=1, level='SKU_index')
+      
+        self.SKU_features = categories # features that are not time-dependent
+        self.time_features = self.calendar # features that are time-dependent
+        self.time_SKU_features = self.time_SKU_features # features that are time- and SKU-dependent
         self.mask = None # A mask that can either mask datapoints during training or be used as a feature
-
+         
     def import_from_folder(self):
         
         """ Import data from a folder. """
