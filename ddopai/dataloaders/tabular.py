@@ -308,6 +308,7 @@ class MultiShapeLoader(BaseDataLoader):
         demand_unit_size: float | None = None, # use same convention as for other dataloaders and enviornments, but here only full decimal values are allowed
         provide_additional_target: bool = False, # follows ICL convention by providing actual demand to token, with the last token receiving 0
         permutate_inputs: bool = False, # if the inputs shall be permutated during training for meta-learning
+        max_feature_dim: int | None = None
     ):
      
         logging.info("Setting main env attributes")
@@ -328,6 +329,8 @@ class MultiShapeLoader(BaseDataLoader):
             self.SKU_features = self.SKU_features.astype(float)
         if self.mask is not None:
             self.mask = self.mask.astype(float)
+
+        self.max_feature_dim = max_feature_dim
 
         # Set default values for dict inputs:
         normalize_features = normalize_features or {'normalize': True, 'ignore_one_hot': True}
@@ -462,7 +465,7 @@ class MultiShapeLoader(BaseDataLoader):
         self.SKU_features_indices = self.save_indices(self.SKU_features) if self.SKU_features is not None else None
         self.time_features_indices = self.save_indices(self.time_features)
         self.time_SKU_features_indices = self.save_indices(self.time_SKU_features)
-        self.mask_indices = self.save_indices(self.mask)
+        self.mask_indices = self.save_indices(self.mask) if self.mask is not None else None
 
         logging.info("--Converting to numpy - in sample")
         self.demand = self.demand.to_numpy()
@@ -470,8 +473,35 @@ class MultiShapeLoader(BaseDataLoader):
         self.SKU_features = self.SKU_features.to_numpy() if self.SKU_features is not None else None
         self.time_features = self.time_features.to_numpy()
         self.time_SKU_features = self.time_SKU_features.to_numpy()
-        self.mask = self.mask.to_numpy()
+        self.mask = self.mask.to_numpy() if self.mask is not None else None
 
+        # check if all values are finite
+        logging.info("--Checking that all values are finite")
+        if not np.all(np.isfinite(self.demand)):
+            raise ValueError('demand contains non-finite values')
+        if not np.all(np.isfinite(self.demand_lag)):
+            raise ValueError('demand_lag contains non-finite values')
+        if not np.all(np.isfinite(self.time_features)):
+            raise ValueError('time_features contains non-finite values')
+        if not np.all(np.isfinite(self.time_SKU_features)):
+            raise ValueError('time_SKU_features contains non-finite values')
+        if self.SKU_features is not None:
+            if not np.all(np.isfinite(self.SKU_features)):
+                raise ValueError('SKU_features contains non-finite values')
+        # check if there are no nan values
+        logging.info("--Checking that there are no nan values")
+        if np.any(np.isnan(self.demand)):
+            raise ValueError('demand contains nan values')
+        if np.any(np.isnan(self.demand_lag)):
+            raise ValueError('demand_lag contains nan values')
+        if np.any(np.isnan(self.time_features)):
+            raise ValueError('time_features contains nan values')
+        if np.any(np.isnan(self.time_SKU_features)):
+            raise ValueError('time_SKU_features contains nan values')
+        if self.SKU_features is not None:
+            if np.any(np.isnan(self.SKU_features)):
+                raise ValueError('SKU_features contains nan values')
+    
         ############ out of sample data ############
 
         if self.out_of_sample:
@@ -481,26 +511,26 @@ class MultiShapeLoader(BaseDataLoader):
             self.demand_out_of_sample_val_indices = self.save_indices(self.demand_out_of_sample_val)
             self.SKU_features_out_of_sample_val_indices = self.save_indices(self.SKU_features_out_of_sample_val) if self.SKU_features_out_of_sample_val is not None else None
             self.time_SKU_features_out_of_sample_val_indices = self.save_indices(self.time_SKU_features_out_of_sample_val)
-            self.mask_out_of_sample_val_indices = self.save_indices(self.mask_out_of_sample_val)
+            self.mask_out_of_sample_val_indices = self.save_indices(self.mask_out_of_sample_val) if self.mask_out_of_sample_val is not None else None
         
             logging.info("--Converting to numpy - out of sample val")
             self.demand_out_of_sample_val = self.demand_out_of_sample_val.to_numpy()
             self.demand_lag_out_of_sample_val = self.demand_lag_out_of_sample_val.to_numpy()
             self.SKU_features_out_of_sample_val = self.SKU_features_out_of_sample_val.to_numpy() if self.SKU_features_out_of_sample_val is not None else None
             self.time_SKU_features_out_of_sample_val = self.time_SKU_features_out_of_sample_val.to_numpy()
-            self.mask_out_of_sample_val = self.mask_out_of_sample_val.to_numpy()
+            self.mask_out_of_sample_val = self.mask_out_of_sample_val.to_numpy() if self.mask_out_of_sample_val is not None else None
 
             self.demand_out_of_sample_test_indices = self.save_indices(self.demand_out_of_sample_test)
             self.SKU_features_out_of_sample_test_indices = self.save_indices(self.SKU_features_out_of_sample_test) if self.SKU_features_out_of_sample_test is not None else None
             self.time_SKU_features_out_of_sample_test_indices = self.save_indices(self.time_SKU_features_out_of_sample_test)
-            self.mask_out_of_sample_test_indices = self.save_indices(self.mask_out_of_sample_test)
+            self.mask_out_of_sample_test_indices = self.save_indices(self.mask_out_of_sample_test) if self.mask_out_of_sample_test is not None else None
 
             logging.info("--Converting to numpy - out of sample test")
             self.demand_out_of_sample_test = self.demand_out_of_sample_test.to_numpy()
             self.demand_lag_out_of_sample_test = self.demand_lag_out_of_sample_test.to_numpy()
             self.SKU_features_out_of_sample_test = self.SKU_features_out_of_sample_test.to_numpy() if self.SKU_features_out_of_sample_test is not None else None
             self.time_SKU_features_out_of_sample_test = self.time_SKU_features_out_of_sample_test.to_numpy()
-            self.mask_out_of_sample_test = self.mask_out_of_sample_test.to_numpy()
+            self.mask_out_of_sample_test = self.mask_out_of_sample_test.to_numpy() if self.mask_out_of_sample_test is not None else None
 
         ############ final params ############
         self.len_train_time = self.train_index_end-self.train_index_start+1
@@ -533,6 +563,8 @@ class MultiShapeLoader(BaseDataLoader):
             else:
                 if train_subset != len(train_subset_SKUs):
                     raise ValueError('train_subset_SKUs must have the same length as train_subset')
+
+        print("setting train_subset:", train_subset, "train_subset_SKUs:", train_subset_SKUs)
         
         return train_subset, train_subset_SKUs
 
@@ -562,6 +594,8 @@ class MultiShapeLoader(BaseDataLoader):
             
     def identify_train_SKUs(self, train_subset, train_subset_SKUs):
         """ determine which SKUs are used for training, validation and testing """
+
+        print("train_subset:", train_subset)
         
         if train_subset is not None:
 
@@ -617,8 +651,9 @@ class MultiShapeLoader(BaseDataLoader):
                     setattr(self, f'SKU_features_out_of_sample_{attr_suffix}', self.SKU_features.loc[sku])
                 setattr(self, f'time_SKU_features_out_of_sample_{attr_suffix}', # here SKU are in columns on index level 2
                         self.time_SKU_features.loc[:, pd.IndexSlice[:, sku]]) 
-                setattr(self, f'mask_out_of_sample_{attr_suffix}', self.mask.loc[:, sku])
-                # time_features are independent of SKU, so no need to set them
+                if self.mask is not None:
+                    setattr(self, f'mask_out_of_sample_{attr_suffix}', self.mask.loc[:, sku])
+                    # time_features are independent of SKU, so no need to set them
 
         # unique values of uniion of both lists
         skus_to_remove = list(set(out_of_sample_val_SKUs).union(out_of_sample_test_SKUs))
@@ -631,7 +666,8 @@ class MultiShapeLoader(BaseDataLoader):
             for single_sku in skus_to_remove:
                 columns_to_drop = self.time_SKU_features.columns.get_loc_level(single_sku, level=1)
                 self.time_SKU_features.drop(columns=self.time_SKU_features.columns[columns_to_drop[0]], inplace=True)
-            self.mask.drop(columns=skus_to_remove, inplace=True)
+            if self.mask is not None:
+                self.mask.drop(columns=skus_to_remove, inplace=True)
 
         return out_of_sample_val_SKUs, out_of_sample_test_SKUs
 
@@ -776,6 +812,8 @@ class MultiShapeLoader(BaseDataLoader):
                 # Normalize demand targets
                 if self.demand_normalization != 'no_normalization':
                     # Normalizing per SKU on time dimension
+
+                    print(self.demand)
                     self.scaler_demand.fit(self.demand[:self.train_index_end+1])
                     transformed_demand = self.scaler_demand.transform(self.demand)
                     self.demand.iloc[:,:] = transformed_demand
@@ -1058,7 +1096,10 @@ class MultiShapeLoader(BaseDataLoader):
 
         demand = demand[idx_time, idx_skus]
         
-        item = np.empty((1,lag_window+1, self.num_features, num_skus))
+        if self.max_feature_dim is not None:
+            item = np.zeros((1,lag_window+1, self.max_feature_dim, num_skus))
+        else:
+            item = np.zeros((1,lag_window+1, self.num_features, num_skus))
 
         if include_y:
             assert idx_time-1-lag_window >= 0
@@ -1088,7 +1129,7 @@ class MultiShapeLoader(BaseDataLoader):
             SKU_indices = [len_SKUs*i+idx_sku for i in range(num_time_SKU_features_without_lag_demand)]
             time_SKU_features_sku = time_SKU_features[idx_time-lag_window:idx_time+1, SKU_indices]
             item[:,:,(len_SKU_features+len_time_features):(len_SKU_features+len_time_features+num_time_SKU_features_without_lag_demand),i] = np.expand_dims(time_SKU_features_sku, axis=0)
-        
+
         item[:,:,:len_SKU_features,:] =  np.expand_dims(SKU_features, axis=0)
         
         item[:,:,len_SKU_features:(len_SKU_features+len_time_features),:] = np.expand_dims(time_features, axis=0)
@@ -1121,10 +1162,8 @@ class MultiShapeLoader(BaseDataLoader):
                 if self.provide_additional_target:
                     end_index_to_permutate -= 1 # target shall always be at the end
                 indices_for_permutation = np.arange(start_index_to_permutate, end_index_to_permutate)
-                print("original order:", indices_for_permutation)
                 indices = np.random.permutation(indices_for_permutation)
                 item[:,:,(start_index_to_permutate):end_index_to_permutate,:] = item[:,:,(indices),:]
-                print("new order:", indices)
 
         if self.meta_learn_units:
             if self.dataset_type == "train":
@@ -1141,7 +1180,7 @@ class MultiShapeLoader(BaseDataLoader):
         if item.shape[0] != 1:
             raise ValueError('Batch dimension must be 1')
         item = item.squeeze(0) # remove batch dimension
- 
+
         return item, demand
 
     def __len__(self):

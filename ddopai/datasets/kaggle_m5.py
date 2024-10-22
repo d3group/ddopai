@@ -147,7 +147,6 @@ class KaggleM5DatasetLoader():
         self.time_SKU_features = time_SKU_features # features taht are time- and SKU-dependent
         self.mask = self.available # A mask that can either mask datapoints during training or be used as a feature
 
-        print(time_features)
 
     def import_from_folder(self):
         

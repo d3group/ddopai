@@ -412,6 +412,7 @@ class SGDBaseAgent(BaseAgent):
 
             X = batch
 
+
             X = torch.tensor(X, dtype=torch.float32)
             X = X.to(device)
 
@@ -423,7 +424,6 @@ class SGDBaseAgent(BaseAgent):
                 if not torch.all(torch.isfinite(y_pred)):
 
                     print(y_pred)
-
                     # check if X is not finite:
                     if not torch.all(torch.isfinite(X)):
 
@@ -431,7 +431,6 @@ class SGDBaseAgent(BaseAgent):
                         print("total X_shape: ", X.shape)
                         print("non-finite indices: ", torch.nonzero(~torch.isfinite(X)))
                         print(X)
-
 
                     raise ValueError("Predicted values are not finite")
 
