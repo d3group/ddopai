@@ -322,8 +322,10 @@ class NewsvendorEnvVariableSL(NewsvendorEnv, ABC):
             # print index
             print("total index:", self.index)
             print("first inf encountered:", np.argwhere(np.isinf(X_item))[0])
-            
-            assert False
+
+            print(X_item)
+
+            raise ValueError("X_item contains inf values.")
 
         if self.mode == "train":
             sl = self.draw_parameter(self.sl_distribution, self.sl_bound_low, self.sl_bound_high, samples = self.num_SKUs[0])
