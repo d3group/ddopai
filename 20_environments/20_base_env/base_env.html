@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Base environment class based on Gymnasium">
+
+<title>Base Environment – ddopai</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="../../styles.css">
+<meta property="og:title" content="Base Environment – ddopai">
+<meta property="og:description" content="Base environment class based on Gymnasium">
+<meta property="og:site_name" content="ddopai">
+<meta name="twitter:title" content="Base Environment – ddopai">
+<meta name="twitter:description" content="Base environment class based on Gymnasium">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">ddopai</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../20_environments/20_base_env/base_env.html">Environments</a></li><li class="breadcrumb-item"><a href="../../20_environments/20_base_env/base_env.html">Base Environment</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ddopai</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Utils</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../00_utils/utils.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General utils</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../00_utils/loss_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Loss functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../00_utils/torch_loss_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Torch loss functions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Dataloaders</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../10_dataloaders/base_dataloader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Base dataloader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../10_dataloaders/distribution_loaders.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Distribution-based dataloaders</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../10_dataloaders/tabular_dataloaders.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tabular dataloaders</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Environments</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/20_base_env/base_env.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Base Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/actionprocessors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Actionprocessors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Inventory environments</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/21_envs_inventory/inventory_utils.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Inventory utils</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/21_envs_inventory/base_inventory_env.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Base inventory env</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/21_envs_inventory/single_period_envs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Single period inventory environments</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../20_environments/21_envs_inventory/multi_period_envs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Period Inventory Management</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Agents</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/40_base_agents/agent_classes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent classes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/40_base_agents/base_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Base agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/obsprocessors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Obsprocessors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/ml_utils.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ML utils</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Basic agents</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/40_base_agents/basic_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Basic agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Newsvendor_agents</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/41_NV_agents/nv_saa_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SAA based agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/41_NV_agents/nv_erm_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ERM agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">Reinforcement Learning agents</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/51_RL_agents/mushroom_base_agent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Mushroom base agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/51_RL_agents/ppo_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PPO agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/51_RL_agents/sac_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SAC agents</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/51_RL_agents/td3_agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TD3 agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">Approximators</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/60_approximators/approximators.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../30_agents/60_approximators/critic_networks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Critic Networks</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experiment functions</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../40_experiments/experiment_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Experiment functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../40_experiments/meta_experiment_functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Meta experiment functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../40_experiments/tracking.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracking utils</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true">
+ <span class="menu-text">Datasets</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../90_datasets/default_datasets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset loader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../90_datasets/meta_bakery.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset Preparation for Bakery dataset for Meta-Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../90_datasets/meta_kaggle_m5.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset Preparation for Kaggle M5 dataset for Meta-Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#baseenvironment" id="toc-baseenvironment" class="nav-link active" data-scroll-target="#baseenvironment">BaseEnvironment</a>
+  <ul class="collapse">
+  <li><a href="#important-notes" id="toc-important-notes" class="nav-link" data-scroll-target="#important-notes">Important notes:</a></li>
+  <li><a href="#baseenvironment.set_param" id="toc-baseenvironment.set_param" class="nav-link" data-scroll-target="#baseenvironment.set_param">BaseEnvironment.set_param</a></li>
+  <li><a href="#baseenvironment.return_truncation_handler" id="toc-baseenvironment.return_truncation_handler" class="nav-link" data-scroll-target="#baseenvironment.return_truncation_handler">BaseEnvironment.return_truncation_handler</a></li>
+  <li><a href="#baseenvironment.step" id="toc-baseenvironment.step" class="nav-link" data-scroll-target="#baseenvironment.step">BaseEnvironment.step</a></li>
+  <li><a href="#baseenvironment.add_postprocessor" id="toc-baseenvironment.add_postprocessor" class="nav-link" data-scroll-target="#baseenvironment.add_postprocessor">BaseEnvironment.add_postprocessor</a></li>
+  <li><a href="#baseenvironment.step_" id="toc-baseenvironment.step_" class="nav-link" data-scroll-target="#baseenvironment.step_">BaseEnvironment.step_</a></li>
+  <li><a href="#baseenvironment.mdp_info" id="toc-baseenvironment.mdp_info" class="nav-link" data-scroll-target="#baseenvironment.mdp_info">BaseEnvironment.mdp_info</a></li>
+  <li><a href="#baseenvironment.info" id="toc-baseenvironment.info" class="nav-link" data-scroll-target="#baseenvironment.info">BaseEnvironment.info</a></li>
+  <li><a href="#baseenvironment.mode" id="toc-baseenvironment.mode" class="nav-link" data-scroll-target="#baseenvironment.mode">BaseEnvironment.mode</a></li>
+  <li><a href="#baseenvironment.set_action_space" id="toc-baseenvironment.set_action_space" class="nav-link" data-scroll-target="#baseenvironment.set_action_space">BaseEnvironment.set_action_space</a></li>
+  <li><a href="#baseenvironment.set_observation_space" id="toc-baseenvironment.set_observation_space" class="nav-link" data-scroll-target="#baseenvironment.set_observation_space">BaseEnvironment.set_observation_space</a></li>
+  <li><a href="#baseenvironment.get_observation" id="toc-baseenvironment.get_observation" class="nav-link" data-scroll-target="#baseenvironment.get_observation">BaseEnvironment.get_observation</a></li>
+  <li><a href="#baseenvironment.reset" id="toc-baseenvironment.reset" class="nav-link" data-scroll-target="#baseenvironment.reset">BaseEnvironment.reset</a></li>
+  <li><a href="#baseenvironment.set_index" id="toc-baseenvironment.set_index" class="nav-link" data-scroll-target="#baseenvironment.set_index">BaseEnvironment.set_index</a></li>
+  <li><a href="#baseenvironment.get_start_index" id="toc-baseenvironment.get_start_index" class="nav-link" data-scroll-target="#baseenvironment.get_start_index">BaseEnvironment.get_start_index</a></li>
+  <li><a href="#baseenvironment.reset_index" id="toc-baseenvironment.reset_index" class="nav-link" data-scroll-target="#baseenvironment.reset_index">BaseEnvironment.reset_index</a></li>
+  <li><a href="#baseenvironment.update_mdp_info" id="toc-baseenvironment.update_mdp_info" class="nav-link" data-scroll-target="#baseenvironment.update_mdp_info">BaseEnvironment.update_mdp_info</a></li>
+  <li><a href="#baseenvironment.train" id="toc-baseenvironment.train" class="nav-link" data-scroll-target="#baseenvironment.train">BaseEnvironment.train</a></li>
+  <li><a href="#baseenvironment.val" id="toc-baseenvironment.val" class="nav-link" data-scroll-target="#baseenvironment.val">BaseEnvironment.val</a></li>
+  <li><a href="#baseenvironment.test" id="toc-baseenvironment.test" class="nav-link" data-scroll-target="#baseenvironment.test">BaseEnvironment.test</a></li>
+  <li><a href="#baseenvironment.set_return_truncation" id="toc-baseenvironment.set_return_truncation" class="nav-link" data-scroll-target="#baseenvironment.set_return_truncation">BaseEnvironment.set_return_truncation</a></li>
+  <li><a href="#baseenvironment.stop" id="toc-baseenvironment.stop" class="nav-link" data-scroll-target="#baseenvironment.stop">BaseEnvironment.stop</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/opimwue/ddopai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../20_environments/20_base_env/base_env.html">Environments</a></li><li class="breadcrumb-item"><a href="../../20_environments/20_base_env/base_env.html">Base Environment</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Base Environment</h1>
+</div>
+
+<div>
+  <div class="description">
+    Base environment class based on Gymnasium
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L18" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="baseenvironment" class="level2">
+<h2 class="anchored" data-anchor-id="baseenvironment">BaseEnvironment</h2>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment (mdp_info:ddopai.utils.MDPInfo,
+                  postprocessors:list[object]|None=None, mode:str='train',
+                  return_truncation:str=True,
+                  horizon_train:int|str='use_all_data')</code></pre>
+</blockquote>
+<p><em>Base class for environments enforcing a common interface that works with MushroomRL, as well as other RL libraries.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>mdp_info</td>
+<td>MDPInfo</td>
+<td></td>
+<td>MDPInfo object to ensure compatibility with the agents</td>
+</tr>
+<tr class="even">
+<td>postprocessors</td>
+<td>list[object] | None</td>
+<td>None</td>
+<td>default is empty list</td>
+</tr>
+<tr class="odd">
+<td>mode</td>
+<td>str</td>
+<td>train</td>
+<td>Initial mode (train, val, test) of the environment</td>
+</tr>
+<tr class="even">
+<td>return_truncation</td>
+<td>str</td>
+<td>True</td>
+<td>whether to return a truncated condition in step function</td>
+</tr>
+<tr class="odd">
+<td>horizon_train</td>
+<td>int | str</td>
+<td>use_all_data</td>
+<td>horizon of the training data</td>
+</tr>
+<tr class="even">
+<td><strong>Returns</strong></td>
+<td><strong>None</strong></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<section id="important-notes" class="level3">
+<h3 class="anchored" data-anchor-id="important-notes">Important notes:</h3>
+<p><strong>init method</strong>:</p>
+<ul>
+<li><p>When adding parameters to the environment, make sure to always add them via <code>set_param(...)</code>. This ensures all parameters are of the correct types and shapes.</p></li>
+<li><p>During the init method, any Gymnasium environment expects the action and observation space to be defined. For clarity, avoid doing it directly in the init, but rather use the functions <code>set_action_space()</code> and <code>set_observation_space()</code> and call them in the <code>___init___</code> method.</p></li>
+</ul>
+<p><strong>train, val, test, and horizon (episode length)</strong>:</p>
+<ul>
+<li><p>When the <code>__init__</code> method is called, the environment executes the <code>train()</code>, <code>val()</code> or <code>test()</code> methods. Therefore, they must be implemented in a way that they work right during set-up.</p></li>
+<li><p><code>train()</code>, <code>val()</code> and <code>test()</code> methods are provided in the base class, but can also be overwritten if necessary. In any case, they must set the dataloader to the correct dataset to ensure no data leakage. They also need to update mdp_info to update the horizon (episode length) of the environment</p></li>
+<li><p>The horizon for validation and testing will be equal to the length of those datasets. For training, there is a parameter <code>horizon_train</code> that either contains a string “use_all_data” or an integer. If it is the former, the horizon will be the length of the training dataset. If it is the latter, the environment will play an episode of length <code>horizon_train</code> starting at a random point of the training dataset.</p></li>
+</ul>
+<p><strong>step method</strong>:</p>
+<ul>
+<li><p>The step method is the core of the environment, calculating the next state (observation) and reward given an action. Since some frameworks expect a truncation condition (standard implementation in Gymnasium now) while others (e.g., mushroom_rl), do not, the step function is implemented in the base class and handles this (via a flag in in the environment called <code>return_truncation</code>). <strong>DO NOT OVERWRITE</strong> the step function, but rather implement the <code>step_(self, action)</code> (underscore) method in the specific environment. This function shall always return a tuple of the form (observation, reward, terminated, truncated, info).</p></li>
+<li><p>For clarity, the construction of the next state (we call it more general observation to include POMDPs) is done in a separate method called <code>get_observation()</code> that must be called inside the step function. See documentation below and the Newsvendor environment <code>envs.inventory.NewsvendorEnv</code> for an example.</p></li>
+<li><p>The dataloader will typically return an X,Y pair (where X are some features and Y typically is demand) The X is necessary at the end of the step to construct the next observation to be returned to the agent. The Y is only relevant one step later to calculate the reward. Hence, Y is typically transferred to the next step method via an object variable like self.demand (see <code>envs.inventory.NewsvendorEnv</code> as an example).</p></li>
+</ul>
+<p><strong>observation pre-processors and action post-processors</strong>:</p>
+<ul>
+<li>Sometimes, it is necessary to process the observartion before giving it to the agent (e.g., changing shape) or to process the action before giving it to the environment (e.g., rounding). To ensure compatibility with mushroom_rl, the pre-processors (also called observationprocessors) sit with the agent (they must be added to the agent and are applied in the agent’s <code>draw_action()</code> method). The post-processors (also called actionprocessors) sit with the environment and are applied in the environment’s <code>step()</code> method.</li>
+</ul>
+<p><strong>reset method</strong>:</p>
+<ul>
+<li><p>The reset method may depend strongly on the environment dynamics, so it must be implemented for the specific environment. It needs to fulfill two requirements: 1) it needs to differenticate between train, val, and test mode and 2) when setting the training mode, it needs to take the <code>horizon_train</code> parameter into account.</p></li>
+<li><p>At the end of the function, first the <code>reset_index()</code> method should be called (either with a specific index as integer or the flag <code>"random"</code>as input) and then the <code>get_observation()</code> method to construct the first observation.</p></li>
+</ul>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L52" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.set_param" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.set_param">BaseEnvironment.set_param</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.set_param (name:str, input:Union[ddopai.utils.Parameter,i
+                            nt,float,numpy.ndarray,List,Dict,NoneType],
+                            shape:tuple=(1,), new:bool=False)</code></pre>
+</blockquote>
+<p><em>Set a parameter for the environment. It converts scalar values to numpy arrays and ensures that environment parameters are either of the Parameter class of Numpy arrays. If new is set to True, the function will create a new parameter or update an existing one otherwise. If new is set to False, the function will raise an error if the parameter does not exist.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 6%">
+<col style="width: 25%">
+<col style="width: 34%">
+<col style="width: 34%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>name</td>
+<td>str</td>
+<td></td>
+<td>name of the parameter (will become the attribute name)</td>
+</tr>
+<tr class="even">
+<td>input</td>
+<td>Union</td>
+<td></td>
+<td>input value of the parameter</td>
+</tr>
+<tr class="odd">
+<td>shape</td>
+<td>tuple</td>
+<td>(1,)</td>
+<td>shape of the parameter</td>
+</tr>
+<tr class="even">
+<td>new</td>
+<td>bool</td>
+<td>False</td>
+<td>whether to create a new parameter or update an existing one</td>
+</tr>
+<tr class="odd">
+<td><strong>Returns</strong></td>
+<td><strong>None</strong></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L68" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.return_truncation_handler" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.return_truncation_handler">BaseEnvironment.return_truncation_handler</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.return_truncation_handler (observation, reward,
+                                            terminated, truncated, info)</code></pre>
+</blockquote>
+<p><em>Handle the return_truncation attribute of the environment. This function is called by the step function</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L79" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.step" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.step">BaseEnvironment.step</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.step (action)</code></pre>
+</blockquote>
+<p><em>Step function of the environment. Do not overwrite this function. Instead, write the step_ function. Note that the postprocessor is applied here.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L95" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.add_postprocessor" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.add_postprocessor">BaseEnvironment.add_postprocessor</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.add_postprocessor (postprocessor:object)</code></pre>
+</blockquote>
+<p><em>Add a postprocessor (also called actionprocessor) to the agent</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>postprocessor</td>
+<td>object</td>
+<td>post-processor object that can be called via the “<strong>call</strong>” method</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L100" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.step_" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.step_">BaseEnvironment.step_</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.step_ (action)</code></pre>
+</blockquote>
+<p><em>Step function of the environment. This function contains the logic of the environment and must be provided. It will be called by the step function that applies the actionprocessor and handles the return_truncation attribute.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L110" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.mdp_info" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.mdp_info">BaseEnvironment.mdp_info</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.mdp_info ()</code></pre>
+</blockquote>
+<p><em>Returns: The MDPInfo object of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L118" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.info" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.info">BaseEnvironment.info</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.info ()</code></pre>
+</blockquote>
+<p><em>Returns: Alternative call to the method for mushroom_rl.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L126" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.mode" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.mode">BaseEnvironment.mode</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.mode ()</code></pre>
+</blockquote>
+<p><em>Returns: A string with the current mode (train, test val) of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L134" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.set_action_space" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.set_action_space">BaseEnvironment.set_action_space</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.set_action_space ()</code></pre>
+</blockquote>
+<p><em>Set the action space of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L142" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.set_observation_space" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.set_observation_space">BaseEnvironment.set_observation_space</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.set_observation_space ()</code></pre>
+</blockquote>
+<p><em>Set the observation space of the environment. In general, this can be also a dict space, but the agent must have the appropriate pre-processor.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L151" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.get_observation" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.get_observation">BaseEnvironment.get_observation</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.get_observation ()</code></pre>
+</blockquote>
+<p><em>Return the current observation. Typically constructed from the output of the dataloader and internal dynamics (such as inventory levels, pipeline vectors, etc.) of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L160" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.reset" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.reset">BaseEnvironment.reset</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.reset ()</code></pre>
+</blockquote>
+<p><em>Reset the environment. This function must be provided, using the function self.reset_index() to handle indexing. It needs to account for the current training mode train, val, or test and handle the horizon_train param. See the reset function for the NewsvendorEnv for an example.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L169" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.set_index" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.set_index">BaseEnvironment.set_index</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.set_index (index=None)</code></pre>
+</blockquote>
+<p><em>Handle the index of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L185" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.get_start_index" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.get_start_index">BaseEnvironment.get_start_index</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.get_start_index (start_index:int|str=None)</code></pre>
+</blockquote>
+<p><em>Determine if the start index is random or 0, depending on the state of the environment and training process (over entire train set or in shorter episodes)</em></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Default</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>start_index</td>
+<td>int | str</td>
+<td>None</td>
+<td>index to start from</td>
+</tr>
+<tr class="even">
+<td><strong>Returns</strong></td>
+<td><strong>int</strong></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L213" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.reset_index" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.reset_index">BaseEnvironment.reset_index</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.reset_index (start_index:Union[int,str])</code></pre>
+</blockquote>
+<p><em>Reset the index of the environment. If start_index is an integer, the index is set to this value. If start_index is “random”, the index is set to a random integer between 0 and the length of the training data.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L253" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.update_mdp_info" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.update_mdp_info">BaseEnvironment.update_mdp_info</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.update_mdp_info (gamma=None, horizon=None)</code></pre>
+</blockquote>
+<p><em>Update the MDP info of the environment.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L264" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.train" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.train">BaseEnvironment.train</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.train (update_mdp_info=True)</code></pre>
+</blockquote>
+<p><em>Set the environment in training mode by both setting the internal state self._train and the dataloader. If the horizon is set to “use_all_data”, the horizon is set to the length of the training data, otherwise it is set to the horizon_train attribute of the environment. Finally, the function updates the MDP info and resets with the new state.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L290" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.val" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.val">BaseEnvironment.val</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.val (update_mdp_info=True)</code></pre>
+</blockquote>
+<p><em>Set the environment in validation mode by both setting the internal state self._val and the dataloader. The horizon of val is always set to the length of the validation data. Finally, the function updates the MDP info and resets with the new state.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L310" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.test" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.test">BaseEnvironment.test</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.test (update_mdp_info=True)</code></pre>
+</blockquote>
+<p><em>Set the environment in testing mode by both setting the internal state self._test and the dataloader. The horizon of test is always set to the length of the test data. Finally, the function updates the MDP info and resets with the new state.</em></p>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L330" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.set_return_truncation" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.set_return_truncation">BaseEnvironment.set_return_truncation</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.set_return_truncation (return_truncation:bool)</code></pre>
+</blockquote>
+<p><em>Set the return_truncation attribute of the environment.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 9%">
+<col style="width: 38%">
+<col style="width: 52%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th><strong>Type</strong></th>
+<th><strong>Details</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>return_truncation</td>
+<td>bool</td>
+<td>whether or not to return the truncated condition in the step function</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<p><a href="https://github.com/opimwue/ddopai/blob/main/ddopai/envs/base.py#L338" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="baseenvironment.stop" class="level3">
+<h3 class="anchored" data-anchor-id="baseenvironment.stop">BaseEnvironment.stop</h3>
+<blockquote class="blockquote">
+<pre><code> BaseEnvironment.stop ()</code></pre>
+</blockquote>
+<p><em>Stop the environment. This function is used to ensure compatibility with the Core of mushroom_rl.</em></p>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/opimwue\.github\.io\/ddopai");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/opimwue/ddopai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
