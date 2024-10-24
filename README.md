@@ -18,11 +18,12 @@ To be written.
 To make any enviroment compatible with mushroomRL and other agents
 defined within ddopai, there are some additional requirements when
 defining the environment. Instead of inheriting from `gym.Env`, the
-environment should inherit from `ddopai.envs.base.BaseEnvironment`. This
-base class provides some additional necessary methods and attributes to
-ensure compatibility with the agents. Below are the steps to convert a
-Gym environment to a ddopai environment. We strongly recommend you to
-also look at the implementation of the NewsvendorEnv
+environment should inherit from
+[`ddopai.envs.base.BaseEnvironment`](https://opimwue.github.io/ddopai/20_environments/20_base_env/base_env.html#baseenvironment).
+This base class provides some additional necessary methods and
+attributes to ensure compatibility with the agents. Below are the steps
+to convert a Gym environment to a ddopai environment. We strongly
+recommend you to also look at the implementation of the NewsvendorEnv
 (nbs/20_environments/21_envs_inventory/20_single_period_envs.ipynb) as
 an example.
 

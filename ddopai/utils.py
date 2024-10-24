@@ -226,8 +226,18 @@ def set_param(obj,
         False, the function will raise an error if the parameter does not exist.
     """
 
+
     if input is None:
         param = None
+
+    if not new:
+        # get current shape of parameter
+        if not hasattr(self, name):
+            # if parameter is not a dict, get the shape
+            raise AttributeError(f"Parameter {name} does not exist")
+
+        if not isinstance(getattr(self, name), dict):
+            shape = getattr(self, name).shape
 
     elif isinstance(input, Parameter):
         if input.shape != shape:
