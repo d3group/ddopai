@@ -8,7 +8,7 @@ __all__ = ['BaseEnvironment']
 # %% ../../nbs/20_environments/20_base_env/10_base_env.ipynb 4
 import gymnasium as gym
 from abc import ABC, abstractmethod
-from typing import Union, List
+from typing import Union, List, Dict
 import numpy as np
 
 from ..utils import MDPInfo, Parameter, set_param
@@ -51,7 +51,7 @@ class BaseEnvironment(gym.Env, ABC):
 
     def set_param(self,
                         name: str, # name of the parameter (will become the attribute name)
-                        input: Parameter | int | float | np.ndarray | List | None, # input value of the parameter
+                        input: Parameter | int | float | np.ndarray | List | Dict | None, # input value of the parameter
                         shape: tuple = (1,), # shape of the parameter
                         new: bool = False # whether to create a new parameter or update an existing one
                         ) -> None: #

@@ -8,7 +8,7 @@ __all__ = ['check_parameter_types', 'Parameter', 'MDPInfo', 'DatasetWrapper', 'D
 
 # %% ../nbs/00_utils/00_utils.ipynb 3
 from torch.utils.data import Dataset
-from typing import Union, List, Tuple, Literal
+from typing import Union, List, Tuple, Literal, Dict
 from gymnasium.spaces import Space
 from .dataloaders.base import BaseDataLoader
 
@@ -215,7 +215,7 @@ def merge_dictionaries(dict1, dict2):
 # %% ../nbs/00_utils/00_utils.ipynb 20
 def set_param(obj,
                 name: str, # name of the parameter (will become the attribute name)
-                input: Parameter | int | float | np.ndarray | List | None , # input value of the parameter
+                input: Parameter | int | float | np.ndarray | List | Dict | None , # input value of the parameter
                 shape: tuple = (1,), # shape of the parameter
                 new: bool = False, # whether to create a new parameter or update an existing one
                 ): 
@@ -253,8 +253,12 @@ def set_param(obj,
             param = np.full(shape, input.item())
         else:
             raise ValueError("Error in setting parameter. Input array must match the specified shape or be a single-element array")
+
+    elif isinstance(input, dict):
+        param = input
+
     else:
-        raise TypeError(f"Input must be a Parameter, scalar, or numpy array, got {type(input).__name__} with value {input}")
+        raise TypeError(f"Input must be a Parameter, scalar, numpy array, list, or dict. Got {type(input).__name__} with value {input}")
 
     # set the parameter
     if new:
