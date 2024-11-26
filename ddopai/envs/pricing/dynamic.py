@@ -37,7 +37,7 @@ class DynamicPricingEnv(BasePricingEnv):
         gamma: float = 1, # discount factor
         horizon_train: int | str = "use_all_data", # if "use_all_data" then horizon is inferred from the DataLoader
         postprocessors: list[object] | None = None, # default is empty list 
-        mode: str = "online", # TODO: add online to relevant modes
+        mode: str = "train", 
         return_truncation: str = True # TODO:Why is this a string?
         ) -> None:
 
@@ -69,4 +69,45 @@ class DynamicPricingEnv(BasePricingEnv):
     def step_(self,
               action: np.ndarray # prices)
                 ) -> Tuple[np.ndarray, float, bool, bool, dict]:
-        return observation, reward, terminated, truncated, info
+        """
+        Step function implementing the dynamic pricing and learning problem. Note that the dataloader will return an observation and a demand function.
+        """
+        if action.ndim == 2 and action.shape[0] == 1:
+            action = np.squeeze(action, axis=0)
+            
+        
+        
+        terminated = False
+        observation, reward_function = self.get_observation() 
+        reward_function_call = np.vectorize(lambda reward_function, observation, action: reward_function(observation, action))
+        demand_per_SKU = reward_function_call(reward_function, observation, action)
+        
+        reward_per_SKU = demand_per_SKU * action
+        reward = np.sum(reward_per_SKU)
+        info = dict(
+             demand=demand_per_SKU.copy(),
+             action=action.copy(),
+            reward_per_SKU=reward_per_SKU.copy()
+        )
+        
+        truncated = self.set_index()
+        
+        if truncated:
+
+            if self.mode == "test" or self.mode == "val":
+                observation, self.demand = None, None
+            else:
+                observation, self.demand = self.get_observation()
+
+            return observation, reward, terminated, truncated, info
+        
+        else:
+
+
+            if self.print:
+                print("next_period:", self.index+1)
+                print("next observation:", observation)
+                print("next demand:", demand_per_SKU)
+                time.sleep(3)
+
+            return observation, reward, terminated, truncated, info

@@ -107,18 +107,10 @@ class BasePricingEnv(BaseEnvironment):
 
         """
 
-        X_item,  = self.dataloader[self.index]
+        X_item, Y_item  = self.dataloader[self.index]
 
-        return X_item
+        return X_item, Y_item
     
-    def get_demand_response(self, action):
-            
-            """
-            Return the demand and the reward for the current action. This function should be overwritten.
-            TODO: add the tuple call to the pricing dataloader
-            """
-            Y_item, epsilon = self.dataloader[self.index, action]
-            return Y_item, epsilon
     def reset(self,
         start_index: int | str = None, # index to start from
         state: np.ndarray = None # initial state
