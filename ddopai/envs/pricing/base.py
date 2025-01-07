@@ -35,15 +35,12 @@ class BasePricingEnv(BaseEnvironment):
         return_truncation: str = True, # whether to return a truncated condition in step function
         dataloader: BaseDataLoader = None, # dataloader for the environment
         
-        alpha: Union[float, np.ndarray] = 1, # market size parameter
-        beta: Union[float, np.ndarray] = 1, # price sensitivity parameter
+    
         horizon_train: int = 100 # horizon for the online learning TODO: check if it can be renamed to horizon
         ) -> None:
 
         self.dataloader = dataloader
-        
-        self.set_param("alpha", alpha, shape=(self.nun_SKUs[0],), new=True)
-        self.set_param("beta", beta, shape=(self.nun_SKUs[0],), new=True)
+       
         
         # TODO: check in the base env if train_horizon is needed 
         super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation, horizon_train=horizon_train)

@@ -47,9 +47,12 @@ class DynamicPricingEnv(BasePricingEnv):
         
         if not isinstance(num_SKUs, int):
             raise ValueError("num_SKUs should be an integer.")
+        if not alpha.shape==beta.shape:
+            raise ValueError("alpha and beta should have the same shape.")
+        self.set_param("num_SKUs", num_SKUs, new=True)
         
-        self.set_param("num_SKUs", num_SKUs, shape=(1,), new=True)
-        
+        self.set_param("alpha", alpha, shape=(num_SKUs,alpha.shape[1]), new=True)
+        self.set_param("beta", beta, shape=(num_SKUs,beta.shape[1]), new=True)
         self.set_param("p_bound_low", p_bound_low, shape=(num_SKUs,), new=True)
         self.set_param("p_bound_high", p_bound_high, shape=(num_SKUs,), new=True)
         
@@ -61,8 +64,6 @@ class DynamicPricingEnv(BasePricingEnv):
         super().__init__(mdp_info=mdp_info,
                          postprocessors=postprocessors,
                          mode=mode, return_truncation=return_truncation,
-                         alpha=alpha,
-                         beta=beta,
                          dataloader=dataloader,
                          horizon_train=horizon_train)
         
@@ -78,9 +79,9 @@ class DynamicPricingEnv(BasePricingEnv):
         
         
         terminated = False
-        observation, reward_function = self.get_observation() 
-        reward_function_call = np.vectorize(lambda reward_function, observation, action: reward_function(observation, action))
-        demand_per_SKU = reward_function_call(reward_function, observation, action)
+        observation, reward_functions = self.get_observation() 
+
+        demand_per_SKU = [reward_function(x, a) for reward_function, x, a in zip(reward_functions, observation, action)]
         
         reward_per_SKU = demand_per_SKU * action
         reward = np.sum(reward_per_SKU)
@@ -95,19 +96,18 @@ class DynamicPricingEnv(BasePricingEnv):
         if truncated:
 
             if self.mode == "test" or self.mode == "val":
-                observation, self.demand = None, None
+                observation= None
             else:
-                observation, self.demand = self.get_observation()
+                observation, = self.get_observation()
 
             return observation, reward, terminated, truncated, info
         
         else:
 
-
+            # TODO: check if this is correct since we are not interested in the next period 
             if self.print:
                 print("next_period:", self.index+1)
                 print("next observation:", observation)
-                print("next demand:", demand_per_SKU)
                 time.sleep(3)
 
             return observation, reward, terminated, truncated, info
