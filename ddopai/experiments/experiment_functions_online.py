@@ -344,6 +344,18 @@ def run_experiment( agent: BaseAgent,
         env.train()
         agent.train()
 
+    if tracking == "wandb":
+        if return_score and return_dataset:
+            wandb.log({"R_list": R_list, "J_list": J_list})
+            for row in dataset:
+                wandb.log({"Action": row[0][1], "Reward": row[0][2]})
+        elif return_score:
+            wandb.log({"R_list": R_list, "J_list": J_list})
+        elif return_dataset:
+            wandb.log({"Dataset": dataset})
+            for row in dataset:
+                wandb.log({"Action": row[0][1], "Reward": row[0][2]})   
+
     if return_score and return_dataset:
         return R_list, J_list, dataset
     elif return_score:

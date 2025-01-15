@@ -28,6 +28,11 @@ AGENT_CLASSES = {
     "SAC": "ddopai.agents.rl.sac.SACAgent",
     "SACRNN": "ddopai.agents.rl.sac.SACRNNAgent",
 
-    "TD3": "ddopai.agents.rl.td3.TD3Agent",
+    "TD3": "ddopai.agents.rl.td3.TD3Agent", 
     "PPO": "ddopai.agents.rl.ppo.PPOAgent",
+    
+    "Greedy": "ddopai.agents.dynamic_pricing.greedy.GreedyAgent",
+    "ILQX": "ddopai.agents.dynamic_pricing.ILQX.ILQXAgent",
+    "TS": "ddopai.agents.dynamic_pricing.TS.TSAgent",
+    "UCB": "ddopai.agents.dynamic_pricing.UCB.UCBAgent",
 }

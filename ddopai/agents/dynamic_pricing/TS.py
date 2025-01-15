@@ -20,6 +20,7 @@ from .mushroom_rl import PricingMushroomBaseAgent
 from mushroom_rl.core import Agent
 from ...utils import MDPInfo
 from ..obsprocessors import FlattenTimeDimNumpy
+from ...envs.actionprocessors import ClipAction
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_TS_agent.ipynb 4
@@ -41,6 +42,8 @@ class TSPolicy():
         if alpha is None:
             alpha = np.zeros(environment_info.observation_space.shape[1])
             beta = np.zeros(environment_info.observation_space.shape[1])
+        if isinstance(ex_prices, list):
+            ex_prices = np.array(ex_prices)
         assert ex_prices.shape[0] >= 2
 
         self.environment_info = environment_info
@@ -56,6 +59,7 @@ class TSPolicy():
         self.X = np.empty((0, environment_info.observation_space.shape[1] * 2))
         self.Y = np.empty((0, 1))
         self.mode = "train"
+        self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
 
     def draw_action(self, observation: np.ndarray):
         if self.t in [0, 1]:

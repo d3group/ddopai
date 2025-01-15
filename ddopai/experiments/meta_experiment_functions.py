@@ -4,9 +4,9 @@
 
 # %% auto 0
 __all__ = ['set_warnings', 'prep_experiment', 'init_wandb', 'track_libraries_and_git', 'import_config',
-           'transfer_lag_window_to_env', 'transfer_additional_target_to_env', 'get_ddop_data', 'download_data',
-           'set_indices', 'set_up_env', 'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up', 'select_agent',
-           'merge_with_namespace']
+           'transfer_lag_window_to_env', 'transfer_additional_target_to_env', 'download_data', 'create_online_data',
+           'set_indices', 'get_ddop_data', 'get_online_data', 'set_up_env', 'set_up_env_online', 'set_up_agent',
+           'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up', 'select_agent', 'merge_with_namespace']
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 3
 from abc import ABC, abstractmethod
@@ -24,9 +24,11 @@ import torch
 from .tracking import get_git_hash, get_library_version
 from ..agents.class_names import AGENT_CLASSES
 from ..dataloaders.tabular import XYDataLoader
+from ..dataloaders.online import OnlineDataLoader
 from ..datasets.default_datasets import DatasetLoader
 from .experiment_functions import EarlyStoppingHandler, test_agent
-
+from ..envs.base import BaseEnvironment
+from ..agents.dynamic_pricing.utils import GLMLink, get_price_function
 import wandb
 
 import gc
@@ -184,21 +186,6 @@ def transfer_additional_target_to_env(config_env: Dict, #
         del config_agent["provide_additional_target"]
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 13
-def get_ddop_data(
-    config_env: Dict,
-    overwrite: bool = False
-    ) -> Tuple:
-
-    """ Standard function to load data provided by the ddop package """
-    
-    data = download_data(config_env, overwrite)
-
-    val_index_start, test_index_start = set_indices(config_env, data[0])
-
-    return data, val_index_start, test_index_start
-
-
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 14
 def download_data(  config_env: Dict,
                     overwrite: bool = False #
                     ) -> Tuple:
@@ -216,6 +203,23 @@ def download_data(  config_env: Dict,
 
     return data_tuple
 
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 14
+def create_online_data(
+    config_env: Dict,
+    overwrite: bool = False
+    ) -> Tuple:
+
+    """ Standard function to provide online data based on the provided configuration """
+    
+    nb_features = config_env["nb_features"]
+    size = config_env["size_train"]
+    covariance = config_env["covariance"    ]
+    noise_std = config_env["noise_std"]
+    X = np.random.multivariate_normal(np.ones(nb_features), covariance*np.eye(nb_features), size=size+1)
+    X = X.reshape(-1, 1, nb_features)
+    epsilon = np.random.normal(0, noise_std, size=size+1)
+    return X, epsilon
+
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 15
 def set_indices(config_env: Dict, #
                 X: np.ndarray 
@@ -228,7 +232,32 @@ def set_indices(config_env: Dict, #
 
     return val_index_start, test_index_start
 
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 16
+def get_ddop_data(
+    config_env: Dict,
+    overwrite: bool = False
+    ) -> Tuple:
+
+    """ Standard function to load data provided by the ddop package """
+    
+    data = download_data(config_env, overwrite)
+
+    val_index_start, test_index_start = set_indices(config_env, data[0])
+
+    return data, val_index_start, test_index_start
+
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 17
+def get_online_data(    config_env: Dict,
+                        overwrite: bool = False
+                        ) -> Tuple:
+
+    """ Load data for online learning """
+
+    data = create_online_data(config_env, overwrite)
+    val_index_start, test_index_start = set_indices(config_env, data[0])
+    return data, val_index_start, test_index_start
+
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 19
 def set_up_env(
     env_class,
     raw_data: Tuple, #
@@ -255,7 +284,75 @@ def set_up_env(
 
     return environment
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 19
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 20
+def set_up_env_online(
+    env_class,
+    raw_data: Tuple, #
+    val_index_start: int,
+    test_index_start: int,
+    config_env: Dict,
+    postprocessors: List,
+) -> object:
+    
+    """ Set up the environment """
+
+    function_form = config_env["function_form"]
+    if isinstance(function_form, str):
+        function_form = function_form
+    elif isinstance(function_form, list):
+        function_form = np.array(function_form)
+    else:
+        raise ValueError("function_form must be either a string or a list")
+    config_env["env_kwargs"]["alpha"] = np.array([config_env["env_kwargs"]["alpha"]])
+    config_env["env_kwargs"]["beta"] = np.array([config_env["env_kwargs"]["beta"]])
+    dataloader = OnlineDataLoader(X = raw_data[0],
+                                  alpha=config_env["env_kwargs"]["alpha"],
+                                  beta = config_env["env_kwargs"]["beta"],
+                                  epsilon = raw_data[1],
+                                  function_form=function_form,  
+                                  val_index_start = val_index_start,
+                                  test_index_start = test_index_start,
+                                  normalize_features = {'normalize': config_env["normalize_features"], 'ignore_one_hot': True})
+    
+    
+
+    environment = env_class(
+        dataloader = dataloader,
+        postprocessors = postprocessors,
+        **config_env["env_kwargs"]
+    )
+
+    return environment
+
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 22
+def set_up_agent(
+    AgentClass,
+    environment: BaseEnvironment,
+    config_agent: Dict
+):
+    """ Set up the agent """
+
+    link = config_agent["link"]
+    if link=="linear":
+        def g(x):
+            return x
+        def g_inv(x):
+            return x
+        def g_prime(x):
+            return 1
+        
+    if link=="log":
+        def g(x):
+            return np.log(x)
+        def g_inv(x):
+            return np.exp(x)
+        def g_prime(x):
+            return 1/x
+    glm_link = GLMLink(g=g, g_inv=g_inv, g_prime=g_prime, link=link) 
+    price_function = get_price_function(link)
+    return glm_link, price_function
+
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 24
 def set_up_earlystoppinghandler(config_train: Dict) -> object: #
 
     """ Set up the early stopping handler """
@@ -271,7 +368,7 @@ def set_up_earlystoppinghandler(config_train: Dict) -> object: #
 
     return earlystoppinghandler
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 21
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 26
 def prep_and_run_test(
     agent,
     environment,
@@ -338,7 +435,7 @@ def prep_and_run_test(
 
 
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 23
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 28
 def clean_up(agent, environment):
 
     """ Clean up agent and environment to free up GPU memory """
@@ -358,7 +455,7 @@ def clean_up(agent, environment):
 
     return None, None
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 25
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 30
 def select_agent(agent_name: str) -> type: #
     """ Select an agent class from a list of agent names and return the class"""
     if agent_name in AGENT_CLASSES:
@@ -368,7 +465,7 @@ def select_agent(agent_name: str) -> type: #
     else:
         raise ValueError(f"Unknown agent name: {agent_name}")
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 26
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 31
 def merge_with_namespace(target_dict, source_dict, target_dict_name):
     
     """

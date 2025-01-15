@@ -29,15 +29,19 @@ an example.
 
 #### 1. Initialization and Parameter Setup
 
-- In the `__init__` method of your environment, ensure that any
-  environment-specific parameters are added using the `set_param(...)`
-  method. This guarantees the correct types and shapes for the
-  parameters.
+- In the
+  [`__init__`](https://opimwue.github.io/ddopai/10_dataloaders/online_dataloaders.html#__init__)
+  method of your environment, ensure that any environment-specific
+  parameters are added using the `set_param(...)` method. This
+  guarantees the correct types and shapes for the parameters.
 - Define the action and observation spaces using `set_action_space()`
   and `set_observation_space()` respectively. These should be called
-  within the `__init__` method, rather than defining the spaces
-  directly.
-- In the `__init__`, and MDPInfo object needs to be created
+  within the
+  [`__init__`](https://opimwue.github.io/ddopai/10_dataloaders/online_dataloaders.html#__init__)
+  method, rather than defining the spaces directly.
+- In the
+  [`__init__`](https://opimwue.github.io/ddopai/10_dataloaders/online_dataloaders.html#__init__),
+  and MDPInfo object needs to be created
   `mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train`)
 
 #### 2. Handling Train, Validation, Test, and Horizon

@@ -38,7 +38,7 @@ class DynamicPricingEnv(BasePricingEnv):
         horizon_train: int | str = "use_all_data", # if "use_all_data" then horizon is inferred from the DataLoader
         postprocessors: list[object] | None = None, # default is empty list 
         mode: str = "train", 
-        return_truncation: str = True # TODO:Why is this a string?
+        return_truncation: str = False # TODO:Why is this a string?
         ) -> None:
 
         self.print=False
@@ -98,7 +98,7 @@ class DynamicPricingEnv(BasePricingEnv):
             if self.mode == "test" or self.mode == "val":
                 observation= None
             else:
-                observation, = self.get_observation()
+                observation, _ = self.get_observation()
 
             return observation, reward, terminated, truncated, info
         
