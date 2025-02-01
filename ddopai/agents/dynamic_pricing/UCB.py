@@ -63,20 +63,23 @@ class UCBPolicy():
 
     def draw_action(self, observation: np.ndarray):
         if self.t in [0, 1]:
-            price = self.ex_prices[self.t]
+            prices = self.ex_prices[self.t]
         else:
-            M = self.compute_uncertainty_M(observation)
-            samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
-            alpha, beta = self.max_rev(samples, observation)
-            price = self.price_function(alpha, beta, observation)
+            prices = np.empty(0)
+            for x in observation:
+                M = self.compute_uncertainty_M(x)
+                samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
+                alpha, beta = self.max_rev(samples, x)
+                price = self.price_function(x, alpha, beta)
+                prices = np.append(prices, price)
             
         for processor in self.actionprocessors:
-            price = processor(price)
+            prices = processor(prices)
         
-        return price
+        return prices
     
     def sample_design_matrix(self):
-        I = np.identity(2*self.environment_info.observation_space.shape[0])
+        I = np.identity(2*self.environment_info.observation_space.shape[1])
         I_lamdba = self.lam * I
         if self.X.shape[0] == 0:
             return I_lamdba
@@ -105,16 +108,18 @@ class UCBPolicy():
     def fit(self, X, Y, action):
         assert self.mode == "train"
         self.t += 1
-        X = np.concatenate([X, X * action], axis=1)
+        X = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, X])
         self.Y = np.vstack([self.Y, Y])
         self.parameter_update()
     
-    def parameter_update(self):
-        model = sm.GLM(self.Y, self.X, family=sm.families.Gamma())
+    def parameter_update(self): 
+        if self.X.shape[0] < 2:
+            return
+        model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
         results = model.fit()
-        self.alpha = results.params[self.environment_info.observation_space.shape[0]:]
-        self.beta = results.params[:self.environment_info.observation_space.shape[0]]
+        self.alpha = results.params[:self.environment_info.observation_space.shape[1]]
+        self.beta = results.params[self.environment_info.observation_space.shape[1]:]
         
     def reset(self):
         return

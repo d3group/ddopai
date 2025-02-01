@@ -89,6 +89,12 @@ class DatasetCallback:
 
     def __call__(self, dataset):
         self.dataset.append(dataset)
+    
+    def reset(self):
+        self.dataset = []
+    
+    def get_dataset(self):
+        return self.dataset
         
 def calculate_score(
                     dataset: List,
@@ -319,11 +325,14 @@ def run_experiment( agent: BaseAgent,
 
 
 
-    for epoch in trange(n_epochs):
-        
+    for epoch in trange(n_epochs): 
+        env.new_episode(epoch)
         core.learn(n_steps=n_steps, n_steps_per_fit=1, quiet=False)
-        dataset = callback.dataset
+        dataset = callback.get_dataset()
+        info_history = env.get_info_history() 
+        callback.reset()
         R, J = calculate_score(dataset, env)
+
         if return_score:
             R_list.append(R)
             J_list.append(J)
@@ -344,17 +353,41 @@ def run_experiment( agent: BaseAgent,
         env.train()
         agent.train()
 
-    if tracking == "wandb":
-        if return_score and return_dataset:
-            wandb.log({"R_list": R_list, "J_list": J_list})
-            for row in dataset:
-                wandb.log({"Action": row[0][1], "Reward": row[0][2]})
-        elif return_score:
-            wandb.log({"R_list": R_list, "J_list": J_list})
-        elif return_dataset:
-            wandb.log({"Dataset": dataset})
-            for row in dataset:
-                wandb.log({"Action": row[0][1], "Reward": row[0][2]})   
+        if tracking == "wandb":
+            if return_score and return_dataset:
+                wandb.log({"Epoch": epoch, "R_list": R_list, "J_list": J_list}, comit=False)
+                #cumulative_reward = 0
+                #for t, row in enumerate(dataset):
+                #    cumulative_reward += row[0][2]
+                #   
+                #    wandb.log({"Epoch": epoch, "t": t, "Action": row[0][1], f"Action_{epoch}": row[0][1], "Reward": row[0][2], f"Reward_{epoch}": row[0][2], "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward})
+                for t, info in info_history.items():
+                    cumulative_reward += info["reward_per_SKU"]
+                    true_cumulative_reward += info["reward_per_SKU_noise_free"]
+                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
+                               "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
+                               "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
+                               "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward,
+                               "True_Cumulative_Reward": true_cumulative_reward, f"True_Cumulative_Reward_{epoch}": true_cumulative_reward})
+                
+            elif return_score:
+                wandb.log({f"R_list_{epoch}": R_list, f"J_list_{epoch}": J_list})
+            elif return_dataset:
+               
+                cumulative_reward = 0
+                true_cumulative_reward = 0
+                #for t, row in enumerate(dataset):
+                #    cumulative_reward += row[0][2]
+                #   
+                #    wandb.log({"Epoch": epoch, "t": t, "Action": row[0][1], f"Action_{epoch}": row[0][1], "Reward": row[0][2], f"Reward_{epoch}": row[0][2], "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward})
+                for t, info in info_history.items():
+                    cumulative_reward += info["reward_per_SKU"]
+                    true_cumulative_reward += info["reward_per_SKU_noise_free"]
+                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
+                               "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
+                               "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
+                               "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward,
+                               "True_Cumulative_Reward": true_cumulative_reward, f"True_Cumulative_Reward_{epoch}": true_cumulative_reward})
 
     if return_score and return_dataset:
         return R_list, J_list, dataset

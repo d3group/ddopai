@@ -211,10 +211,10 @@ def create_online_data(
 
     """ Standard function to provide online data based on the provided configuration """
     
-    nb_features = config_env["nb_features"]
+    nb_features = config_env["env_kwargs"]["nb_features"]
     size = config_env["size_train"]
-    covariance = config_env["covariance"    ]
-    noise_std = config_env["noise_std"]
+    covariance = config_env["env_kwargs"]["covariance"][0]
+    noise_std = config_env["env_kwargs"]["noise_std"][0]
     X = np.random.multivariate_normal(np.ones(nb_features), covariance*np.eye(nb_features), size=size+1)
     X = X.reshape(-1, 1, nb_features)
     epsilon = np.random.normal(0, noise_std, size=size+1)
@@ -296,20 +296,22 @@ def set_up_env_online(
     
     """ Set up the environment """
 
-    function_form = config_env["function_form"]
+    function_form = config_env["env_kwargs"]["function_form"]
     if isinstance(function_form, str):
-        function_form = function_form
+        config_env["env_kwargs"]["function_form"] = function_form
     elif isinstance(function_form, list):
-        function_form = np.array(function_form)
+        config_env["env_kwargs"]["function_form"] = np.array(function_form)
     else:
         raise ValueError("function_form must be either a string or a list")
-    config_env["env_kwargs"]["alpha"] = np.array([config_env["env_kwargs"]["alpha"]])
-    config_env["env_kwargs"]["beta"] = np.array([config_env["env_kwargs"]["beta"]])
+    config_env["env_kwargs"]["alpha"] = np.array(config_env["env_kwargs"]["alpha"])
+    config_env["env_kwargs"]["beta"] = np.array(config_env["env_kwargs"]["beta"])
+    config_env["env_kwargs"]["covariance"] = np.array(config_env["env_kwargs"]["covariance"])
+    config_env["env_kwargs"]["noise_std"] = np.array(config_env["env_kwargs"]["noise_std"])
     dataloader = OnlineDataLoader(X = raw_data[0],
-                                  alpha=config_env["env_kwargs"]["alpha"],
-                                  beta = config_env["env_kwargs"]["beta"],
+                                  alpha=config_env["env_kwargs"]["alpha"][0],
+                                  beta = config_env["env_kwargs"]["beta"][0],
                                   epsilon = raw_data[1],
-                                  function_form=function_form,  
+                                  function_form= config_env["env_kwargs"]["function_form"],  
                                   val_index_start = val_index_start,
                                   test_index_start = test_index_start,
                                   normalize_features = {'normalize': config_env["normalize_features"], 'ignore_one_hot': True})

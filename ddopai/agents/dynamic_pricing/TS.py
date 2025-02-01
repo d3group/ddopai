@@ -63,21 +63,24 @@ class TSPolicy():
 
     def draw_action(self, observation: np.ndarray):
         if self.t in [0, 1]:
-            price = self.ex_prices[self.t]
+            prices = self.ex_prices[self.t]
         else:
-            M = self.compute_uncertainty_M(observation)
-            noise = np.random.multivariate_normal(np.zeros(2), np.identity(2))         
-            M = np.linalg.inv(M)
-            M = np.linalg.cholesky(M).T
-            norm = M @ noise
-            norm = (1/self.environment_info.observation_space.shape[0]) * norm
-            alpha, beta = (self.alpha, self.beta) + norm 
-            price = self.price_function(alpha, beta, observation)
-            
+            prices = np.empty(0)
+            for x in observation:
+                M = self.compute_uncertainty_M(x)
+                noise = np.random.multivariate_normal(np.zeros(2), np.identity(2))         
+                M = np.linalg.inv(M)
+                M = np.linalg.cholesky(M).T
+                norm = M @ noise
+                norm = (1/self.environment_info.observation_space.shape[1]) * norm
+                alpha, beta = (self.alpha, self.beta) + norm 
+                price = self.price_function(x, alpha, beta)
+                prices = np.append(prices, price)
+                
         for processor in self.actionprocessors:
-            price = processor(price)
+            prices = processor(prices)
         
-        return price
+        return prices
     
     def sample_design_matrix(self):
         I = np.identity(2*self.environment_info.observation_space.shape[0])
@@ -102,16 +105,18 @@ class TSPolicy():
     def fit(self, X, Y, action):
         assert self.mode == "train"
         self.t += 1
-        X = np.concatenate([X, X * action], axis=1)
+        X = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, X])
         self.Y = np.vstack([self.Y, Y])
         self.parameter_update()
     
     def parameter_update(self):
-        model = sm.GLM(self.Y, self.X, family=sm.families.Gamma())
+        if self.X.shape[0] < 2:
+            return
+        model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
         results = model.fit()
-        self.alpha = results.params[self.environment_info.observation_space.shape[0]:]
-        self.beta = results.params[:self.environment_info.observation_space.shape[0]]
+        self.alpha = results.params[:self.environment_info.observation_space.shape[1]]
+        self.beta = results.params[self.environment_info.observation_space.shape[1]:]
         
     def reset(self):
         return

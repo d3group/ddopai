@@ -35,6 +35,12 @@ class DynamicPricingEnv(BasePricingEnv):
         dataloader: BaseDataLoader = None, # dataloader TODO: replace with pricing dataloader
         num_SKUs: Union[np.ndarray, Parameter, int, float] = None, # number of SKUs
         gamma: float = 1, # discount factor
+        
+        nb_features: int = 1, # number of features
+        covariance: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the features
+        noise_std: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the noise
+        function_form: Union[np.ndarray, Parameter, str] = "linear", # functional form of the demand function
+        
         horizon_train: int | str = "use_all_data", # if "use_all_data" then horizon is inferred from the DataLoader
         postprocessors: list[object] | None = None, # default is empty list 
         mode: str = "train", 
@@ -51,13 +57,23 @@ class DynamicPricingEnv(BasePricingEnv):
             raise ValueError("alpha and beta should have the same shape.")
         self.set_param("num_SKUs", num_SKUs, new=True)
         
-        self.set_param("alpha", alpha, shape=(num_SKUs,alpha.shape[1]), new=True)
-        self.set_param("beta", beta, shape=(num_SKUs,beta.shape[1]), new=True)
+        self.set_param("alpha", alpha, shape=alpha.shape, new=True)
+        self.set_param("beta", beta, shape=beta.shape, new=True)
         self.set_param("p_bound_low", p_bound_low, shape=(num_SKUs,), new=True)
         self.set_param("p_bound_high", p_bound_high, shape=(num_SKUs,), new=True)
         
+        self.set_param("nb_features", nb_features, new=True)
+        self.set_param("covariance", covariance,  new=True)
+        self.set_param("noise_std", noise_std, new=True)
+        self.set_param("function_form", new=True)
+        
+        self.set_param("horizon_train", horizon_train, new=True)
+        
+        self.set_param("info_history", {}, new=True)
+        
         self.set_observation_space(dataloader.X_shape)
         self.set_action_space(dataloader.Y_shape, low = self.p_bound_low, high = self.p_bound_high)
+        
         
         mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         
@@ -81,16 +97,25 @@ class DynamicPricingEnv(BasePricingEnv):
         terminated = False
         observation, reward_functions = self.get_observation() 
 
-        demand_per_SKU = [reward_function(x, a) for reward_function, x, a in zip(reward_functions, observation, action)]
-        
+        demand_per_SKU, demand_per_SKU_noise_free = [], []
+        for reward_function, x, a in zip(reward_functions, observation, action):
+            demand, demand_noise_free = reward_function(x, a)
+            demand_per_SKU.append(demand)
+            demand_per_SKU_noise_free.append(demand_noise_free)
+        demand_per_SKU = np.array(demand_per_SKU)
+        demand_per_SKU_noise_free = np.array(demand_per_SKU_noise_free)
         reward_per_SKU = demand_per_SKU * action
+        reward_per_SKU_noise_free = demand_per_SKU_noise_free * action
         reward = np.sum(reward_per_SKU)
         info = dict(
-             demand=demand_per_SKU.copy(),
-             action=action.copy(),
-            reward_per_SKU=reward_per_SKU.copy()
+            demand=demand_per_SKU.copy(),
+            demand_per_SKU_noise_free=demand_per_SKU_noise_free.copy(),
+            action=action.copy(),
+            reward_per_SKU=reward_per_SKU.copy(),
+            reward_per_SKU_noise_free=reward_per_SKU_noise_free.copy()
         )
         
+        self.info_history[len(self.info_history)] = info
         truncated = self.set_index()
         
         if truncated:
@@ -111,3 +136,24 @@ class DynamicPricingEnv(BasePricingEnv):
                 time.sleep(3)
 
             return observation, reward, terminated, truncated, info
+    def new_episode(self, epoch) -> None:
+        """
+        Function to reset the environment.
+        """
+        if epoch > 0:
+            feature_index = epoch % self.covariance.shape[0]
+            X = np.random.multivariate_normal(np.ones(self.nb_features[0]), self.covariance[feature_index]*np.eye(self.nb_features[0]), size=self.horizon_train+1)
+            X = X.reshape(-1, 1, self.nb_features[0])
+            
+            epsilon = np.random.normal(0, self.noise_std[feature_index], size=self.horizon_train+1)
+            
+            parameter_index = epoch % self.alpha.shape[0]
+            function_form_index = epoch % self.function_form.shape[0]
+            self.dataloader.update_parameters(X=X, epsilon=epsilon, alpha=self.alpha[parameter_index], beta=self.beta[parameter_index], function_form=self.function_form[function_form_index])
+            self.info_history = {}
+            self.reset()
+    def get_info_history(self) -> dict:
+        """
+        Function to return the history of the environment.
+        """
+        return self.info_history

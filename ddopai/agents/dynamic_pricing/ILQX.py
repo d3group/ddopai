@@ -49,7 +49,7 @@ class ILQXPolicy():
         self.beta = beta
         self.actionprocessors = actionprocessors
         self.price_function = price_function # Needs to return an np array
-        self.M = [[np.power(x,2)+i for x in range(1, int(np.sqrt(environment_info.horizon)))] for i in range(0, 2)]
+        self.M = [[np.power(x,2)+i for x in range(0, int(np.sqrt(environment_info.horizon)))] for i in range(0, 2)]
         self.g = g
         self.t = 0
         self.X = np.empty((0, environment_info.observation_space.shape[1] * 2))
@@ -59,29 +59,34 @@ class ILQXPolicy():
     def draw_action(self, observation: np.ndarray):
         for idx, m in enumerate(self.M):
             if self.t in m:
-                price = self.ex_prices[idx]
+                prices = self.ex_prices[idx]
                 break
-        else:   
-            price = self.price_function(observation, self.alpha, self.beta)
+        else:
+            prices = np.empty(0)
+            for x in observation:   
+                price = self.price_function(x, self.alpha, self.beta)
+                prices = np.append(prices, price)
             
         for processor in self.actionprocessors:
-            price = processor(price)
+            prices = processor(prices)
         
-        return price
+        return prices
     
     def fit(self, X, Y, action):
         assert self.mode == "train"
         self.t += 1
-        X = np.concatenate([X, X * action], axis=1)
+        X = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, X])
         self.Y = np.vstack([self.Y, Y])
         self.parameter_update()
     
     def parameter_update(self):
-        model = sm.GLM(self.Y, self.X, family=sm.families.Gamma())
+        if self.X.shape[0] < 2:
+            return
+        model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
         results = model.fit()
-        self.alpha = results.params[self.environment_info.observation_space.shape[0]:]
-        self.beta = results.params[:self.environment_info.observation_space.shape[0]]
+        self.alpha = results.params[:self.environment_info.observation_space.shape[1]]
+        self.beta = results.params[self.environment_info.observation_space.shape[1]:]
         
     def reset(self):
         return

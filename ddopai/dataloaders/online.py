@@ -30,10 +30,10 @@ class OnlineDataLoader(BaseDataLoader):
     """
     
     def __init__(self,
-        X: np.ndarray,
         alpha: float | np.ndarray,
         beta: float | np.ndarray,
-        epsilon: np.ndarray,
+        X: np.ndarray = None,
+        epsilon: np.ndarray = None,
         function_form: str | np.ndarray = 'linear',
         val_index_start: int = None,
         test_index_start: int = None,
@@ -70,17 +70,18 @@ class OnlineDataLoader(BaseDataLoader):
         if len(epsilon.shape) == 1:
                 self.epsilon = epsilon.reshape(-1, 1)
                 
-        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 1:
+        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 2:
             self.alpha = alpha.reshape(-1, 1)
 
-        if isinstance(beta, np.ndarray) and len(beta.shape) == 1:
+        if isinstance(beta, np.ndarray) and len(beta.shape) == 2:
             self.beta = beta.reshape(-1, 1)
 
-        if isinstance(function_form, np.ndarray) and len(function_form.shape) == 1:
+        if isinstance(function_form, np.ndarray) and len(function_form.shape) == 2:
             self.function_form = function_form.reshape(-1, 1)
 
         if isinstance(self.alpha, np.ndarray) and isinstance(self.beta, np.ndarray) and isinstance(self.function_form, np.ndarray):
-                assert self.alpha.shape[0] == self.beta.shape[0] == self.function_form.shape[0] == self.X.shape[0] == self.epsilon[0], "alpha, beta, X, epsilon and function_form must have the same length"
+                assert self.alpha.shape[0] == self.beta.shape[0], "alpha, and beta, must have the same length"
+                assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
         else:
                 assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
         
@@ -171,19 +172,22 @@ class OnlineDataLoader(BaseDataLoader):
         
         if function_form == 'linear':
             def linear(X, action):
-                demand = np.dot(alpha, X) + np.dot(beta, X) * action + epsilon
-                return np.maximum(demand, 0)
+                demand_no_noise = np.dot(alpha, X) + np.dot(beta, X) * action
+                demand = demand_no_noise + epsilon
+                return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
 
             return [linear]
         if function_form == 'log':
             def log(X, action):
-                demand = np.divide(np.exp(np.dot(alpha, X) + np.dot(beta, X) * action), 1 + np.exp(np.dot(alpha, X) + np.dot(beta, X) * action)) + epsilon
-                return np.maximum(demand, 0)
+                demand_no_noise = np.divide(np.exp(np.dot(alpha, X) + np.dot(beta, X) * action), 1 + np.exp(np.dot(alpha, X) + np.dot(beta, X) * action))
+                demand = demand_no_noise + epsilon
+                return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
             return [log]
         if function_form == 'exp':
             def exp(X, action):
-                demand = np.exp(np.dot(alpha, X) + np.dot(beta, X) * action) + epsilon
-                return np.maximum(demand, 0)
+                demand_no_noise = np.exp(np.dot(alpha, X) + np.dot(beta, X) * action)
+                demand = demand_no_noise + epsilon
+                return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
             return [exp]
         if function_form == 'probit': # TODO: think about this more 
             return NotImplementedError('Probit not implemented yet')
@@ -226,6 +230,39 @@ class OnlineDataLoader(BaseDataLoader):
     def __len__(self):
         return len(self.X)
 
+    def update_parameters(self, X, epsilon, alpha, beta, function_form):
+        self.X = X
+        self.alpha = alpha
+        self.beta = beta
+        self.epsilon = epsilon
+        
+        self.function_form = function_form
+        
+        # X must at least have datapoint and feature dimension
+        if len(X.shape) == 1:
+                self.X = X.reshape(-1, 1)
+        
+        if len(epsilon.shape) == 1:
+                self.epsilon = epsilon.reshape(-1, 1)
+                
+        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 2:
+            self.alpha = alpha.reshape(-1, 1)
+
+        if isinstance(beta, np.ndarray) and len(beta.shape) == 2:
+            self.beta = beta.reshape(-1, 1)
+
+        if isinstance(function_form, np.ndarray) and len(function_form.shape) == 2:
+            self.function_form = function_form.reshape(-1, 1)
+
+        if isinstance(self.alpha, np.ndarray) and isinstance(self.beta, np.ndarray) and isinstance(self.function_form, np.ndarray):
+                assert self.alpha.shape[0] == self.beta.shape[0], "alpha, and beta, must have the same length"
+                assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
+        else:
+                assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
+        
+        self.num_units = self.epsilon.shape[1] 
+        
+    
     @property
     def X_shape(self):
         return self.X.shape

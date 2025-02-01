@@ -40,7 +40,6 @@ class BasePricingEnv(BaseEnvironment):
         ) -> None:
 
         self.dataloader = dataloader
-       
         
         # TODO: check in the base env if train_horizon is needed 
         super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation, horizon_train=horizon_train)
@@ -120,10 +119,8 @@ class BasePricingEnv(BaseEnvironment):
         """
 
         truncated = self.reset_index(start_index)
-
-
-
-        observation, self.demand = self.get_observation()
         
+            
+        observation, self.demand = self.get_observation()
         return observation
 
