@@ -215,7 +215,8 @@ def create_online_data(
     size = config_env["size_train"]
     covariance = config_env["env_kwargs"]["covariance"][0]
     noise_std = config_env["env_kwargs"]["noise_std"][0]
-    X = np.random.multivariate_normal(np.ones(nb_features), covariance*np.eye(nb_features), size=size+1)
+    X = np.random.multivariate_normal(np.ones(nb_features-1), covariance*np.eye(nb_features-1), size=size+1)
+    X = np.hstack((np.ones((size+1, 1)), X))
     X = X.reshape(-1, 1, nb_features)
     epsilon = np.random.normal(0, noise_std, size=size+1)
     return X, epsilon
@@ -307,6 +308,8 @@ def set_up_env_online(
     config_env["env_kwargs"]["beta"] = np.array(config_env["env_kwargs"]["beta"])
     config_env["env_kwargs"]["covariance"] = np.array(config_env["env_kwargs"]["covariance"])
     config_env["env_kwargs"]["noise_std"] = np.array(config_env["env_kwargs"]["noise_std"])
+    if "inv" in config_env["env_kwargs"]:
+        config_env["env_kwargs"]["inv"] = np.array(config_env["env_kwargs"]["inv"])
     dataloader = OnlineDataLoader(X = raw_data[0],
                                   alpha=config_env["env_kwargs"]["alpha"][0],
                                   beta = config_env["env_kwargs"]["beta"][0],

@@ -325,9 +325,9 @@ def run_experiment( agent: BaseAgent,
 
 
 
-    for epoch in trange(n_epochs): 
+    for epoch in trange(n_epochs):
         env.new_episode(epoch)
-        core.learn(n_steps=n_steps, n_steps_per_fit=1, quiet=False)
+        core.learn(n_steps=n_steps, n_steps_per_fit=1, quiet=False, n_episodes=1)
         dataset = callback.get_dataset()
         info_history = env.get_info_history() 
         callback.reset()
@@ -364,6 +364,8 @@ def run_experiment( agent: BaseAgent,
                 for t, info in info_history.items():
                     cumulative_reward += info["reward_per_SKU"]
                     true_cumulative_reward += info["reward_per_SKU_noise_free"]
+                    if "inv" in info:
+                        wandb.log({"Inventory": np.squeeze(info["inv"]), f"Inventory_{epoch}" : np.squeeze(info["inv"])}, commit=False)
                     wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
                                "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
                                "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
@@ -381,8 +383,10 @@ def run_experiment( agent: BaseAgent,
                 #   
                 #    wandb.log({"Epoch": epoch, "t": t, "Action": row[0][1], f"Action_{epoch}": row[0][1], "Reward": row[0][2], f"Reward_{epoch}": row[0][2], "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward})
                 for t, info in info_history.items():
-                    cumulative_reward += info["reward_per_SKU"]
-                    true_cumulative_reward += info["reward_per_SKU_noise_free"]
+                    cumulative_reward += np.squeeze(info["reward_per_SKU"])
+                    true_cumulative_reward += np.squeeze(info["reward_per_SKU_noise_free"])
+                    if "inv" in info:
+                        wandb.log({"Inventory": np.squeeze(info["inv"]), f"Inventory_{epoch}" : np.squeeze(info["inv"])}, commit=False)
                     wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
                                "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
                                "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
