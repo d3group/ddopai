@@ -232,12 +232,12 @@ def set_param(obj,
 
     if not new:
         # get current shape of parameter
-        if not hasattr(self, name):
+        if not hasattr(obj, name):
             # if parameter is not a dict, get the shape
             raise AttributeError(f"Parameter {name} does not exist")
 
-        if not isinstance(getattr(self, name), dict):
-            shape = getattr(self, name).shape
+        if not isinstance(getattr(obj, name), dict):
+            shape = getattr(obj, name).shape
 
     elif isinstance(input, Parameter):
         if input.shape != shape:
