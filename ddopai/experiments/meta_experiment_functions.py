@@ -5,8 +5,9 @@
 # %% auto 0
 __all__ = ['set_warnings', 'prep_experiment', 'init_wandb', 'track_libraries_and_git', 'import_config',
            'transfer_lag_window_to_env', 'transfer_additional_target_to_env', 'download_data', 'create_online_data',
-           'set_indices', 'get_ddop_data', 'get_online_data', 'set_up_env', 'set_up_env_online', 'set_up_agent',
-           'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up', 'select_agent', 'merge_with_namespace']
+           'set_indices', 'get_ddop_data', 'get_online_data', 'set_up_env', 'set_up_env_online', 'get_link',
+           'prepare_env_online', 'set_up_agent', 'set_up_earlystoppinghandler', 'prep_and_run_test', 'clean_up',
+           'select_agent', 'merge_with_namespace']
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 3
 from abc import ABC, abstractmethod
@@ -209,17 +210,25 @@ def create_online_data(
     overwrite: bool = False
     ) -> Tuple:
 
-    """ Standard function to provide online data based on the provided configuration """
-    
-    nb_features = config_env["env_kwargs"]["nb_features"]
-    size = config_env["size_train"]
-    covariance = config_env["env_kwargs"]["covariance"][0]
-    noise_std = config_env["env_kwargs"]["noise_std"][0]
-    X = np.random.multivariate_normal(np.ones(nb_features-1), covariance*np.eye(nb_features-1), size=size+1)
-    X = np.hstack((np.ones((size+1, 1)), X))
-    X = X.reshape(-1, 1, nb_features)
-    epsilon = np.random.normal(0, noise_std, size=size+1)
-    return X, epsilon
+    """ Standard function to provide online data based on the provided configuration
+    TODO: Rewrite so that i can call it from the experiment function to create the data on the fly
+    """
+    data = []
+    for parameter in config_env["env_kwargs"]:
+        nb_features = parameter["nb_features"]
+        size = parameter["horizon_train"]
+        covariance = parameter["covariance"][0]
+        noise_std = parameter["noise_std"][0]
+        scale = 1 / np.sqrt(nb_features-1)
+        scale = scale * covariance
+        X = np.random.uniform(0, scale, size=(size + 1, nb_features-1))
+        # X = np.random.multivariate_normal(np.ones(nb_features-1), covariance*np.eye(nb_features-1), size=size+1) 
+        X = np.hstack((np.ones((size+1, 1)), X))
+        X = X.reshape(-1, 1, nb_features)
+        epsilon = np.random.normal(0, noise_std, size=size+1)
+        data.append((X, epsilon))
+    return data
+
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 15
 def set_indices(config_env: Dict, #
@@ -255,8 +264,8 @@ def get_online_data(    config_env: Dict,
     """ Load data for online learning """
 
     data = create_online_data(config_env, overwrite)
-    val_index_start, test_index_start = set_indices(config_env, data[0])
-    return data, val_index_start, test_index_start
+    #val_index_start, test_index_start = set_indices(config_env, data[0])
+    return data, 0, 0
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 19
 def set_up_env(
@@ -293,51 +302,43 @@ def set_up_env_online(
     test_index_start: int,
     config_env: Dict,
     postprocessors: List,
+    normalize_features: bool = False
 ) -> object:
     
     """ Set up the environment """
 
-    function_form = config_env["env_kwargs"]["function_form"]
+    function_form = config_env["function_form"]
     if isinstance(function_form, str):
-        config_env["env_kwargs"]["function_form"] = function_form
+        config_env["function_form"] = function_form
     elif isinstance(function_form, list):
-        config_env["env_kwargs"]["function_form"] = np.array(function_form)
+        config_env["function_form"] = np.array(function_form)
     else:
         raise ValueError("function_form must be either a string or a list")
-    config_env["env_kwargs"]["alpha"] = np.array(config_env["env_kwargs"]["alpha"])
-    config_env["env_kwargs"]["beta"] = np.array(config_env["env_kwargs"]["beta"])
-    config_env["env_kwargs"]["covariance"] = np.array(config_env["env_kwargs"]["covariance"])
-    config_env["env_kwargs"]["noise_std"] = np.array(config_env["env_kwargs"]["noise_std"])
-    if "inv" in config_env["env_kwargs"]:
-        config_env["env_kwargs"]["inv"] = np.array(config_env["env_kwargs"]["inv"])
+    config_env["alpha"] = np.array(config_env["alpha"])
+    config_env["beta"] = np.array(config_env["beta"])
+    config_env["covariance"] = np.array(config_env["covariance"])
+    config_env["noise_std"] = np.array(config_env["noise_std"])
+    if "inv" in config_env:
+        config_env["inv"] = np.array(config_env["inv"])
     dataloader = OnlineDataLoader(X = raw_data[0],
-                                  alpha=config_env["env_kwargs"]["alpha"][0],
-                                  beta = config_env["env_kwargs"]["beta"][0],
+                                  alpha=config_env["alpha"],
+                                  beta = config_env["beta"],
                                   epsilon = raw_data[1],
-                                  function_form= config_env["env_kwargs"]["function_form"],  
-                                  val_index_start = val_index_start,
-                                  test_index_start = test_index_start,
-                                  normalize_features = {'normalize': config_env["normalize_features"], 'ignore_one_hot': True})
+                                  function_form= config_env["function_form"],  
+                                  normalize_features = {'normalize': normalize_features, 'ignore_one_hot': True})
     
     
 
     environment = env_class(
         dataloader = dataloader,
         postprocessors = postprocessors,
-        **config_env["env_kwargs"]
+        **config_env
     )
 
     return environment
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 22
-def set_up_agent(
-    AgentClass,
-    environment: BaseEnvironment,
-    config_agent: Dict
-):
-    """ Set up the agent """
-
-    link = config_agent["link"]
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 21
+def get_link(link: str = "linear"):
     if link=="linear":
         def g(x):
             return x
@@ -357,7 +358,36 @@ def set_up_agent(
     price_function = get_price_function(link)
     return glm_link, price_function
 
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 22
+def prepare_env_online( get_ENVCLASS,
+    raw_data: list[Tuple], 
+    val_index_start: int,
+    test_index_start: int,
+    config_env: Dict,
+    postprocessors: List,
+) -> list[object]:
+    """ Prepare multiple environments """
+    
+    environments = []
+    for config, data in zip(config_env["env_kwargs"], raw_data):
+        env_class = get_ENVCLASS(config["env_class"])
+        del config["env_class"]
+        environment = set_up_env_online(env_class, data, val_index_start, test_index_start, config, postprocessors, config_env["normalize_features"])
+        environments.append(environment)
+    return environments
+
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 24
+def set_up_agent(
+    AgentClass,
+    environment: BaseEnvironment,
+    config_agent: Dict
+):
+    """ Set up the agent """
+
+    link = config_agent["link"]
+    return get_link(link)
+
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 26
 def set_up_earlystoppinghandler(config_train: Dict) -> object: #
 
     """ Set up the early stopping handler """
@@ -373,7 +403,7 @@ def set_up_earlystoppinghandler(config_train: Dict) -> object: #
 
     return earlystoppinghandler
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 26
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 28
 def prep_and_run_test(
     agent,
     environment,
@@ -440,7 +470,7 @@ def prep_and_run_test(
 
 
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 28
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 30
 def clean_up(agent, environment):
 
     """ Clean up agent and environment to free up GPU memory """
@@ -460,7 +490,7 @@ def clean_up(agent, environment):
 
     return None, None
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 30
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 32
 def select_agent(agent_name: str) -> type: #
     """ Select an agent class from a list of agent names and return the class"""
     if agent_name in AGENT_CLASSES:
@@ -470,7 +500,7 @@ def select_agent(agent_name: str) -> type: #
     else:
         raise ValueError(f"Unknown agent name: {agent_name}")
 
-# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 31
+# %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 33
 def merge_with_namespace(target_dict, source_dict, target_dict_name):
     
     """

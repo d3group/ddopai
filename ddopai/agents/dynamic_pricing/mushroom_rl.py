@@ -176,6 +176,10 @@ class PricingMushroomBaseAgent(BaseAgent):
         needs to be overwritten in the subclass. """
 
         pass
+    
+    def update_env(self, env: object):
+        """ Update the environment specific parameters of the agent """
+        pass
 
     def fit(self, dataset, **dataset_info):
 
@@ -187,8 +191,7 @@ class PricingMushroomBaseAgent(BaseAgent):
         """ Stop the agent """
 
         self.agent.stop()
-
-    import numpy as np
+        
 
     @staticmethod
     def remove_batch_dim(input: np.ndarray | dict[str, np.ndarray]) -> np.ndarray | dict[str, np.ndarray]: #

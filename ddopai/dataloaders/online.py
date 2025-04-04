@@ -237,7 +237,7 @@ class OnlineDataLoader(BaseDataLoader):
         self.epsilon = epsilon
         
         self.function_form = function_form
-        
+        self.train_index_end = len(X)-1
         # X must at least have datapoint and feature dimension
         if len(X.shape) == 1:
                 self.X = X.reshape(-1, 1)

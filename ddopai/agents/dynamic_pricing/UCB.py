@@ -40,8 +40,8 @@ class UCBPolicy():
                  ):
         assert type(alpha) == type(beta), "alpha and beta must be of the same type"
         if alpha is None:
-            alpha = np.zeros(environment_info.observation_space.shape[0])
-            beta = np.zeros(environment_info.observation_space.shape[0])
+            alpha = np.zeros(environment_info.observation_space['features'].shape[1])
+            beta = np.zeros(environment_info.observation_space['features'].shape[1])
         if isinstance(ex_prices, list):
             ex_prices = np.array(ex_prices)
         assert ex_prices.shape[0] >= 2
@@ -56,7 +56,7 @@ class UCBPolicy():
         self.reg = reg
         self.g = g
         self.t = 0
-        self.X = np.empty((0, environment_info.observation_space.shape[0] * 2))
+        self.X = np.empty((0, environment_info.observation_space['features'].shape[1] * 2))
         self.Y = np.empty((0, 1))
         self.mode = "train"
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
@@ -66,7 +66,8 @@ class UCBPolicy():
             prices = self.ex_prices[self.t]
         else:
             prices = np.empty(0)
-            for x in observation:
+            X = observation['features']
+            for x in X:   
                 M = self.compute_uncertainty_M(x)
                 samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
                 alpha, beta = self.max_rev(samples, x)
@@ -79,7 +80,7 @@ class UCBPolicy():
         return prices
     
     def sample_design_matrix(self):
-        I = np.identity(2*self.environment_info.observation_space.shape[1])
+        I = np.identity(2*self.environment_info.observation_space['features'].shape[1])
         I_lamdba = self.lam * I
         if self.X.shape[0] == 0:
             return I_lamdba
@@ -90,7 +91,7 @@ class UCBPolicy():
         L = np.linalg.cholesky(np.linalg.inv(M))
         u = np.random.randn(len(theta_hat), N)
         u /= np.linalg.norm(u, axis=0)
-        samples = theta_hat[:, np.newaxis] + 1/self.environment_info.observation_space.shape[0] * L @ u
+        samples = theta_hat[:, np.newaxis] + 1/self.environment_info.observation_space['features'].shape[1] * L @ u
         return samples.T
     
     def compute_uncertainty_M(self, x_t):
@@ -108,6 +109,7 @@ class UCBPolicy():
     def fit(self, X, Y, action):
         assert self.mode == "train"
         self.t += 1
+        X= X[0]
         X = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, X])
         self.Y = np.vstack([self.Y, Y])
@@ -118,11 +120,20 @@ class UCBPolicy():
             return
         model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
         results = model.fit()
-        self.alpha = results.params[:self.environment_info.observation_space.shape[1]]
-        self.beta = results.params[self.environment_info.observation_space.shape[1]:]
+        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[1]]
+        self.beta = results.params[self.environment_info.observation_space['features'].shape[1]:]
+    
+    def update_env(self, env):
+        self.environment_info = env.mdp_info
+        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[1] * 2))
+        self.Y = np.empty((0, 1))
+        self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
+        self.M = [[np.power(x,2)+i for x in range(0, int(np.sqrt(self.environment_info.horizon)))] for i in range(0, 2)]
+        self.t = 0 
         
     def reset(self):
         return
+
 
 # %% ../../../nbs/30_agents/42_DP_agents/13_UCB_agent.ipynb 5
 class UCBCoreAgent(Agent):
@@ -150,10 +161,13 @@ class UCBCoreAgent(Agent):
         super().__init__(environment_info, policy)
         
     def fit(self, dataset, **kwargs):
-        X = dataset[0][0][0]
+        X = dataset[0][0]['features']
         Y = kwargs["demand"][0]
         action = dataset[0][1]
         self.policy.fit(X, Y, action)
+        
+    def update_env(self, env):
+        self.policy.update_env(env)
 
 # %% ../../../nbs/30_agents/42_DP_agents/13_UCB_agent.ipynb 6
 class UCBAgent(PricingMushroomBaseAgent):
@@ -183,3 +197,6 @@ class UCBAgent(PricingMushroomBaseAgent):
                                   price_function=price_function, 
                                   g=g)
         super().__init__(environment_info=environment_info, obsprocessors=obsprocessors, agent_name=agent_name)
+    def update_env(self, env: object):
+        """ Update the environment specific parameters of the agent """
+        self.agent.update_env(env)

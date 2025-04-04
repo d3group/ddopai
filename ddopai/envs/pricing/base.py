@@ -34,7 +34,7 @@ class BasePricingEnv(BaseEnvironment):
         mode: str = "online", # additional mode for the pricing environment TODO: add online mode to training loop
         return_truncation: str = True, # whether to return a truncated condition in step function
         dataloader: BaseDataLoader = None, # dataloader for the environment
-        
+        parameters: dict = None, # parameters for the environment
     
         horizon_train: int = 100 # horizon for the online learning TODO: check if it can be renamed to horizon
         ) -> None:
@@ -104,7 +104,8 @@ class BasePricingEnv(BaseEnvironment):
         """
 
         X_item, Y_item  = self.dataloader[self.index]
-
+        self.X_item = X_item
+        self.Y_item = Y_item
         return X_item, Y_item
     
     def reset(self,
@@ -121,6 +122,10 @@ class BasePricingEnv(BaseEnvironment):
         truncated = self.reset_index(start_index)
         
             
-        observation, self.demand = self.get_observation()
+        observation, demand = self.get_observation()
         return observation
-
+    @abstractmethod
+    def reset_env(self, epoch: int) -> None:
+        """
+        Change the environment to the next episode. This function should be overwritten.
+        """

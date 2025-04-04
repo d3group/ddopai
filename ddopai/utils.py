@@ -236,8 +236,9 @@ def set_param(obj,
             # if parameter is not a dict, get the shape
             raise AttributeError(f"Parameter {name} does not exist")
 
-        if not isinstance(getattr(obj, name), dict):
-            shape = getattr(obj, name).shape
+        #if not isinstance(getattr(obj, name), dict):
+            #shape = getattr(obj, name).shape
+        param = input
 
     elif isinstance(input, Parameter):
         if input.shape != shape:

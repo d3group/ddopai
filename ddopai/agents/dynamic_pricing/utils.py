@@ -52,10 +52,10 @@ def get_price_function(function_form="linear"):
     if function_form == "linear":
         def price_function(x, alpha, beta):
             assert len(alpha) == len(x) and len(beta) == len(x)
-            return np.array(-np.divide(np.dot(alpha, x), 2*np.dot(beta, x)))
+            return np.array(-np.divide(np.dot(alpha, x), 2*np.dot(beta, x) + 1e-10))
         return price_function
     if function_form == "log":
         def price_function(x, alpha, beta):
             assert len(alpha) == len(x) and len(beta) == len(x)
-            return np.array(-np.divide(np.dot(alpha, x), np.dot(beta, x)))
+            return np.array(-np.divide(np.dot(alpha, x), np.dot(beta, x)+ 1e-10))
         return price_function

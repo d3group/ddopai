@@ -46,7 +46,8 @@ class DynamicPricingInvEnv(BasePricingEnv):
         horizon_train: int | str = "use_all_data", # if "use_all_data" then horizon is inferred from the DataLoader
         postprocessors: list[object] | None = None, # default is empty list 
         mode: str = "train", 
-        return_truncation: str = False # TODO:Why is this a string?
+        return_truncation: str = False, # TODO:Why is this a string?
+        parameters: list[dict] = None
         ) -> None:
 
         self.print=False
@@ -83,6 +84,8 @@ class DynamicPricingInvEnv(BasePricingEnv):
         self.set_param("horizon_train", horizon_train, new=True)
         
         self.set_param("info_history", {}, new=True)
+        self.set_param("parameters", parameters, new=True)
+        
         X_shape = dataloader.X_shape
         X_shape = list(X_shape)
         X_shape[-1] += 1
@@ -204,3 +207,6 @@ class DynamicPricingInvEnv(BasePricingEnv):
         Function to return the history of the environment.
         """
         return self.info_history
+    
+    def reset_env(self, epoch):
+            pass

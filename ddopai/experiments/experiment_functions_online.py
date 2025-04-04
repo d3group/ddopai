@@ -17,7 +17,7 @@ import wandb
 
 from ..envs.base import BaseEnvironment
 from ..agents.base import BaseAgent
-
+from copy import deepcopy
 import importlib
 
 from tqdm import tqdm, trange
@@ -272,62 +272,50 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
 
 
 
-def run_experiment( agent: BaseAgent,
-                    env: BaseEnvironment,
-
-                    n_epochs: int,
-                    n_steps: int = None, # Number of steps to interact with the environment per epoch. Will be ignored for direct_fit and epchos_fit agents
-
-                    early_stopping_handler: Union[EarlyStoppingHandler, None] = None,
-                    save_best: bool = True,
-                    performance_criterion: str = "J", # other: "R"
-
-                    tracking: Union[str, None]  = None, # other: "wandb"
-
-                    results_dir: str = "results",
-
-                    run_id: Union[str, None] = None,
-
-                    print_freq: int = 1,
-
-                    eval_step_info = False,
-
-                    return_score = False,
-                    
-                    return_dataset = False,
-                ):
-
+def run_experiment(agent: BaseAgent,
+                   envs: List[BaseEnvironment],
+                   n_epochs: int,
+                   n_steps: int = None,
+                   n_steps_per_fit: int = 1,
+                   n_episodes_per_fit: int = None, 
+                   early_stopping_handler: Union[EarlyStoppingHandler, None] = None,
+                   save_best: bool = True,
+                   performance_criterion: str = "J",  # or "R"
+                   tracking: Union[str, None] = None,  # e.g., "wandb"
+                   results_dir: str = "results",
+                   run_id: Union[str, None] = None,
+                   print_freq: int = 1,
+                   eval_step_info=False,
+                   return_score=False,
+                   return_dataset=False):
     """
-    Run an experiment with the given agent and environment for n_epochs. It automaticall dedects if the train mode
-    of the agent is direct, epochs_fit or env_interaction and runs the experiment accordingly.
-
+    Run an experiment with the given agent and environment for n_epochs.
+    Automatically detects the training mode and runs accordingly.
     """
-
     if return_score:
         R_list = []
         J_list = []
 
     if return_dataset:
         dataset = []
-    # use start_time as id if no run_id is given
+    # Use start time as id if no run_id is given.
     if run_id is None:
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
     experiment_dir = f"{results_dir}/{run_id}"
-
     print(f"Experiment directory: {experiment_dir}")
-
     logging.info("Starting experiment")
 
-    env.reset()
-    callback = DatasetCallback()
-    core = Core(agent, env, callbacks_fit=[callback])
-
-
-
     for epoch in trange(n_epochs):
-        env.new_episode(epoch)
-        core.learn(n_steps=n_steps, n_steps_per_fit=1, quiet=False, n_episodes=1)
+        env = envs[epoch % len(envs)]
+        env.reset()
+        callback = DatasetCallback()
+        core = Core(agent, env, callbacks_fit=[callback])
+    
+        if epoch > 0 and hasattr(agent, 'update_env'):
+            agent.update_env(env)
+                
+        core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, n_episodes_per_fit=n_episodes_per_fit, quiet=False, n_episodes=1)
         dataset = callback.get_dataset()
         info_history = env.get_info_history() 
         callback.reset()
@@ -354,45 +342,28 @@ def run_experiment( agent: BaseAgent,
         agent.train()
 
         if tracking == "wandb":
+            # Logging example: using new keys from the single-SKU environment info.
             if return_score and return_dataset:
-                wandb.log({"Epoch": epoch, "R_list": R_list, "J_list": J_list}, comit=False)
-                #cumulative_reward = 0
-                #for t, row in enumerate(dataset):
-                #    cumulative_reward += row[0][2]
-                #   
-                #    wandb.log({"Epoch": epoch, "t": t, "Action": row[0][1], f"Action_{epoch}": row[0][1], "Reward": row[0][2], f"Reward_{epoch}": row[0][2], "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward})
+                wandb.log({"Epoch": epoch, "R_list": R_list, "J_list": J_list}, commit=False)
+                cumulative_reward = 0
                 for t, info in info_history.items():
-                    cumulative_reward += info["reward_per_SKU"]
-                    true_cumulative_reward += info["reward_per_SKU_noise_free"]
+                    cumulative_reward += np.squeeze(info["reward"])
                     if "inv" in info:
-                        wandb.log({"Inventory": np.squeeze(info["inv"]), f"Inventory_{epoch}" : np.squeeze(info["inv"])}, commit=False)
-                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
-                               "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
-                               "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
-                               "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward,
-                               "True_Cumulative_Reward": true_cumulative_reward, f"True_Cumulative_Reward_{epoch}": true_cumulative_reward})
-                
+                        wandb.log({"Inventory": np.squeeze(info["inv"])}, commit=False)
+                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], 
+                               "Reward": info["reward"],
+                               "Cumulative_Reward": cumulative_reward})
             elif return_score:
                 wandb.log({f"R_list_{epoch}": R_list, f"J_list_{epoch}": J_list})
             elif return_dataset:
-               
                 cumulative_reward = 0
-                true_cumulative_reward = 0
-                #for t, row in enumerate(dataset):
-                #    cumulative_reward += row[0][2]
-                #   
-                #    wandb.log({"Epoch": epoch, "t": t, "Action": row[0][1], f"Action_{epoch}": row[0][1], "Reward": row[0][2], f"Reward_{epoch}": row[0][2], "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward})
                 for t, info in info_history.items():
-                    cumulative_reward += np.squeeze(info["reward_per_SKU"])
-                    true_cumulative_reward += np.squeeze(info["reward_per_SKU_noise_free"])
+                    cumulative_reward += np.squeeze(info["reward"])
                     if "inv" in info:
-                        wandb.log({"Inventory": np.squeeze(info["inv"]), f"Inventory_{epoch}" : np.squeeze(info["inv"])}, commit=False)
-                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], f"Action_{epoch}":  info["action"], 
-                               "Reward":  info["reward_per_SKU"], f"Reward_{epoch}": info["reward_per_SKU"],
-                               "True_Reward":  info["reward_per_SKU_noise_free"], f"True_Reward_{epoch}": info["reward_per_SKU_noise_free"],  
-                               "Cumulative_Reward": cumulative_reward, f"Cumulative_Reward_{epoch}": cumulative_reward,
-                               "True_Cumulative_Reward": true_cumulative_reward, f"True_Cumulative_Reward_{epoch}": true_cumulative_reward})
-
+                        wandb.log({"Inventory": np.squeeze(info["inv"])}, commit=False)
+                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"],  
+                               "Reward": info["reward"], 
+                               "Cumulative_Reward": cumulative_reward})
     if return_score and return_dataset:
         return R_list, J_list, dataset
     elif return_score:
