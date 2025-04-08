@@ -31,6 +31,7 @@ AGENT_CLASSES = {
     "TD3": "ddopai.agents.rl.td3.TD3Agent", 
     "PPO": "ddopai.agents.rl.ppo.PPOAgent",
     "PPORNN": "ddopai.agents.rl.ppo.PPORNNAgent",
+    "RL2PPO": "ddopai.agents.rl.RL2ppo.RL2PPOAgent",
     
     "Greedy": "ddopai.agents.dynamic_pricing.greedy.GreedyAgent",
     "ILQX": "ddopai.agents.dynamic_pricing.ILQX.ILQXAgent",

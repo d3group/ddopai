@@ -23,6 +23,7 @@ import torch
 import torch.nn.functional as F
 
 import time
+import gymnasium as gym
 
 # %% ../../../nbs/30_agents/51_RL_agents/10_mushroom_base_agent.ipynb 4
 class MushroomBaseAgent(BaseAgent):
@@ -253,18 +254,30 @@ class MushroomBaseAgent(BaseAgent):
             raise ValueError(f"Loss {loss} not supported")
 
     @staticmethod
-    def get_input_shape(observation_space: object, flatten_time_dim: bool = True): #
-
-        """ Get the input shape of the model based on the environment info """
-
-        # TODO: Account for more complex spaces like dicts
-
-        observation_space_shape = observation_space.shape
-
-        if flatten_time_dim:
-            input_shape = (np.prod(observation_space_shape),)
+    def get_input_shape(observation_space: object, flatten_time_dim: bool = True):
+        """
+        Get the input shape of the model based on the environment info.
+        Handles both simple and Dict observation spaces.
+        """
+        if isinstance(observation_space, gym.spaces.Dict):
+            # Combine shapes of all subspaces in the Dict
+            combined_shape = []
+            for key, space in observation_space.spaces.items():
+                if flatten_time_dim:
+                    combined_shape.append(np.prod(space.shape))
+                else:
+                    combined_shape.extend(space.shape)
+            if flatten_time_dim:
+                input_shape = (int(np.sum(combined_shape)),)
+            else:
+                input_shape = tuple(combined_shape)
         else:
-            input_shape = observation_space_shape
+            # Handle non-Dict observation spaces
+            observation_space_shape = observation_space.shape
+            if flatten_time_dim:
+                input_shape = (np.prod(observation_space_shape),)
+            else:
+                input_shape = observation_space_shape
 
         return input_shape
 
