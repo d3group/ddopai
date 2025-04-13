@@ -73,13 +73,13 @@ class RL2DynamicPricingEnv(BasePricingEnv):
         self.set_param("function_form", function_form, new=True)
         
         # Inventory parameters: use the first element.
-        self.set_param("inv", inv[0], inv[0].shape, new=True)
-        relative_inv = inv[0].copy()
-        relative_inv[-1] = 1.0  # np.float64(1.0)
+        self.set_param("inv", inv, inv.shape, new=True)
+        relative_inv = np.ones_like(inv, dtype=np.float32)
         self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
         self.set_param("inv_per_episode", inv, inv.shape, new=True)
         self.set_param("horizon_train", horizon_train, new=True)
-
+        self.set_param("info_history", {}, new=True)
+        
         self._prev_action = np.zeros((1,), dtype=np.float32)
         self._prev_reward = np.zeros((1,), dtype=np.float32)
         self._prev_done = np.ones((1,), dtype=np.float32)
@@ -90,7 +90,7 @@ class RL2DynamicPricingEnv(BasePricingEnv):
         # Set the observation space without the SKU dimension.
         self.set_observation_space(feature_shape=feature_shape, feature_low=low, feature_high=high)
         self.set_action_space(dataloader.Y_shape, low=self.p_bound_low, high=self.p_bound_high)
-        
+        self.set_param("env_type", env_type, new=True)
         mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         
         super().__init__(mdp_info=mdp_info,
@@ -143,32 +143,35 @@ class RL2DynamicPricingEnv(BasePricingEnv):
         """
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)
-
+        action = np.clip(action, self.p_bound_low, self.p_bound_high)
         observation, reward_functions = self.get_observation()
 
         x = observation["features"]
-        demand, demand_noise_free = reward_functions[0](x, action)
+        demand, true_demand = reward_functions[0](x, action)
 
         if self.env_type["inv"]:
             if (demand / self.inv) >= self.relative_inv:
                 demand = self.relative_inv * self.inv
-                self.relative_inv = 0
+                if (true_demand / self.inv) >= self.relative_inv:
+                    true_demand = self.relative_inv * self.inv
+                self.relative_inv = np.zeros(self.relative_inv.shape, dtype=np.float32)
             else:
                 self.relative_inv -= demand / self.inv
         
         reward = demand * action
-
+        true_reward = true_demand * action
         terminated = self.relative_inv == 0
         truncated = self.set_index()
 
         info = dict(
             inv=self.inv * self.relative_inv,
             demand=demand,
-            demand_noise_free=demand_noise_free,
+            true_demand=true_demand,
             action=action.copy(),
-            reward=reward
+            reward=reward,
+            true_reward=true_reward
         )
-
+        self.info_history[len(self.info_history)] = info
         # Save previous
         self._prev_action = np.array([action], dtype=np.float32)
         self._prev_reward = np.array([reward], dtype=np.float32)
@@ -203,15 +206,19 @@ class RL2DynamicPricingEnv(BasePricingEnv):
             "prev_done": self._prev_done
         }
         return observation, reward_functions
-
+    def get_info_history(self) -> dict:
+        """ Return the history of the environment. """
+        return self.info_history
+    
     def reset(self, start_index=None, state=None):
         """
         Reset environment to initial state.
         """
         truncated = self.reset_index(start_index)
 
-        self.relative_inv = self.inv
-
+        self.relative_inv = np.ones_like(self.inv, dtype=np.float32)
+        self.info_history = {}
+        
         self._prev_action = np.zeros((1,), dtype=np.float32)
         self._prev_reward = np.zeros((1,), dtype=np.float32)
         self._prev_done = np.ones((1,), dtype=np.float32)

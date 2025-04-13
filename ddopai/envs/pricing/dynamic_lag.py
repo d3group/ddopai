@@ -74,9 +74,9 @@ class LagDynamicPricingEnv(BasePricingEnv):
         self.set_param("function_form", function_form, new=True)
         
         # Inventory parameters: use the first element.
-        self.set_param("inv", inv[0], inv[0].shape, new=True)
-        relative_inv = inv[0].copy()
-        relative_inv[-1] = 1.0  # np.float64(1.0)
+        self.set_param("inv", inv, inv.shape, new=True)
+        relative_inv = inv.copy()
+        relative_inv[-1] = np.float32(1.0)  # np.float64(1.0)
         self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
         self.set_param("inv_per_episode", inv, inv.shape, new=True)
         self.set_param("horizon_train", horizon_train, new=True)

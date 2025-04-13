@@ -30,6 +30,7 @@ from ..datasets.default_datasets import DatasetLoader
 from .experiment_functions import EarlyStoppingHandler, test_agent
 from ..envs.base import BaseEnvironment
 from ..agents.dynamic_pricing.utils import GLMLink, get_price_function
+from ..envs.actionprocessors import ClipAction
 import wandb
 
 import gc
@@ -224,7 +225,7 @@ def create_online_data(
         X = np.random.uniform(0, scale, size=(size + 1, nb_features-1))
         # X = np.random.multivariate_normal(np.ones(nb_features-1), covariance*np.eye(nb_features-1), size=size+1) 
         X = np.hstack((np.ones((size+1, 1)), X))
-        X = X.reshape(-1, 1, nb_features)
+        #X = X.reshape(-1, 1, nb_features)
         epsilon = np.random.normal(0, noise_std, size=size+1)
         data.append((X, epsilon))
     return data
@@ -372,6 +373,8 @@ def prepare_env_online( get_ENVCLASS,
     for config, data in zip(config_env["env_kwargs"], raw_data):
         env_class = get_ENVCLASS(config["env_class"])
         del config["env_class"]
+        #clip_action = ClipAction(lower=config["p_bound_low"], upper=config["p_bound_high"])
+        #postprocessors.append(clip_action)
         environment = set_up_env_online(env_class, data, val_index_start, test_index_start, config, postprocessors, config_env["normalize_features"])
         environments.append(environment)
     return environments

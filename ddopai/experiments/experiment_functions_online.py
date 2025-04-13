@@ -4,7 +4,7 @@
 
 # %% auto 0
 __all__ = ['EarlyStoppingHandler', 'DatasetCallback', 'calculate_score', 'log_info', 'update_best', 'save_agent', 'test_agent',
-           'run_test_episode', 'run_experiment']
+           'run_test_episode', 'run_experiment', 'run_hp_experiment']
 
 # %% ../../nbs/40_experiments/10_experiment_functions_online.ipynb 3
 from abc import ABC, abstractmethod
@@ -24,6 +24,7 @@ from tqdm import tqdm, trange
 
 # Think about how to handle mushroom integration.
 from mushroom_rl.core import Core
+from .meta_core import Core as MetaCore
 
 # %% ../../nbs/40_experiments/10_experiment_functions_online.ipynb 4
 class EarlyStoppingHandler():
@@ -310,7 +311,10 @@ def run_experiment(agent: BaseAgent,
         env = envs[epoch % len(envs)]
         env.reset()
         callback = DatasetCallback()
-        core = Core(agent, env, callbacks_fit=[callback])
+        if agent.agent_name == "RL2PPO":
+            core = MetaCore(agent, env, callbacks_fit=[callback])
+        else:
+            core = Core(agent, env, callbacks_fit=[callback])
     
         if epoch > 0 and hasattr(agent, 'update_env'):
             agent.update_env(env)
@@ -346,24 +350,28 @@ def run_experiment(agent: BaseAgent,
             if return_score and return_dataset:
                 wandb.log({"Epoch": epoch, "R_list": R_list, "J_list": J_list}, commit=False)
                 cumulative_reward = 0
+                cumulative_true_reward = 0
                 for t, info in info_history.items():
                     cumulative_reward += np.squeeze(info["reward"])
+                    cumulative_true_reward += np.squeeze(info["true_reward"])
                     if "inv" in info:
                         wandb.log({"Inventory": np.squeeze(info["inv"])}, commit=False)
                     wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], 
-                               "Reward": info["reward"],
-                               "Cumulative_Reward": cumulative_reward})
+                               "Reward": info["reward"], "True_Reward": info["true_reward"],
+                               "Cumulative_Reward": cumulative_reward, "Cumulative_True_Reward": cumulative_true_reward})
             elif return_score:
                 wandb.log({f"R_list_{epoch}": R_list, f"J_list_{epoch}": J_list})
             elif return_dataset:
                 cumulative_reward = 0
+                cumulative_true_reward = 0
                 for t, info in info_history.items():
                     cumulative_reward += np.squeeze(info["reward"])
+                    cumulative_true_reward += np.squeeze(info["true_reward"])
                     if "inv" in info:
                         wandb.log({"Inventory": np.squeeze(info["inv"])}, commit=False)
-                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"],  
-                               "Reward": info["reward"], 
-                               "Cumulative_Reward": cumulative_reward})
+                    wandb.log({"Epoch": epoch, "t": t, "Action": info["action"], 
+                               "Reward": info["reward"], "True_Reward": info["true_reward"],
+                               "Cumulative_Reward": cumulative_reward, "Cumulative_True_Reward": cumulative_true_reward})
     if return_score and return_dataset:
         return R_list, J_list, dataset
     elif return_score:
@@ -371,4 +379,105 @@ def run_experiment(agent: BaseAgent,
     elif return_dataset:
         return dataset
 
-    logging.info(f"Evaluation after training: R={R}, J={J}")
+def run_hp_experiment(agent: BaseAgent,
+                envs: List[BaseEnvironment],
+                n_epochs: int,
+                n_steps: int = None,
+                n_steps_per_fit: int = 1,
+                n_episodes_per_fit: int = None, 
+                early_stopping_handler: Union[EarlyStoppingHandler, None] = None,
+                save_best: bool = True,
+                performance_criterion: str = "J",  # or "R"
+                tracking: Union[str, None] = None,  # e.g., "wandb"
+                results_dir: str = "results",
+                run_id: Union[str, None] = None,
+                print_freq: int = 1,
+                eval_step_info=False):
+    """
+    Run an experiment with the given agent and environment for n_epochs.
+    Automatically detects the training mode and runs accordingly.
+    """
+
+    # This list will contain one dictionary per epoch.
+    epoch_results = []
+    # Use start time as id if no run_id is given.
+    if run_id is None:
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+    experiment_dir = f"{results_dir}/{run_id}"
+    print(f"Experiment directory: {experiment_dir}")
+    logging.info("Starting experiment")
+
+    for epoch in trange(n_epochs):
+        env = envs[epoch % len(envs)]
+        env.reset()
+        callback = DatasetCallback()
+        if agent.agent_name == "RL2PPO":
+            core = MetaCore(agent, env, callbacks_fit=[callback])
+        else:
+            core = Core(agent, env, callbacks_fit=[callback])
+    
+        if epoch > 0 and hasattr(agent, 'update_env'):
+            agent.update_env(env)
+                
+        core.learn(n_steps=n_steps, n_steps_per_fit=n_steps_per_fit, n_episodes_per_fit=n_episodes_per_fit, quiet=False, n_episodes=1)
+        dataset = callback.get_dataset()
+        info_history = env.get_info_history() 
+        callback.reset()
+        R, J = calculate_score(dataset, env)
+
+
+        if ((epoch + 1) % print_freq) == 0:
+            logging.info(f"Epoch {epoch + 1}: R={R}, J={J}")
+
+        if early_stopping_handler is not None:
+            stop = early_stopping_handler.add_result(J, R)
+        else:
+            stop = False
+
+        if stop:
+            log_info(R, J, n_epochs - epoch - 1, tracking, "val")
+            logging.info(f"Early stopping after {epoch + 1} epochs")
+            break
+
+        env.train()
+        agent.train()
+
+        
+        # Create the nested structure for this epoch.
+        timestep_data = []
+        cumulative_reward = 0.0
+        cumulative_true_reward = 0.0
+
+        # Iterate over the timesteps (assuming info_history is a dict keyed by timestep)
+        for t in sorted(info_history.keys()):
+            info = info_history[t]
+            # If available, use a separate "true_reward"
+            reward = np.squeeze(info["reward"])
+            true_reward = np.squeeze(info["true_reward"]) if "true_reward" in info else reward
+            cumulative_reward += reward
+            cumulative_true_reward += true_reward
+
+            # timestep_data.append({
+            #     "t": t,
+            #     "action": info["action"],
+            #     "reward": reward,
+            #     "true_reward": true_reward,
+            #     "cumulative_reward": cumulative_reward,
+            #     "cumulative_true_reward": cumulative_true_reward,
+            #     # Add additional per-timestep information if desired.
+            # })
+
+        aggregated_metrics = {
+        "final_reward": cumulative_reward,
+        "final_true_reward": cumulative_true_reward,
+        }
+
+        epoch_result = {
+            "epoch": epoch,
+            "aggregated_metrics": aggregated_metrics,
+        }
+        epoch_results.append(epoch_result)
+    return epoch_results
+
+    
