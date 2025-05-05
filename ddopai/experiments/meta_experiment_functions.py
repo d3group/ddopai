@@ -214,21 +214,21 @@ def create_online_data(
     """ Standard function to provide online data based on the provided configuration
     TODO: Rewrite so that i can call it from the experiment function to create the data on the fly
     """
-    data = []
+    features = []
+    noise = []
     for parameter in config_env["env_kwargs"]:
         nb_features = parameter["nb_features"]
         size = parameter["horizon_train"]
-        covariance = parameter["covariance"][0]
-        noise_std = parameter["noise_std"][0]
-        scale = 1 / np.sqrt(nb_features-1)
-        scale = scale * covariance
-        X = np.random.uniform(0, scale, size=(size + 1, nb_features-1))
-        # X = np.random.multivariate_normal(np.ones(nb_features-1), covariance*np.eye(nb_features-1), size=size+1) 
-        X = np.hstack((np.ones((size+1, 1)), X))
-        #X = X.reshape(-1, 1, nb_features)
+        noise_std = parameter["noise_std"]
+        if nb_features > 1:
+            scale = 1 / np.sqrt(nb_features-1)
+            X = np.random.uniform(0, scale, size=(size + 1, nb_features))
+        else:
+            X = np.ones((size + 1, 1))
         epsilon = np.random.normal(0, noise_std, size=size+1)
-        data.append((X, epsilon))
-    return data
+        features.append(X)
+        noise.append(epsilon)
+    return np.concatenate(features, axis=0), np.concatenate(noise, axis=0)
 
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 15
@@ -265,8 +265,8 @@ def get_online_data(    config_env: Dict,
     """ Load data for online learning """
 
     data = create_online_data(config_env, overwrite)
-    #val_index_start, test_index_start = set_indices(config_env, data[0])
-    return data, 0, 0
+    val_index_start, test_index_start = set_indices(config_env, data[0])
+    return data, val_index_start, test_index_start
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 19
 def set_up_env(
@@ -317,7 +317,6 @@ def set_up_env_online(
         raise ValueError("function_form must be either a string or a list")
     config_env["alpha"] = np.array(config_env["alpha"])
     config_env["beta"] = np.array(config_env["beta"])
-    config_env["covariance"] = np.array(config_env["covariance"])
     config_env["noise_std"] = np.array(config_env["noise_std"])
     if "inv" in config_env:
         config_env["inv"] = np.array(config_env["inv"])
@@ -325,7 +324,9 @@ def set_up_env_online(
                                   alpha=config_env["alpha"],
                                   beta = config_env["beta"],
                                   epsilon = raw_data[1],
-                                  function_form= config_env["function_form"],  
+                                  function_form= config_env["function_form"],
+                                  val_index_start= val_index_start,
+                                  test_index_start= test_index_start,  
                                   normalize_features = {'normalize': normalize_features, 'ignore_one_hot': True})
     
     
@@ -369,15 +370,13 @@ def prepare_env_online( get_ENVCLASS,
 ) -> list[object]:
     """ Prepare multiple environments """
     
-    environments = []
     for config, data in zip(config_env["env_kwargs"], raw_data):
         env_class = get_ENVCLASS(config["env_class"])
         del config["env_class"]
-        #clip_action = ClipAction(lower=config["p_bound_low"], upper=config["p_bound_high"])
-        #postprocessors.append(clip_action)
+        clip_action = ClipAction(lower=config["p_bound_low"], upper=config["p_bound_high"])
+        postprocessors.append(clip_action)
         environment = set_up_env_online(env_class, data, val_index_start, test_index_start, config, postprocessors, config_env["normalize_features"])
-        environments.append(environment)
-    return environments
+    return environment
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 24
 def set_up_agent(

@@ -163,7 +163,7 @@ class OnlineDataLoader(BaseDataLoader):
         else:
             beta = self.beta
     
-        if isinstance(self.function_form, np.ndarray) and self.function_form.ndim == 3:
+        if isinstance(self.function_form, np.ndarray) and self.function_form.ndim == 2:
             function_form = self.function_form[index]
         else:
             function_form = self.function_form
@@ -176,19 +176,19 @@ class OnlineDataLoader(BaseDataLoader):
                 demand = demand_no_noise + epsilon
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
 
-            return [linear]
+            return linear, alpha, beta
         if function_form == 'log':
             def log(X, action):
                 demand_no_noise = np.divide(np.exp(np.dot(alpha, X) + np.dot(beta, X) * action), 1 + np.exp(np.dot(alpha, X) + np.dot(beta, X) * action))
                 demand = demand_no_noise + epsilon
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
-            return [log]
+            return log, alpha, beta
         if function_form == 'exp':
             def exp(X, action):
                 demand_no_noise = np.exp(np.dot(alpha, X) + np.dot(beta, X) * action)
                 demand = demand_no_noise + epsilon
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
-            return [exp]
+            return exp, alpha, beta
         if function_form == 'probit': # TODO: think about this more 
             return NotImplementedError('Probit not implemented yet')
             def probit(X, action):
@@ -229,40 +229,7 @@ class OnlineDataLoader(BaseDataLoader):
         
     def __len__(self):
         return len(self.X)
-
-    def update_parameters(self, X, epsilon, alpha, beta, function_form):
-        self.X = X
-        self.alpha = alpha
-        self.beta = beta
-        self.epsilon = epsilon
         
-        self.function_form = function_form
-        self.train_index_end = len(X)-1
-        # X must at least have datapoint and feature dimension
-        if len(X.shape) == 1:
-                self.X = X.reshape(-1, 1)
-        
-        if len(epsilon.shape) == 1:
-                self.epsilon = epsilon.reshape(-1, 1)
-                
-        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 2:
-            self.alpha = alpha.reshape(-1, 1)
-
-        if isinstance(beta, np.ndarray) and len(beta.shape) == 2:
-            self.beta = beta.reshape(-1, 1)
-
-        if isinstance(function_form, np.ndarray) and len(function_form.shape) == 2:
-            self.function_form = function_form.reshape(-1, 1)
-
-        if isinstance(self.alpha, np.ndarray) and isinstance(self.beta, np.ndarray) and isinstance(self.function_form, np.ndarray):
-                assert self.alpha.shape[0] == self.beta.shape[0], "alpha, and beta, must have the same length"
-                assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
-        else:
-                assert self.X.shape[0] == self.epsilon.shape[0], "X and epsilon must have the same length"
-        
-        self.num_units = self.epsilon.shape[1] 
-        
-    
     @property
     def X_shape(self):
         return self.X.shape
@@ -371,6 +338,6 @@ class OnlineDataLoader(BaseDataLoader):
         else:
             raise ValueError('dataset_type not recognized')
 
-        return alpha, beta, function_form, epsilon
+        return function_form, alpha, beta, epsilon
             
             

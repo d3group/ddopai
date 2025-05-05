@@ -36,8 +36,8 @@ class ClairvoyantPolicy():
                  ):
         assert type(alpha) == type(beta), "alpha and beta must be of the same type"
         if type(alpha) == None:
-            alpha = np.zeros(environment_info.observation_space['features'].shape[1])   
-            beta = np.zeros(environment_info.observation_space['features'].shape[1])
+            alpha = np.zeros(environment_info.observation_space['features'].shape[0])   
+            beta = np.zeros(environment_info.observation_space['features'].shape[0])
         self.environment_info = environment_info
         self.alpha = alpha
         self.beta = beta
@@ -49,16 +49,14 @@ class ClairvoyantPolicy():
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
 
     def draw_action(self, observation: np.ndarray):
-        prices = np.empty(0)
         X = observation['features']
-        for x in X:
-            price = self.price_function(x, self.alpha, self.beta)
-            prices = np.append(prices, price)
+
+        price = self.price_function(X, self.alpha, self.beta)
         
         for processor in self.actionprocessors:
-            prices = processor(prices)
+            price = processor(price)
         
-        return prices
+        return np.array(price)
     
     def update_env(self, env):
         self.environment_info = env.mdp_info

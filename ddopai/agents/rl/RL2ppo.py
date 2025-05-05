@@ -70,19 +70,15 @@ class GaussianTorchPolicyRL2(TorchPolicy):
         self._mu = Regressor(TorchApproximator, input_shape, output_shape,
                              network=network, use_cuda=use_cuda, **params)
         self._predict_params = dict()
-        max_a = mdp_info.action_space.high
-        min_a = mdp_info.action_space.low
-        self._delta_a = to_float_tensor(0.5 * (max_a - min_a), use_cuda=use_cuda)
-        self._central_a = to_float_tensor(0.5 * (max_a + min_a), use_cuda=use_cuda)
-        
+
+
         log_sigma_init = (torch.ones(self._action_dim) * np.log(std_0)).float()
         if self._use_cuda:
             log_sigma_init = log_sigma_init.cuda()
 
         self._log_sigma = nn.Parameter(log_sigma_init)
 
-        # This attribute will store the distribution computed at each time step.
-        self._last_dist = None
+
 
         self._add_save_attr(
             _action_dim='primitive',
@@ -104,14 +100,8 @@ class GaussianTorchPolicyRL2(TorchPolicy):
             new_hidden_state: updated hidden state returned by the regressor.
         """
         dist, new_hidden_state = self.distribution_t(state, hidden_state)
-        a_raw = dist.rsample()
-        
-        #a_than = torch.tanh(a_raw)
-        #a_true = a_than * self._delta_a + self._central_a
-        #self._last_a_raw = a_raw
-        #self._last_transformed_a = a_true
-        
-        return a_raw, new_hidden_state
+
+        return dist.rsample(), new_hidden_state
 
     def log_prob_t(self, state, hidden_state ,action):
         """
@@ -119,30 +109,9 @@ class GaussianTorchPolicyRL2(TorchPolicy):
         Here, action is assumed to be the transformed action.
         We use the stored raw sample (_last_a_raw) and adjust the log probability with the Jacobian of tanh.
         """
-        #if self._last_dist is None or self._last_a_raw is None:
-        #    raise ValueError("No stored distribution or raw action found. Make sure draw_action_t was called.")
-        
-        # Retrieve the raw log probability from the stored distribution
-        #log_prob_raw = self._last_dist.log_prob(self._last_a_raw)
-        
-        # If the log_prob_raw is multi-dimensional (e.g., for multi-dimensional actions),
-        # sum across the appropriate dimension (usually the last one).
-        #if log_prob_raw.dim() > 1:
-        #    log_prob_raw = log_prob_raw.sum(dim=-1)
-        
-        # Compute the Jacobian correction for the tanh transformation.
-        # The derivative of tanh is: d/dx tanh(x) = 1 - tanh(x)**2.
-        #eps = 1e-6  # for numerical stability
-        #log_det_jacobian = torch.log(1.0 - torch.tanh(self._last_a_raw)**2 + eps)
-        #if log_det_jacobian.dim() > 1:
-        #    log_det_jacobian = log_det_jacobian.sum(dim=-1)
-        
-        # Adjust the log probability with the Jacobian correction.
-        #log_prob = log_prob_raw - log_det_jacobian
-
-        # Expand dimensions if needed (for consistent output shape, e.g., [batch_size, 1])
         dist, _ = self.distribution_t(state, hidden_state)
-        return dist.log_prob(action)[:, None] #log_prob.unsqueeze(-1) if log_prob.dim() == 1 else log_prob
+        
+        return dist.log_prob(action)[:, None] 
 
     def entropy_t(self, state=None):
         """
@@ -165,7 +134,7 @@ class GaussianTorchPolicyRL2(TorchPolicy):
         """
         mu, chol_sigma, new_hidden_state = self.get_mean_and_chol(state, hidden_state)
         dist = torch.distributions.MultivariateNormal(loc=mu, scale_tril=chol_sigma, validate_args=False)
-        self._last_dist = dist  # Save the distribution for later use.
+        
         return dist, new_hidden_state
 
     def get_mean_and_chol(self, state, hidden_state):
@@ -214,7 +183,7 @@ class RL2PPO(Agent):
     """
 
     def __init__(self, mdp_info, policy, actor_optimizer, critic_params,
-                 n_epochs_policy, meta_episodes_per_policy_update, meta_episodes_per_learner_batch, batch_size, eps_ppo, lam, ent_coeff=0.0,
+                 n_epochs_policy, meta_episodes_per_policy_update, meta_episodes_per_learner_batch, eps_ppo, lam, ent_coeff=0.0, standardize_advantage=True,
                  critic_fit_params=None):
         """
         Constructor.
@@ -225,7 +194,6 @@ class RL2PPO(Agent):
             actor_optimizer (dict): Optimizer settings for actor.
             critic_params (dict): Parameters for critic network.
             n_epochs_policy (int or Parameter): PPO epochs per fit call.
-            batch_size (int or Parameter): Batch size for PPO update.
             eps_ppo (float or Parameter): PPO clipping parameter.
             lam (float or Parameter): Lambda for GAE computation.
             ent_coeff (float or Parameter): Entropy regularization coefficient.
@@ -236,17 +204,17 @@ class RL2PPO(Agent):
         self._n_epochs_policy = to_parameter(n_epochs_policy)
         self.meta_episodes_per_policy_update = to_parameter(meta_episodes_per_policy_update)
         self.meta_episodes_per_learner_batch = to_parameter(meta_episodes_per_learner_batch)
-        self._batch_size = to_parameter(batch_size)
         self._eps_ppo = to_parameter(eps_ppo)
         self._lambda = to_parameter(lam)
         self._ent_coeff = to_parameter(ent_coeff)
         self._gamma = to_parameter(mdp_info.gamma)
+        self.standardize_advantage = to_parameter(standardize_advantage)
         # Build optimizer (for actor)
         self._optimizer = actor_optimizer['class'](policy.parameters(), **actor_optimizer['params'])
 
         # Build value function approximator (critic)
         self._V = Regressor(TorchApproximator, **critic_params)
-
+        self.max_grad_norm = critic_params.get('max_grad_norm', 5)
         self.meta_episodes = []
 
         # Iteration counter
@@ -260,7 +228,6 @@ class RL2PPO(Agent):
         self._add_save_attr(
             _critic_fit_params='pickle',
             _n_epochs_policy='mushroom',
-            _batch_size='mushroom',
             _eps_ppo='mushroom',
             _lambda='mushroom',
             _ent_coeff='mushroom',
@@ -292,6 +259,17 @@ class RL2PPO(Agent):
             batch_size=batch_size, device=device
         )
 
+        
+    def predict(self, state):
+        with torch.no_grad():
+            # 3. forward through policy: get distribution & updated hidden state
+            dist, self._actor_hidden_state = self.policy.distribution_t(state, self._actor_hidden_state)
+
+        # 4. deterministic mean action
+        action = dist.mean.squeeze(0).detach().cpu().numpy()
+        
+        return action, None, None
+    
     def draw_action(self, state, return_additional=True):
         """
         Overriding draw_action to handle hidden states and also save log-probabilities
@@ -306,23 +284,29 @@ class RL2PPO(Agent):
         # Use the current actor hidden state with the policy's RL²-compatible draw_action_t.
         # This method returns both the sampled action and the updated hidden state.
         obs = np.expand_dims(state.astype(np.float32), axis=0)
-        actor_hidden_state = self._actor_hidden_state
-        action, new_actor_hidden_state = self.policy.draw_action_t(obs, actor_hidden_state)
-        self._actor_hidden_state = new_actor_hidden_state
-
-        # Evaluate critic with its hidden state:
+        
+        old_actor_hs  = self._actor_hidden_state
+        old_critic_hs = self._critic_hidden_state
         with torch.no_grad():
-            # If your critic network is recurrent, pass the hidden state and update it.
-            vpred, new_critic_hidden_state = self._V(obs, self._critic_hidden_state)
-            self._critic_hidden_state = new_critic_hidden_state
-            # Use the policy's stored distribution (computed in draw_action_t) for log-prob.
-            logpac = self.policy.log_prob_t(obs, actor_hidden_state, action)
-            action, logpac, vpred = action.squeeze(0), logpac.squeeze(0), vpred.squeeze(0)
-        action = action.detach().cpu().numpy() if self.policy.use_cuda else action.detach().numpy()
-        logpac = logpac.detach().cpu().numpy() if self.policy.use_cuda else logpac.detach().numpy()
-        #vpred = vpred.detach().cpu().numpy() if self.policy.use_cuda else vpred.detach().numpy()
+            action, new_actor_hs = self.policy.draw_action_t(obs, old_actor_hs)
+            
+            logpac = self.policy.log_prob_t(obs, old_actor_hs, action)
+            
+            vpred, new_critic_hs = self._V(obs, old_critic_hs)
+            
+        self._actor_hidden_state = new_actor_hs
+        self._critic_hidden_state = new_critic_hs
+        
+        
+        
+        
+        # now include old hidden states in the extras
         if return_additional:
-            return action, logpac, vpred
+            return (
+            action.squeeze(0).cpu().numpy(),
+            logpac.squeeze(0).cpu().numpy(),
+            vpred.squeeze(0)
+            )
         return action
     
     def parse_meta_episode(self, meta_ep):
@@ -336,6 +320,7 @@ class RL2PPO(Agent):
         for step in meta_ep:
             # Unpack each step (assuming it's a tuple as returned by _step)
             state, action, reward, next_state, absorbing, logpac, vpred, last = step
+
             states.append(state)
             actions.append(np.squeeze(action, 0))
             rewards.append(reward)
@@ -404,28 +389,61 @@ class RL2PPO(Agent):
         self.meta_episodes.append(meta_ep)
         
         # 4. Check if we have collected enough meta-episodes to perform a policy update.
-        if len(self.meta_episodes) >= self.meta_episodes_per_policy_update():
+        if len(self.meta_episodes) >= self.meta_episodes_per_policy_update() * self.meta_episodes_per_learner_batch():
             # Update policy/actor and value network/critic for a number of PPO epochs.
+            
             for opt_epoch in range(self._n_epochs_policy()):
                 # Randomly shuffle indices of meta-episodes in our batch.
-                idxs = np.random.permutation(self.meta_episodes_per_policy_update())
+                idxs = np.random.permutation(self.meta_episodes_per_policy_update()*self.meta_episodes_per_learner_batch())
+                
                 # Process the meta-episode batch in minibatches.
-                for i in range(0, self.meta_episodes_per_policy_update(), self.meta_episodes_per_learner_batch()):
+                for i in range(0, self.meta_episodes_per_policy_update()*self.meta_episodes_per_learner_batch(), self.meta_episodes_per_learner_batch()):
+                    
                     mb_idxs = idxs[i:i + self.meta_episodes_per_learner_batch()]
                     mb_meta_eps = [self.meta_episodes[idx] for idx in mb_idxs]
                     # Compute losses using the list of meta-episodes in the minibatch.
                     losses = self.compute_losses(meta_episodes=mb_meta_eps)
+                    
                     # --- Update the policy network (actor) ---
+                    
                     self._optimizer.zero_grad()
                     losses['policy_loss'].backward()
+                    #nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                     self._optimizer.step()
+                    
                     # --- Update the value network (critic) ---
                     self._V.model._optimizer.zero_grad()
                     losses['value_loss'].backward()
+                    #nn.utils.clip_grad_norm_(self._V.model.network.parameters(), self.max_grad_norm)
                     self._V.model._optimizer.step()
             # After the update, clear the meta-episode buffer.
             self.meta_episodes = []
+            self.reset_hidden_state(1, self.policy.use_cuda)
         self._iter += 1
+    def standardize_advantages(self, meta_episodes):
+        """
+        Standardize the advantages across a list of meta-episodes.
+
+        Args:
+            meta_episodes (list): List of meta-episode dictionaries, each containing "advs" and "vpreds".
+
+        Returns:
+            None: Modifies the meta-episodes in place by standardizing their advantages.
+        """
+        adv_eps = 1e-8
+
+        # Collect all advantages into a single array for computation.
+        all_advs = np.concatenate([meta_ep["advs"] for meta_ep in meta_episodes], axis=0)
+
+        # Compute mean and standard deviation of advantages.
+        adv_mean = np.mean(all_advs)
+        adv_std = np.std(all_advs) + adv_eps
+
+        # Standardize advantages for each meta-episode.
+        for meta_ep in meta_episodes:
+            meta_ep["advs"] = (meta_ep["advs"] - adv_mean) / adv_std
+            meta_ep["tdlam_rets"] = meta_ep["vpreds"] + meta_ep["advs"]
+            
     def compute_losses(self, meta_episodes: list) -> dict:
         """
         Computes the PPO losses (policy loss and value loss) for a batch of meta-episodes.
@@ -457,7 +475,8 @@ class RL2PPO(Agent):
             if dtype == "long":
                 return torch.LongTensor(mb_field)
             return torch.FloatTensor(mb_field)
-        
+        if self.standardize_advantage:
+            self.standardize_advantages(meta_episodes)
         # Convert stored fields to torch tensors.
         mb_obs     = get_tensor("obs")         # shape: (B, T, obs_dim)
         mb_acs     = get_tensor("acs", "long")   # shape: (B, T, action_dim)
@@ -469,23 +488,21 @@ class RL2PPO(Agent):
         
         B = len(meta_episodes)     # number of meta-episodes in the batch
         T = mb_obs.shape[1]        # time horizon per meta-episode
-
-        # Get initial hidden states (here referred to as hidden_state) for the policy and value networks.
-        hidden_state_policy = self.policy._mu.model.network.init_hidden(batch_size=B)
-        hidden_state_value  = self._V.model.network.init_hidden(batch_size=B)
-
+        self.reset_hidden_state(B, self.policy.use_cuda)
+        actor_hs = self._actor_hidden_state
+        critic_hs = self._critic_hidden_state
         # Forward pass for the policy.
         # We assume that our policy's distribution_t function accepts (obs, hidden_state)
         # and returns a tuple (distribution, new_hidden_state)
-        pi_dists, _ = self.policy.distribution_t(mb_obs, hidden_state_policy)
+        pi_dists, _ = self.policy.distribution_t(mb_obs, actor_hs)
         
         # Forward pass for the value network.
         # We assume that self._V's forward method accepts (obs, hidden_state) and returns (vpreds, new_hidden_state)
-        vpreds, _ = self._V(mb_obs, hidden_state_value, output_tensor=True)
+        vpreds, _ = self._V(mb_obs, critic_hs, output_tensor=True)
         
         # Compute extra quantities.
-        entropies = self.policy.entropy_t()       # shape: (B, T) or (B, T, 1)
-        logpacs_new = pi_dists.log_prob(mb_acs)  # shape: (B, T) or (B, T, 1)
+        entropies = self.policy.entropy_t() # shape: (B, T) or (B, T, 1)
+        logpacs_new = pi_dists.log_prob(mb_acs).unsqueeze(-1)  # shape: (B, T) or (B, T, 1)
         vpreds_new = vpreds
         
         # Compute the entropy bonus.
@@ -502,7 +519,8 @@ class RL2PPO(Agent):
         policy_surrogate_objective = torch.mean(torch.min(surr1, surr2))
         
         # Combined policy loss: negative surrogate objective minus entropy bonus.
-        policy_loss = -(policy_surrogate_objective + policy_entropy_bonus)
+        policy_loss = -policy_surrogate_objective
+        policy_loss -= policy_entropy_bonus
         
         # Value loss computed via a Huber loss between TD(lambda) returns and the new value predictions.
         value_loss = torch.mean(self._V.model._loss(mb_tdlam_rets, vpreds_new))
@@ -537,7 +555,6 @@ class RL2PPOAgent(MushroomBaseAgent):
                  activation: str = "relu",
                  learning_rate_actor: float = 3e-4,
                  learning_rate_critic: float | None = None,
-                 batch_size: int = 64,
                  n_epochs_policy: int = 4,
                  meta_episodes_per_policy_update: int = 1,
                  meta_episodes_per_learner_batch: int = 1,
@@ -630,7 +647,6 @@ class RL2PPOAgent(MushroomBaseAgent):
             n_epochs_policy=n_epochs_policy,
             meta_episodes_per_policy_update=meta_episodes_per_policy_update,
             meta_episodes_per_learner_batch=meta_episodes_per_learner_batch,
-            batch_size=batch_size,
             eps_ppo=eps_ppo,
             lam=lam,
             ent_coeff=ent_coeff,
@@ -673,7 +689,31 @@ class RL2PPOAgent(MushroomBaseAgent):
         # Reset critic hidden state
         #critic_network = self.agent._V._impl.model.network
         #critic_network.hidden_state = critic_network.model.rnn.model.init_hidden(batch_size=batch_size, device=device)
+    
+    def predict_(self, observation: np.ndarray) -> np.ndarray:
+        """
+        Return the mean action of the current policy for a single
+        observation while *maintaining* the recurrent hidden state
+        across timesteps until the user resets it.
 
+        Parameters
+        ----------
+        observation : np.ndarray
+            Observation with batch dimension already added
+            (shape : (1, obs_dim)).
+
+        Returns
+        -------
+        np.ndarray
+            Action (shape : (act_dim,)) **without** batch dimension.
+        """
+        # 1. convert to torch tensor on correct device
+        device = next(self.agent.policy.parameters()).device
+        obs_t = torch.tensor(observation, dtype=torch.float32, device=device)
+
+        action = self.agent.predict(obs_t)
+        return action
+    
     def get_network_list(self, set_actor_critic_attributes: bool = True):
         """
         Returns the list of actor and critic networks for saving/loading.

@@ -51,7 +51,7 @@ class RL2DynamicPricingEnv(BasePricingEnv):
             dataloader = self.update_dataloader()
             
         # Ignore the multi-SKU feature: always use one SKU.
-        num_SKUs = 1  
+        #num_SKUs = 1  
         # Remove SKU from parameters.
         # self.set_param("num_SKUs", num_SKUs, new=True)   <-- removed
         
@@ -136,14 +136,21 @@ class RL2DynamicPricingEnv(BasePricingEnv):
             )
         }
         self.observation_space = gym.spaces.Dict(spaces)
-
+    def get_clairvoyant_action(self, x: np.ndarray) -> np.ndarray:
+        """
+        Get the clairvoyant action.
+        """
+        if self.env_type["inv"]:
+            return np.clip(-(np.dot(self.alpha, x)/(2*np.dot(self.beta, x))), self.p_bound_low, self.p_bound_high)
+        else:
+            return np.clip(-(np.dot(self.alpha, x)/(2*np.dot(self.beta, x))), self.p_bound_low, self.p_bound_high)
     def step_(self, action: np.ndarray):
         """
         Step forward in the environment.
         """
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)
-        action = np.clip(action, self.p_bound_low, self.p_bound_high)
+        #action = np.clip(action, self.p_bound_low, self.p_bound_high)
         observation, reward_functions = self.get_observation()
 
         x = observation["features"]
@@ -173,8 +180,13 @@ class RL2DynamicPricingEnv(BasePricingEnv):
         )
         self.info_history[len(self.info_history)] = info
         # Save previous
-        self._prev_action = np.array([action], dtype=np.float32)
-        self._prev_reward = np.array([reward], dtype=np.float32)
+        # Scale the action to the range [-1, 1] using an affine transformation
+        action_scaled = 2 * (action - self.p_bound_low) / (self.p_bound_high - self.p_bound_low) - 1
+        clairvoyant_action = self.get_clairvoyant_action(x)
+        clairvoyant_reward, _ = reward_functions[0](x, clairvoyant_action) * clairvoyant_action
+        reward_scaled = reward / (clairvoyant_reward + 1e-6)
+        self._prev_action = np.array([action_scaled], dtype=np.float32)
+        self._prev_reward = np.array([reward_scaled], dtype=np.float32)
         self._prev_done = np.array([float(terminated or truncated)], dtype=np.float32)
 
         if truncated:
@@ -182,14 +194,14 @@ class RL2DynamicPricingEnv(BasePricingEnv):
                 observation = None
             else:
                 observation, _ = self.get_observation()
-            return observation, reward, terminated, truncated, info
+            return observation, reward_scaled, terminated, truncated, info
         else:
             observation, _ = self.get_observation()
             if self.print:
                 print("next_period:", self.index + 1)
                 print("next observation:", observation)
                 time.sleep(3)
-            return observation, reward, terminated, truncated, info
+            return observation, reward_scaled, terminated, truncated, info
 
     def get_observation(self):
         """

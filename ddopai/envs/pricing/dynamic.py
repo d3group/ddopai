@@ -32,10 +32,10 @@ class DynamicPricingEnv(BasePricingEnv):
         p_bound_low: Union[np.ndarray, Parameter, int, float] = 0.0, # lower price bound per SKUs
         p_bound_high: Union[np.ndarray, Parameter, int, float] = 1.0, # upper price bound per SKUs
         dataloader: BaseDataLoader = None, # dataloader TODO: replace with pricing dataloader
-        num_SKUs: Union[np.ndarray, Parameter, int, float] = None, # number of SKUs
         gamma: float = 1, # discount factor
         
         nb_features: int = 1, # number of features
+        
         covariance: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the features
         noise_std: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the noise
         function_form: Union[np.ndarray, Parameter, str] = "linear", # functional form of the demand function
@@ -52,19 +52,11 @@ class DynamicPricingEnv(BasePricingEnv):
         
         if dataloader is None:
             dataloader = self.update_dataloader()
-            
-        num_SKUs = dataloader.num_units if num_SKUs is None else num_SKUs
-        
-        if not isinstance(num_SKUs, int):
-            raise ValueError("num_SKUs should be an integer.")
-        if not alpha.shape==beta.shape:
-            raise ValueError("alpha and beta should have the same shape.")
-        self.set_param("num_SKUs", num_SKUs, new=True)
         
         self.set_param("alpha", alpha, shape=alpha.shape, new=True)
         self.set_param("beta", beta, shape=beta.shape, new=True)
-        self.set_param("p_bound_low", p_bound_low, shape=(num_SKUs,), new=True)
-        self.set_param("p_bound_high", p_bound_high, shape=(num_SKUs,), new=True)
+        self.set_param("p_bound_low", p_bound_low, shape=(1,), new=True)
+        self.set_param("p_bound_high", p_bound_high, shape=(1,), new=True)
         
         self.set_param("nb_features", nb_features, new=True)
         if isinstance(covariance, np.ndarray):
@@ -77,25 +69,25 @@ class DynamicPricingEnv(BasePricingEnv):
             self.set_param("noise_std", noise_std, new=True)
         self.set_param("function_form", function_form, new=True)
         
-        self.set_param("inv", inv[0], inv[0].shape, new=True)
-        relative_inv = inv[0].copy()
-        relative_inv[-1]= 1.0# np.float64(1.0)
+        # Inventory parameters: use the first element.
+        self.set_param("inv", inv, inv.shape, new=True)
+        relative_inv = np.ones_like(inv, dtype=np.float32)
         self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
         self.set_param("inv_per_episode", inv, inv.shape, new=True)
         self.set_param("horizon_train", horizon_train, new=True)
-        
         self.set_param("info_history", {}, new=True)
-        self.set_param("env_type", env_type, new=True)
         
+        self._prev_action = np.zeros((1,), dtype=np.float32)
+        self._prev_reward = np.zeros((1,), dtype=np.float32)
+        self._prev_done = np.ones((1,), dtype=np.float32)
 
         low = np.min(dataloader.X, axis=0)
         high = np.max(dataloader.X, axis=0)
-
-        self.set_observation_space(dataloader.X_shape, feature_low=low, feature_high=high)
-        self.set_action_space(dataloader.Y_shape, low = self.p_bound_low, high = self.p_bound_high)
-        
-        
-        
+        feature_shape = dataloader.X_shape[1:]
+        # Set the observation space without the SKU dimension.
+        self.set_observation_space(feature_shape=feature_shape, feature_low=low, feature_high=high)
+        self.set_action_space(dataloader.Y_shape, low=self.p_bound_low, high=self.p_bound_high)
+        self.set_param("env_type", env_type, new=True)
         mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         
         super().__init__(mdp_info=mdp_info,
@@ -105,7 +97,7 @@ class DynamicPricingEnv(BasePricingEnv):
                          horizon_train=horizon_train)
     
     
-    def set_observation_space(self, feature_shape, feature_low = -np.inf, feature_high = np.inf, samples_dim_included=True):
+    def set_observation_space(self, feature_shape, feature_low = -np.inf, feature_high = np.inf):
         
         '''
         Set the observation space of the environment.
@@ -114,8 +106,6 @@ class DynamicPricingEnv(BasePricingEnv):
         spaces = {}
 
         if isinstance(feature_shape, tuple):
-            if samples_dim_included:
-                feature_shape = feature_shape[1:] # assumed that the first dimension is the number of samples
             spaces["features"] = gym.spaces.Box(low=feature_low, high=feature_high, shape=feature_shape, dtype=np.float32)
         elif feature_shape is None:
             pass
@@ -137,63 +127,49 @@ class DynamicPricingEnv(BasePricingEnv):
         if action.ndim == 2 and action.shape[0] == 1:
             action = np.squeeze(action, axis=0)
 
-        terminated = False
+
         observation, reward_functions = self.get_observation()
-        X = observation["features"]
-        demand_per_SKU, demand_per_SKU_noise_free = [], []
+        x = observation["features"]
+        demand, true_demand = reward_functions[0](x, action)
+
+        if self.env_type["inv"]:
+            if (demand / self.inv) >= self.relative_inv:
+                demand = self.relative_inv * self.inv
+                if (true_demand / self.inv) >= self.relative_inv:
+                    true_demand = self.relative_inv * self.inv
+                self.relative_inv = np.zeros(self.relative_inv.shape, dtype=np.float32)
+            else:
+                self.relative_inv -= demand / self.inv
         
-        for idx, (reward_function, x , a) in enumerate(zip(reward_functions, X, action)):
-            demand, demand_noise_free = reward_function(x, a)
-            if self.env_type["inv"]:
-                if np.divide(demand, self.inv[idx]) >= self.relative_inv[idx]:
-                    demand = self.relative_inv[idx]*self.inv[idx]
-                    
-                    if np.divide(demand_noise_free, self.inv[idx]) >= self.relative_inv[idx]:
-                        demand_noise_free = self.inv[idx]*self.relative_inv[idx]
-                    self.relative_inv[idx] = 0
-                else:
-                    self.relative_inv[idx] -= demand/self.inv[idx]
-            demand_per_SKU.append(demand)
-            demand_per_SKU_noise_free.append(demand_noise_free)
-            
-        demand_per_SKU = np.array(demand_per_SKU)
-        demand_per_SKU_noise_free = np.array(demand_per_SKU_noise_free)
-        reward_per_SKU = demand_per_SKU * action
-        reward_per_SKU_noise_free = demand_per_SKU_noise_free * action
-        reward = np.sum(reward_per_SKU)
-        
-        if np.all(self.relative_inv == 0):
-            terminated = True
+        reward = demand * action
+        true_reward = true_demand * action
+        terminated = True if self.relative_inv == 0 else False
+        truncated = self.set_index()
+
         info = dict(
-            inv=self.inv.copy()*self.relative_inv.copy(),
-            demand=demand_per_SKU.copy(),
-            demand_per_SKU_noise_free=demand_per_SKU_noise_free.copy(),
+            inv=self.inv * self.relative_inv,
+            demand=demand,
+            true_demand=true_demand,
             action=action.copy(),
-            reward_per_SKU=reward_per_SKU.copy(),
-            reward_per_SKU_noise_free=reward_per_SKU_noise_free.copy()
+            reward=reward,
+            true_reward=true_reward
         )
         
         self.info_history[len(self.info_history)] = info
         truncated = self.set_index()
         
         if truncated:
-
-            if self.mode == "test" or self.mode == "val":
-                observation= None
+            if self.mode in ["test", "val"]:
+                observation = None
             else:
                 observation, _ = self.get_observation()
-
             return observation, reward, terminated, truncated, info
-        
         else:
-
-            # TODO: check if this is correct since we are not interested in the next period 
             observation, _ = self.get_observation()
             if self.print:
-                print("next_period:", self.index+1)
+                print("next_period:", self.index + 1)
                 print("next observation:", observation)
                 time.sleep(3)
-
             return observation, reward, terminated, truncated, info
             
     def get_info_history(self) -> dict:
@@ -207,19 +183,24 @@ class DynamicPricingEnv(BasePricingEnv):
         Function to get the observation from the dataloader.
         """
         x, reward_functions = self.dataloader[self.index]
-        observation = {"features": x,
-                       "inventory": self.relative_inv}
+        current_inv = np.array([self.relative_inv], dtype=np.float32)
 
+        observation = {
+            "features": x,
+            "inventory": current_inv
+        }
         return observation, reward_functions
     
-    def reset_env(self, epoch):
-        #if epoch > 0:
-        #    epoch = epoch % len(self.parameters)
-        #    parameters = self.parameters[epoch]
-        #    for key, value in parameters.items():
-        #        if isinstance(value, list):
-        #            parameters[key] = np.array(value)
-        #    self.new_env(**parameters, parameters=self.parameters)
-        #    self.reset()
-        pass 
+    def reset(self, start_index=None, state=None):
+        """
+        Reset environment to initial state.
+        """
+        truncated = self.reset_index(start_index)
+
+        self.relative_inv = np.ones_like(self.inv, dtype=np.float32)
+        self.info_history = {}
+
+
+        observation, _ = self.get_observation()
+        return observation
       

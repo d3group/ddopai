@@ -47,14 +47,14 @@ class MTSPolicy():
         self.price_function = price_function
         self.sigma = sigma
         self.lambda_e = lambda_e
-        self.p_min = environment_info.action_space.low[0]
-        self.p_max = environment_info.action_space.high[0]
+        self.p_min = environment_info.action_space.low
+        self.p_max = environment_info.action_space.high
         self.c_0 = c_0
         self.c_1 = c_0/(np.sqrt(1+self.p_max)**2*x_max)
         self.c_2 = c_2_const/self.c_1
         self.ex_prices = np.array(ex_prices) if ex_prices is not None else np.array([0, self.p_max])
         self.T = environment_info.horizon
-        self.d = environment_info.observation_space['features'].shape[1]
+        self.d = environment_info.observation_space['features'].shape[0]
         self.N = N
         self.g = g
 
@@ -76,23 +76,20 @@ class MTSPolicy():
     
     def draw_action(self, observation: np.ndarray):
         if self.t < self.t_e:
-                prices = self.ex_prices[self.t % len(self.ex_prices)]
+                price = self.ex_prices[self.t % len(self.ex_prices)]
         else:
-            prices = np.empty(0)
             X = observation['features']
-            for x in X:
-                th_dot = np.random.multivariate_normal(self.th_hat, self.sig_mpdp)
-                price = self.price_function(x, th_dot[:self.d], th_dot[self.d:])
-                prices = np.append(prices, price)
+
+            th_dot = np.random.multivariate_normal(self.th_hat, self.sig_mpdp)
+            price = self.price_function(X, th_dot[:self.d], th_dot[self.d:])
                 
         for processor in self.actionprocessors:
-            prices = processor(prices)
+            price = processor(price)
         
-        return prices
+        return np.array(price)
     
     def fit(self, X, Y, action):
         self.t += 1
-        X= X[0]
         x_action = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, x_action])
         self.Y = np.vstack([self.Y, Y])

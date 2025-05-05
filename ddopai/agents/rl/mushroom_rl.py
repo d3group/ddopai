@@ -117,8 +117,8 @@ class MushroomBaseAgent(BaseAgent):
             
             batch_removed = False
 
-            for preprocessor in self.agent.preprocessors:
-                observation = preprocessor(observation) # applies all preprocessors to the dict observation
+            # for preprocessor in self.agent.preprocessors:
+            #     observation = preprocessor(observation) # applies all preprocessors to the dict observation
 
             # add batch dimension back to mimic mushroom_rl library
             if isinstance(observation, list):
@@ -250,6 +250,8 @@ class MushroomBaseAgent(BaseAgent):
 
         if loss == "MSE":
             return F.mse_loss
+        elif loss == "HUBER":
+            return F.huber_loss
         else:
             raise ValueError(f"Loss {loss} not supported")
 

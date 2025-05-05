@@ -37,8 +37,8 @@ class GreedyPolicy():
                  ):
         assert type(alpha) == type(beta), "alpha and beta must be of the same type"
         if type(alpha) == None:
-            alpha = np.zeros(environment_info.observation_space['features'].shape[1])   
-            beta = np.zeros(environment_info.observation_space['features'].shape[1])
+            alpha = np.zeros(environment_info.observation_space['features'].shape[0])   
+            beta = np.zeros(environment_info.observation_space['features'].shape[0])
         if isinstance(ex_prices, list):
             ex_prices = np.array(ex_prices)
         assert ex_prices.shape[0] >= 2
@@ -50,25 +50,23 @@ class GreedyPolicy():
         self.price_function = price_function # Needs to return an np array
         self.g = g
         self.t = 0
-        self.X = np.empty((0, environment_info.observation_space['features'].shape[1] * 2)) 
+        self.X = np.empty((0, environment_info.observation_space['features'].shape[0] * 2)) 
         self.Y = np.empty((0, 1))
         self.mode = "train"
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
 
     def draw_action(self, observation: np.ndarray):
         if self.t < self.ex_prices.shape[0]:
-            prices = self.ex_prices[self.t]
+            price = self.ex_prices[self.t]
         else:
-            prices = np.empty(0)
+            price = np.empty(0)
             X = observation['features']
-            for x in X:
-                price = self.price_function(x, self.alpha, self.beta)
-                prices = np.append(prices, price)
+            price = self.price_function(X, self.alpha, self.beta)
             
         for processor in self.actionprocessors:
-            prices = processor(prices)
+            price = processor(price)
         
-        return prices
+        return np.array(price)
     
     def fit(self, X, Y, action):
         assert self.mode == "train"
@@ -81,14 +79,13 @@ class GreedyPolicy():
     def parameter_update(self):
         model = sm.OLS(self.Y, self.X)
         results = model.fit()
-        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[1]]
-        self.beta = results.params[self.environment_info.observation_space['features'].shape[1]:]
+        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
+        self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
     
     def update_env(self, env):
         self.t = 0
-        X= X[0]
         self.environment_info = env.mdp_info
-        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[1] * 2))
+        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
         self.Y = np.empty((0, 1))
         self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
         

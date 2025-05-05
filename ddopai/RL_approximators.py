@@ -1221,6 +1221,9 @@ class RL2RNNActor(BaseApproximatorRL2RNN):
     """
     RL² Actor network for continuous actions.
     Outputs action means directly (no std or log_std here).
+    For LSTM: the hidden state is stored and returned as a single tensor of shape
+    (2, num_layers, batch, hidden_dim) obtained by stacking h and c along a new dimension.
+    For GRU: the hidden state is handled as a single tensor.
     """
 
     def __init__(self,
@@ -1257,24 +1260,58 @@ class RL2RNNActor(BaseApproximatorRL2RNN):
     def forward(self, state, hidden_state=None):
         """
         Forward pass.
-        Outputs continuous action mean only.
+        For LSTM:
+          - If hidden_state is None, initialize it from state.
+          - If a hidden_state is provided as a stacked tensor, split it into (h, c).
+          - Pass (h, c) to the model.
+          - Receive the new hidden state tuple (h_new, c_new) and stack it along a new dimension
+            so that it becomes a tensor of shape (2, num_layers, batch, hidden_dim).
+        For GRU:
+          - If hidden_state is None, initialize it.
+          - Use the provided hidden state directly.
+        Returns:
+            - mean: the actor’s output (action mean).
+            - hidden_state_new: the new hidden state in the standardized format.
         """
-
-        mean, hidden_state_new = self.model(state, hidden_state)
+        if self.model.rnn_cell_type == 'lstm':
+            # If hidden_state is None, initialize it based on state's batch size.
+            if hidden_state is None:
+                batch_size = state.shape[0] if state.dim() > 0 else 1
+                hidden_state = self.init_hidden(batch_size, device=state.device)
+            # Extract h and c from the hidden_state.
+            h, c = hidden_state[0], hidden_state[1]
+            # Pass the tuple (h, c) to the model.
+            mean, hidden_state_new = self.model(state, (h, c))
+            h_new, c_new = hidden_state_new
+            # Stack h_new and c_new along a new dimension.
+            hidden_state_new = torch.stack((h_new, c_new), dim=0)
+        else:
+            # For GRU, if hidden_state is None, initialize it.
+            if hidden_state is None:
+                batch_size = state.shape[0] if state.dim() > 0 else 1
+                hidden_state = self.init_hidden(batch_size, device=state.device)
+            mean, hidden_state_new = self.model(state, hidden_state)
 
         return mean, hidden_state_new
 
     def init_hidden(self, batch_size=1, device='cpu'):
+        """
+        Initializes the hidden state.
+        For LSTM: returns a single tensor of shape (2, num_layers, batch, hidden_dim)
+                 by stacking h_0 and c_0 along a new dimension.
+        For GRU: returns a tensor of shape (num_layers, batch, hidden_dim).
+        """
         num_layers = self.model.rnn_core.rnn.num_layers
         hidden_dim = self.model.hidden_dim
         shape = (num_layers, batch_size, hidden_dim)
-        
+
         if self.model.rnn_cell_type == 'lstm':
-            return (torch.zeros(shape, device=device), torch.zeros(shape, device=device))
+            h_0 = torch.zeros(shape, device=device)
+            c_0 = torch.zeros(shape, device=device)
+            # Stack h_0 and c_0 along a new outer dimension (resulting shape: (2, num_layers, batch, hidden_dim))
+            return torch.stack((h_0, c_0), dim=0)
         else:
             return torch.zeros(shape, device=device)
-
-
 
 
 # %% ../nbs/30_agents/60_approximators/21_critic_networks.ipynb 19
@@ -1319,21 +1356,51 @@ class RL2RNNValue(BaseApproximatorRL2RNN):
     def forward(self, state, hidden_state=None):
         """
         Forward pass.
-        Outputs continuous action mean only.
+        For LSTM:
+          - If hidden_state is None, initialize it.
+          - Split the hidden_state into (h, c), pass them to the model,
+            then stack the output hidden state (h_new and c_new) along a new dimension.
+        For GRU:
+          - If hidden_state is None, initialize it.
+          - Use the provided hidden state directly.
         """
-        
-        mean, hidden_state_new = self.model(state, hidden_state)
+        if self.model.rnn_cell_type == 'lstm':
+            # If no hidden_state is provided, initialize it.
+            if hidden_state is None:
+                batch_size = state.shape[0] if state.dim() > 0 else 1
+                hidden_state = self.init_hidden(batch_size, device=state.device)
+            # Now extract h and c from the hidden_state.
+            # We assume here that hidden_state is a stacked tensor with shape (2, num_layers, batch, hidden_dim)
+            h, c = hidden_state[0], hidden_state[1]
+            # Pass the (h, c) tuple to the model.
+            mean, hidden_state_new = self.model(state, (h, c))
+            h_new, c_new = hidden_state_new
+            # Stack h_new and c_new along a new dimension so that the shape is (2, num_layers, batch, hidden_dim)
+            hidden_state_new = torch.stack((h_new, c_new), dim=0)
+        else:
+            # For GRU, also initialize if hidden_state is None.
+            if hidden_state is None:
+                batch_size = state.shape[0] if state.dim() > 0 else 1
+                hidden_state = self.init_hidden(batch_size, device=state.device)
+            mean, hidden_state_new = self.model(state, hidden_state)
 
         return mean, hidden_state_new
 
     def init_hidden(self, batch_size=1, device='cpu'):
+        """
+        Initializes the hidden state.
+        For LSTM: returns a single tensor of shape (2, num_layers, batch, hidden_dim)
+                 by stacking h_0 and c_0.
+        For GRU: returns a tensor of shape (num_layers, batch, hidden_dim).
+        """
         num_layers = self.model.rnn_core.rnn.num_layers
         hidden_dim = self.model.hidden_dim
         shape = (num_layers, batch_size, hidden_dim)
         
         if self.model.rnn_cell_type == 'lstm':
-            return (torch.zeros(shape, device=device), torch.zeros(shape, device=device))
+            h_0 = torch.zeros(shape, device=device)
+            c_0 = torch.zeros(shape, device=device)
+            return torch.stack((h_0, c_0), dim=0)
         else:
             return torch.zeros(shape, device=device)
-
 
