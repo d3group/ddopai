@@ -31,17 +31,15 @@ class BasePricingEnv(BaseEnvironment):
         ## Parameters for Base env:
         mdp_info: MDPInfo, #
         postprocessors: list[object] | None = None,  # default is empty list
-        mode: str = "online", # additional mode for the pricing environment TODO: add online mode to training loop
+        mode: str = "train", # additional mode for the pricing environment TODO: add online mode to training loop
         return_truncation: str = True, # whether to return a truncated condition in step function
         dataloader: BaseDataLoader = None, # dataloader for the environment
-        parameters: dict = None, # parameters for the environment
-    
-        horizon_train: int = 100 # horizon for the online learning TODO: check if it can be renamed to horizon
+        horizon_train: int = 100
         ) -> None:
 
         self.dataloader = dataloader
+        self.episode = 0
         
-        # TODO: check in the base env if train_horizon is needed 
         super().__init__(mdp_info=mdp_info, postprocessors = postprocessors,  mode = mode, return_truncation=return_truncation, horizon_train=horizon_train)
     
     def set_observation_space(self,
@@ -118,14 +116,132 @@ class BasePricingEnv(BaseEnvironment):
         For val and test modes, it will by default reset to 0, while for the train mode it depends
         on the paramter "horizon_train" whether a random point in the training data is selected or 0
         """
-
+        start_index = self.reset_index_from_episode(start_index) # reset the index from the episode
         truncated = self.reset_index(start_index)
         
             
         observation, demand = self.get_observation()
         return observation
-    @abstractmethod
-    def reset_env(self, epoch: int) -> None:
+    
+    def reset_index_from_episode(self,start_index: int | str = None) -> int:
+        
+        if start_index == "random":
+            if self.mode == "train":
+                self.episode = np.random.choice(range(0, len(self.train_tasks)))
+            else:
+                raise ValueError("start_index cannot be 'random' in val or test mode")
+            
+        elif isinstance(start_index, int):
+            self.episode = start_index
+        else:
+            self.episode = 0
+        start_index = int(self.episode * self.mdp_info.horizon)
+        
+        if self.mode == "train":
+            self.task = self.train_tasks[self.episode]
+        elif self.mode == "val":
+            self.task = self.val_tasks[self.episode]
+        elif self.mode == "test":
+            self.task = self.test_tasks[self.episode]
+        return start_index
+        
+    def reset_index(self,
+    start_index: Union[int,str], 
+    ) -> bool:
+
         """
-        Change the environment to the next episode. This function should be overwritten.
+
+        Reset the index of the environment. If start_index is an integer, the index is set to this value. If start_index is "random",
+        the index is set to a random integer between 0 and the length of the training data.
+
         """
+
+        start_index = self.get_start_index(start_index) # Returns the start index or 0 for None values
+
+        if start_index=="random":
+            if self.mode == "train":
+                if self.dataloader.len_train is not None and self.dataloader.len_train > self.mdp_info.horizon:
+                    random_index = np.random.choice(range(0, self.dataloader.len_train-self.mdp_info.horizon, self.mdp_info.horizon))
+                else:
+                    random_index = 0
+                self.start_index = random_index 
+            else:
+                raise ValueError("start_index cannot be 'random' in val or test mode")
+        elif isinstance(start_index, int):
+            self.start_index = start_index
+        else:
+            raise ValueError("start_index must be an integer or 'random'")
+        
+        if self.dataloader.len_train is not None:
+            self.max_index = self.dataloader.len_train if self.mode == "train" else self.dataloader.len_val if self.mode == "val" else self.dataloader.len_test
+            self.max_index -= 1
+        else:
+            self.max_index = self.start_index+self.mdp_info.horizon
+        self.max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
+        if self.mode == "test" or self.mode == "val":
+            self.max_index_episode += 1
+
+        truncated = self.set_index(self.start_index) # assuming we only start randomly during training.
+        
+        return truncated
+
+    def train(self, update_mdp_info=True):
+        """
+        Set the environment in training mode by both setting the internal state self._train and the dataloader. 
+        If the horizon is set to "use_all_data", the horizon is set to the length of the training data, otherwise
+        it is set to the horizon_train attribute of the environment. Finally, the function updates the MDP info
+        and resets with the new state.
+
+        """
+        self._mode = "train"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.train()
+
+            if hasattr(self, "horizon_train"):
+                if self.horizon_train == "use_all_data":
+                    horizon = self.dataloader.len_train
+                else:
+                    horizon = self.horizon_train
+        else:
+            horizon = self.mdp_info.horizon
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
+
+        self.reset()
+    
+    def val(self, update_mdp_info=True):
+        """
+        Set the environment in validation mode by both setting the internal state self._val and the dataloader.
+        The horizon is kept like the horizon of the mdp. Finally, the function updates the MDP info
+        and resets with the new state.
+
+        """
+        self._mode = "val"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.val()
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=self.mdp_info.horizon)
+
+        self.reset()
+
+    def test(self, update_mdp_info=True):
+        """
+        Set the environment in testing mode by both setting the internal state self._test and the dataloader.
+        The horizon of test is always set to the length of the test data. Finally, the function updates the MDP info
+        and resets with the new state.
+
+        """
+        self._mode = "test"
+
+        if hasattr(self, "dataloader"):
+            self.dataloader.test()
+            
+
+        if update_mdp_info:
+            self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=self.mdp_info.horizon)
+
+        self.reset()

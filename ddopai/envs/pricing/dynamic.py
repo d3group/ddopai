@@ -27,25 +27,19 @@ class DynamicPricingEnv(BasePricingEnv):
     Num_SKUs can be set as parameter or inferrred from the DataLoader.
     """
     def __init__(self,
-        alpha: Union[np.ndarray, Parameter, int, float] = 1.0, # market size per SKUs
-        beta: Union[np.ndarray, Parameter, int, float] = 0.5, # price elasticity per SKUs
         p_bound_low: Union[np.ndarray, Parameter, int, float] = 0.0, # lower price bound per SKUs
         p_bound_high: Union[np.ndarray, Parameter, int, float] = 1.0, # upper price bound per SKUs
         dataloader: BaseDataLoader = None, # dataloader TODO: replace with pricing dataloader
         gamma: float = 1, # discount factor
         
-        nb_features: int = 1, # number of features
-        
-        covariance: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the features
-        noise_std: Union[np.ndarray, Parameter, int, float] = 1, # standard deviation of the noise
-        function_form: Union[np.ndarray, Parameter, str] = "linear", # functional form of the demand function
-        inv: Union[np.ndarray, Parameter, int, float] = 100, # inventory per SKUs
+        #inv: Union[np.ndarray, Parameter, int, float] = 100, # inventory per SKUs
         horizon_train: int | str = "use_all_data", # if "use_all_data" then horizon is inferred from the DataLoader
         postprocessors: list[object] | None = None, # default is empty list 
         mode: str = "train", 
         return_truncation: str = False, # TODO:Why is this a string?
-        env_type: dict = {"inv": False, 
-                          "reference_price": False,},
+        train_tasks: list[dict] | None = None, # default is empty list
+        val_tasks: list[dict] | None = None, # default is empty list
+        test_tasks: list[dict] | None = None, # default is empty list
         ) -> None:
 
         self.print=False
@@ -53,33 +47,18 @@ class DynamicPricingEnv(BasePricingEnv):
         if dataloader is None:
             dataloader = self.update_dataloader()
         
-        self.set_param("alpha", alpha, shape=alpha.shape, new=True)
-        self.set_param("beta", beta, shape=beta.shape, new=True)
         self.set_param("p_bound_low", p_bound_low, shape=(1,), new=True)
         self.set_param("p_bound_high", p_bound_high, shape=(1,), new=True)
         
-        self.set_param("nb_features", nb_features, new=True)
-        if isinstance(covariance, np.ndarray):
-            self.set_param("covariance", covariance, shape=covariance.shape, new=True)
-        else:
-            self.set_param("covariance", covariance,  new=True)
-        if isinstance(noise_std, np.ndarray):
-            self.set_param("noise_std", noise_std, shape=noise_std.shape, new=True)
-        else:
-            self.set_param("noise_std", noise_std, new=True)
-        self.set_param("function_form", function_form, new=True)
+        self.set_param("train_tasks", train_tasks, shape=(len(train_tasks),), new=True)
+        self.set_param("val_tasks", val_tasks, shape=(len(val_tasks),), new=True)
+        self.set_param("test_tasks", test_tasks, shape=(len(test_tasks),), new=True)
         
-        # Inventory parameters: use the first element.
-        self.set_param("inv", inv, inv.shape, new=True)
-        relative_inv = np.ones_like(inv, dtype=np.float32)
-        self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
-        self.set_param("inv_per_episode", inv, inv.shape, new=True)
+        self.set_param("episode", 0, (1,), new=True)
+        self.set_param("task", self.train_tasks[0], new=True)
+        
+        
         self.set_param("horizon_train", horizon_train, new=True)
-        self.set_param("info_history", {}, new=True)
-        
-        self._prev_action = np.zeros((1,), dtype=np.float32)
-        self._prev_reward = np.zeros((1,), dtype=np.float32)
-        self._prev_done = np.ones((1,), dtype=np.float32)
 
         low = np.min(dataloader.X, axis=0)
         high = np.max(dataloader.X, axis=0)
@@ -87,14 +66,15 @@ class DynamicPricingEnv(BasePricingEnv):
         # Set the observation space without the SKU dimension.
         self.set_observation_space(feature_shape=feature_shape, feature_low=low, feature_high=high)
         self.set_action_space(dataloader.Y_shape, low=self.p_bound_low, high=self.p_bound_high)
-        self.set_param("env_type", env_type, new=True)
-        mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         
+        mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
+        self.update_episode_params()
         super().__init__(mdp_info=mdp_info,
                          postprocessors=postprocessors,
                          mode=mode, return_truncation=return_truncation,
                          dataloader=dataloader,
                          horizon_train=horizon_train)
+
     
     
     def set_observation_space(self, feature_shape, feature_low = -np.inf, feature_high = np.inf):
@@ -103,16 +83,20 @@ class DynamicPricingEnv(BasePricingEnv):
         Set the observation space of the environment.
 
         '''
-        spaces = {}
-
-        if isinstance(feature_shape, tuple):
-            spaces["features"] = gym.spaces.Box(low=feature_low, high=feature_high, shape=feature_shape, dtype=np.float32)
-        elif feature_shape is None:
-            pass
-        else:
-            raise ValueError("Shape for features must be a tuple or None")
-
-        spaces["inventory"] = gym.spaces.Box(low=0, high=1, shape=(int(self.num_SKUs[0]),), dtype=np.float32)
+        spaces = {
+            "features": gym.spaces.Box(
+                low=feature_low,
+                high=feature_high,
+                shape=feature_shape,
+                dtype=np.float32
+            ),
+            "inventory": gym.spaces.Box(
+                low=0.0,
+                high=1.0,
+                shape=(1,),
+                dtype=np.float32
+            ),
+        }
         
         self.observation_space = gym.spaces.Dict(spaces)
         
@@ -128,9 +112,9 @@ class DynamicPricingEnv(BasePricingEnv):
             action = np.squeeze(action, axis=0)
 
 
-        observation, reward_functions = self.get_observation()
+        observation, (reward_functions, alpha, beta) = self.get_observation()
         x = observation["features"]
-        demand, true_demand = reward_functions[0](x, action)
+        demand, true_demand = reward_functions(x, action)
 
         if self.env_type["inv"]:
             if (demand / self.inv) >= self.relative_inv:
@@ -152,7 +136,9 @@ class DynamicPricingEnv(BasePricingEnv):
             true_demand=true_demand,
             action=action.copy(),
             reward=reward,
-            true_reward=true_reward
+            true_reward=true_reward,
+            alpha=alpha,
+            beta=beta,
         )
         
         self.info_history[len(self.info_history)] = info
@@ -171,12 +157,6 @@ class DynamicPricingEnv(BasePricingEnv):
                 print("next observation:", observation)
                 time.sleep(3)
             return observation, reward, terminated, truncated, info
-            
-    def get_info_history(self) -> dict:
-        """
-        Function to return the history of the environment.
-        """
-        return self.info_history
     
     def get_observation(self):
         """
@@ -195,12 +175,27 @@ class DynamicPricingEnv(BasePricingEnv):
         """
         Reset environment to initial state.
         """
-        truncated = self.reset_index(start_index)
-
-        self.relative_inv = np.ones_like(self.inv, dtype=np.float32)
+        super().reset(start_index=start_index, state=state)
+        
+        self.update_episode_params()
+        
+        
         self.info_history = {}
 
 
         observation, _ = self.get_observation()
         return observation
-      
+    
+    def update_episode_params(self):
+        """
+        Update the parameters of the episode.
+        """
+        inv = np.array(self.task["inv_level"])
+        relative_inv = np.ones_like(inv, dtype=np.float32)
+        if hasattr(self, "inv"):
+            self.set_param("inv", inv, inv.shape, new=False)
+            self.set_param("relative_inv", relative_inv, relative_inv.shape, new=False)
+        else:
+            self.set_param("inv", inv, inv.shape, new=True)
+            self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
+        

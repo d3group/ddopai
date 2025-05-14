@@ -70,10 +70,10 @@ class OnlineDataLoader(BaseDataLoader):
         if len(epsilon.shape) == 1:
                 self.epsilon = epsilon.reshape(-1, 1)
                 
-        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 2:
+        if isinstance(alpha, np.ndarray) and len(alpha.shape) == 3:
             self.alpha = alpha.reshape(-1, 1)
 
-        if isinstance(beta, np.ndarray) and len(beta.shape) == 2:
+        if isinstance(beta, np.ndarray) and len(beta.shape) == 3:
             self.beta = beta.reshape(-1, 1)
 
         if isinstance(function_form, np.ndarray) and len(function_form.shape) == 2:
@@ -153,17 +153,17 @@ class OnlineDataLoader(BaseDataLoader):
             Get Y function depending on the current index. 
         """
         
-        if isinstance(self.alpha, np.ndarray) and self.alpha.ndim == 3:
+        if isinstance(self.alpha, np.ndarray) and self.alpha.ndim == 2:
             alpha = self.alpha[index]
         else:
             alpha = self.alpha
         
-        if isinstance(self.beta, np.ndarray) and self.beta.ndim == 3:
+        if isinstance(self.beta, np.ndarray) and self.beta.ndim == 2:
             beta = self.beta[index]
         else:
             beta = self.beta
     
-        if isinstance(self.function_form, np.ndarray) and self.function_form.ndim == 2:
+        if isinstance(self.function_form, np.ndarray) and self.function_form.ndim == 1:
             function_form = self.function_form[index]
         else:
             function_form = self.function_form
