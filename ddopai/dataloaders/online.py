@@ -40,6 +40,7 @@ class OnlineDataLoader(BaseDataLoader):
         normalize_features: dict = None,
     ):
         self.X = X
+        self.Y = epsilon
         self.alpha = alpha
         self.beta = beta
         self.epsilon = epsilon
@@ -196,14 +197,14 @@ class OnlineDataLoader(BaseDataLoader):
                 return np.maximum(demand, 0)
             return probit
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, idx: int):
         
         """
             get item by index, depending on the dataset type (train, val, test)
         """
         
         if self.dataset_type == "train":
-            if index > self.train_index_end:
+            if idx > self.train_index_end:
                 raise IndexError('Index out of bounds')
             
         elif self.dataset_type == "val":
@@ -225,7 +226,7 @@ class OnlineDataLoader(BaseDataLoader):
         else:
             raise ValueError('dataset_type not set')
 
-        return self.X[index], self._get_Y(index)
+        return self.X[idx], self._get_Y(idx)
         
     def __len__(self):
         return len(self.X)

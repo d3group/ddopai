@@ -29,16 +29,19 @@ class ClairvoyantPolicy():
                  obsprocessors: Optional[List[object]] = None,
                  actionprocessors: Optional[List[object]] = None,
                  agent_name: str | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
+                 task: dict = None,
                  price_function = None,
                  g = None,
                  ):
+        
+        alpha = np.array(task["alpha"])
+        beta = np.array(task["beta"])
         assert type(alpha) == type(beta), "alpha and beta must be of the same type"
         if type(alpha) == None:
             alpha = np.zeros(environment_info.observation_space['features'].shape[0])   
             beta = np.zeros(environment_info.observation_space['features'].shape[0])
         self.environment_info = environment_info
+        self.task = task
         self.alpha = alpha
         self.beta = beta
         self.actionprocessors = actionprocessors
@@ -60,6 +63,8 @@ class ClairvoyantPolicy():
     
     def update_env(self, env):
         self.environment_info = env.mdp_info
+        self.task = env.get_task()
+        
         self.alpha = env.alpha
         self.beta = env.beta
         """TODO add change in price function"""
@@ -83,13 +88,12 @@ class ClairvoyantCoreAgent(Agent):
                  obsprocessors: Optional[List[object]] = [],
                  actionprocessors: Optional[List[object]] = [],
                  agent_name: str | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
+                 task: dict = None,
                  price_function = None,
                  g = None,
                  ):
         
-        policy = ClairvoyantPolicy(environment_info=environment_info, obsprocessors=obsprocessors, actionprocessors=actionprocessors, alpha=alpha, beta=beta, price_function=price_function, g=g)
+        policy = ClairvoyantPolicy(environment_info=environment_info, obsprocessors=obsprocessors, actionprocessors=actionprocessors, task=task, price_function=price_function, g=g)
         self.agent_name = agent_name
         super().__init__(environment_info, policy)
         
@@ -115,8 +119,7 @@ class ClairvoyantAgent(PricingMushroomBaseAgent):
                  obsprocessors: Optional[List[object]] =[],
                  actionprocessors: Optional[List[object]] = [],
                  agent_name: str | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
+                 task: dict = None,
                  price_function = None,
                  g = None,
                  ):
@@ -124,8 +127,7 @@ class ClairvoyantAgent(PricingMushroomBaseAgent):
                                      obsprocessors = obsprocessors, 
                                      actionprocessors = actionprocessors, 
                                      agent_name = agent_name, 
-                                     alpha = alpha, 
-                                     beta = beta, 
+                                     task=task,
                                      price_function = price_function, 
                                      g = g)
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)

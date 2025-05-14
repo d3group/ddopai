@@ -245,3 +245,12 @@ class BasePricingEnv(BaseEnvironment):
             self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=self.mdp_info.horizon)
 
         self.reset()
+    
+    def get_task(self):
+        """
+        Return the current task. This function is for the online learning case it will return only the state,
+        this function should be overwritten.
+
+        """
+
+        return self.task.copy()
