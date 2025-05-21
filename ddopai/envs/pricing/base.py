@@ -107,7 +107,7 @@ class BasePricingEnv(BaseEnvironment):
         return X_item, Y_item
     
     def reset(self,
-        start_index: int | str = None, # index to start from
+        start_index: int | str = 0, # index to start from
         state: np.ndarray = None # initial state
         ) -> Tuple[np.ndarray, bool]:
 
@@ -116,26 +116,25 @@ class BasePricingEnv(BaseEnvironment):
         For val and test modes, it will by default reset to 0, while for the train mode it depends
         on the paramter "horizon_train" whether a random point in the training data is selected or 0
         """
-        start_index = self.reset_index_from_episode(start_index) # reset the index from the episode
+        start_index = self.episode * self.mdp_info.horizon + start_index if isinstance(start_index, int) else start_index
         truncated = self.reset_index(start_index)
         
             
         observation, demand = self.get_observation()
         return observation
     
-    def reset_index_from_episode(self,start_index: int | str = None) -> int:
+    def reset_episode(self,episode_index: int | str = None) -> int:
         
-        if start_index == "random":
+        if episode_index == "random":
             if self.mode == "train":
-                self.episode = np.random.choice(range(0, len(self.train_tasks)))
+                self.episode = int(np.random.choice(range(0, len(self.train_tasks))))
             else:
-                raise ValueError("start_index cannot be 'random' in val or test mode")
+                raise ValueError("episode_index cannot be 'random' in val or test mode")
             
-        elif isinstance(start_index, int):
-            self.episode = start_index
+        elif isinstance(episode_index, int):
+            self.episode = episode_index
         else:
             self.episode = 0
-        start_index = int(self.episode * self.mdp_info.horizon)
         
         if self.mode == "train":
             self.task = self.train_tasks[self.episode]
@@ -143,7 +142,17 @@ class BasePricingEnv(BaseEnvironment):
             self.task = self.val_tasks[self.episode]
         elif self.mode == "test":
             self.task = self.test_tasks[self.episode]
-        return start_index
+        return self.reset()
+    
+    def get_n_tasks(self, type="train"):
+        if type == "train":
+            return len(self.train_tasks)
+        elif type == "val":
+            return len(self.val_tasks)
+        elif type == "test":
+            return len(self.test_tasks)
+        else:
+            raise ValueError("type must be train, val or test")
         
     def reset_index(self,
     start_index: Union[int,str], 
@@ -178,8 +187,8 @@ class BasePricingEnv(BaseEnvironment):
         else:
             self.max_index = self.start_index+self.mdp_info.horizon
         self.max_index_episode = np.minimum(self.max_index, self.start_index+self.mdp_info.horizon)
-        if self.mode == "test" or self.mode == "val":
-            self.max_index_episode += 1
+        #if self.mode == "test" or self.mode == "val":
+        #    self.max_index_episode += 1
 
         truncated = self.set_index(self.start_index) # assuming we only start randomly during training.
         
@@ -209,7 +218,7 @@ class BasePricingEnv(BaseEnvironment):
         if update_mdp_info:
             self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=horizon)
 
-        self.reset()
+        self.reset_episode()
     
     def val(self, update_mdp_info=True):
         """
@@ -226,7 +235,7 @@ class BasePricingEnv(BaseEnvironment):
         if update_mdp_info:
             self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=self.mdp_info.horizon)
 
-        self.reset()
+        self.reset_episode()
 
     def test(self, update_mdp_info=True):
         """
@@ -244,7 +253,7 @@ class BasePricingEnv(BaseEnvironment):
         if update_mdp_info:
             self.update_mdp_info(gamma=self.mdp_info.gamma, horizon=self.mdp_info.horizon)
 
-        self.reset()
+        self.reset_episode()
     
     def get_task(self):
         """

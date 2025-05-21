@@ -224,24 +224,28 @@ def create_online_data(
             noise_std = parameter["noise_std"]
             if nb_features > 1:
                 scale = 1 / np.sqrt(nb_features-1)
-                X = np.random.uniform(0, scale, size=(size + 1, nb_features))
+                X = np.random.uniform(0, scale, size=(size, nb_features))
             else:
-                X = np.ones((size + 1, 1))
-            epsilon = np.random.normal(0, noise_std, size=size+1)
+                X = np.ones((size, 1))
+            epsilon = np.random.normal(0, noise_std, size=size)
             features.append(X)
             noise.append(epsilon)
-        return np.concatenate(features, axis=0), np.concatenate(noise, axis=0)
+    return np.concatenate(features, axis=0), np.concatenate(noise, axis=0)
 
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 15
 def set_indices(config_env: Dict, #
-                X: np.ndarray 
+                X: np.ndarray,
+                meta: bool = False
 ) -> Tuple:
 
     """ Set the indices for the validation and test set """
-
-    val_index_start = len(X) - config_env["size_val"] - config_env["size_test"]
-    test_index_start = len(X) - config_env["size_test"]
+    if meta:
+        val_index_start = len(X) - config_env["size_val"]*config_env['env_kwargs']["horizon_train"] - config_env["size_test"]*config_env['env_kwargs']["horizon_train"]
+        test_index_start = len(X) - config_env["size_test"]*config_env['env_kwargs']["horizon_train"]
+    else:
+        val_index_start = len(X) - config_env["size_val"] - config_env["size_test"]
+        test_index_start = len(X) - config_env["size_test"]
 
     return val_index_start, test_index_start
 
@@ -267,7 +271,7 @@ def get_online_data(    config_env: Dict,
     """ Load data for online learning """
 
     data = create_online_data(config_env, overwrite)
-    val_index_start, test_index_start = set_indices(config_env, data[0])
+    val_index_start, test_index_start = set_indices(config_env, data[0], meta=True)
     return data, val_index_start, test_index_start
 
 # %% ../../nbs/40_experiments/20_meta_experiment_functions.ipynb 19

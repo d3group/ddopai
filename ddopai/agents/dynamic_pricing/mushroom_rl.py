@@ -31,7 +31,8 @@ class PricingMushroomBaseAgent(BaseAgent):
     Base class for Agents that integrate MushroomRL agents.
     """
 
-    train_mode = "env_interaction"
+    train_mode = "online_eval"
+    n_steps_per_fit = 1
     dropout = True # always keep in True for mushroom_RL, dropout is not desired set drop_prob=0.0
     
     def __init__(self, 

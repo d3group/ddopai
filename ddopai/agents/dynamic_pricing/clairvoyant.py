@@ -61,12 +61,12 @@ class ClairvoyantPolicy():
         
         return np.array(price)
     
-    def update_env(self, env):
+    def update_task(self, env):
         self.environment_info = env.mdp_info
         self.task = env.get_task()
         
-        self.alpha = env.alpha
-        self.beta = env.beta
+        self.alpha = np.array(self.task["alpha"])
+        self.beta = np.array(self.task["beta"])
         """TODO add change in price function"""
     def fit(self, X, Y, action):
         pass
@@ -103,8 +103,8 @@ class ClairvoyantCoreAgent(Agent):
         action = dataset[0][1]
         self.policy.fit(X, Y, action)
         
-    def update_env(self, env):
-        self.policy.update_env(env)
+    def update_task(self, env):
+        self.policy.update_task(env)
         
     
         
@@ -131,7 +131,7 @@ class ClairvoyantAgent(PricingMushroomBaseAgent):
                                      price_function = price_function, 
                                      g = g)
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
-    def update_env(self, env: object):
+    def update_task(self, env: object):
         """ Update the environment specific parameters of the agent """
-        self.agent.update_env(env)
+        self.agent.update_task(env)
         

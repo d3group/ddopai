@@ -82,7 +82,7 @@ class GreedyPolicy():
         self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
         self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
     
-    def update_env(self, env):
+    def update_task(self, env):
         self.t = 0
         self.environment_info = env.mdp_info
         self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
@@ -121,8 +121,8 @@ class GreedyCoreAgent(Agent):
         action = dataset[0][1]
         self.policy.fit(X, Y, action)
     
-    def update_env(self, env):
-        self.policy.update_env(env)
+    def update_task(self, env):
+        self.policy.update_task(env)
         
 
 # %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 6
@@ -151,7 +151,7 @@ class GreedyAgent(PricingMushroomBaseAgent):
                                      price_function = price_function, 
                                      g = g)
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
-    def update_env(self, env: object):
+    def update_task(self, env: object):
         """ Update the environment specific parameters of the agent """
-        self.agent.update_env(env)
+        self.agent.update_task(env)
         

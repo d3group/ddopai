@@ -66,6 +66,7 @@ class DynamicPricingEnv(BasePricingEnv):
         # Set the observation space without the SKU dimension.
         self.set_observation_space(feature_shape=feature_shape, feature_low=low, feature_high=high)
         self.set_action_space(dataloader.Y_shape, low=self.p_bound_low, high=self.p_bound_high)
+        self.info_history = []
         
         mdp_info = MDPInfo(self.observation_space, self.action_space, gamma=gamma, horizon=horizon_train)
         self.update_episode_params()
@@ -116,7 +117,7 @@ class DynamicPricingEnv(BasePricingEnv):
         x = observation["features"]
         demand, true_demand = reward_functions(x, action)
 
-        if self.env_type["inv"]:
+        if self.task["inv"]:
             if (demand / self.inv) >= self.relative_inv:
                 demand = self.relative_inv * self.inv
                 if (true_demand / self.inv) >= self.relative_inv:
@@ -125,8 +126,8 @@ class DynamicPricingEnv(BasePricingEnv):
             else:
                 self.relative_inv -= demand / self.inv
         
-        reward = demand * action
-        true_reward = true_demand * action
+        reward = (demand * action)[0]
+        true_reward = (true_demand * action)[0]
         terminated = True if self.relative_inv == 0 else False
         truncated = self.set_index()
 
@@ -141,14 +142,13 @@ class DynamicPricingEnv(BasePricingEnv):
             beta=beta,
         )
         
-        self.info_history[len(self.info_history)] = info
-        truncated = self.set_index()
+        self.info_history.append(info)
         
         if truncated:
             if self.mode in ["test", "val"]:
-                observation = None
+                observation = {"features": np.zeros_like(x), "inventory": np.zeros_like([self.relative_inv])}
             else:
-                observation, _ = self.get_observation()
+                observation = {"features": np.zeros_like(x), "inventory": np.zeros_like([self.relative_inv])}
             return observation, reward, terminated, truncated, info
         else:
             observation, _ = self.get_observation()
@@ -175,16 +175,17 @@ class DynamicPricingEnv(BasePricingEnv):
         """
         Reset environment to initial state.
         """
-        super().reset(start_index=start_index, state=state)
+        super().reset(start_index=0, state=state)
         
-        self.update_episode_params()
-        
-        
-        self.info_history = {}
+        self.info_history = []
 
 
         observation, _ = self.get_observation()
         return observation
+    
+    def reset_episode(self, episode_index = None):
+        super().reset_episode(episode_index)
+        self.update_episode_params()
     
     def update_episode_params(self):
         """
@@ -198,4 +199,9 @@ class DynamicPricingEnv(BasePricingEnv):
         else:
             self.set_param("inv", inv, inv.shape, new=True)
             self.set_param("relative_inv", relative_inv, relative_inv.shape, new=True)
-        
+    
+    def get_info(self):
+        """
+        Get the information of the environment.
+        """
+        return self.info_history
