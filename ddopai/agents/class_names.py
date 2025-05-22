@@ -38,5 +38,7 @@ AGENT_CLASSES = {
     "TS": "ddopai.agents.dynamic_pricing.TS.TSAgent",
     "UCB": "ddopai.agents.dynamic_pricing.UCB.UCBAgent",
     "Clairvoyant": "ddopai.agents.dynamic_pricing.clairvoyant.ClairvoyantAgent",
-    "MTS": "ddopai.agents.dynamic_pricing.MTS.MTSAgent"
+    "MTS": "ddopai.agents.dynamic_pricing.MTS.MTSAgent",
+    
+    "IDP": "ddopai.agents.dynamic_pricing.inventory_constrained.IDP.IDPAgent"
 }
