@@ -132,10 +132,10 @@ class DynamicPricingEnv(BasePricingEnv):
         truncated = self.set_index()
 
         info = dict(
-            inv=self.inv * self.relative_inv,
+            inv=(self.inv * self.relative_inv)[0],
             demand=demand,
             true_demand=true_demand,
-            action=action.copy(),
+            action=action[0],
             reward=reward,
             true_reward=true_reward,
             alpha=alpha,
@@ -163,11 +163,11 @@ class DynamicPricingEnv(BasePricingEnv):
         Function to get the observation from the dataloader.
         """
         x, reward_functions = self.dataloader[self.index]
-        current_inv = np.array([self.relative_inv], dtype=np.float32)
+        current_inv = self.relative_inv
 
         observation = {
             "features": x,
-            "inventory": current_inv
+            "inventory": current_inv * self.inv
         }
         return observation, reward_functions
     
@@ -191,7 +191,7 @@ class DynamicPricingEnv(BasePricingEnv):
         """
         Update the parameters of the episode.
         """
-        inv = np.array(self.task["inv_level"])
+        inv = np.array([self.task["inv_level"]])
         relative_inv = np.ones_like(inv, dtype=np.float32)
         if hasattr(self, "inv"):
             self.set_param("inv", inv, inv.shape, new=False)

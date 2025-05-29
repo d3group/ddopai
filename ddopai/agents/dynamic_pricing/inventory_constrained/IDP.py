@@ -58,7 +58,7 @@ class IDPPolicy():
 
     def draw_action(self, observation: np.ndarray):
         X = observation['features']
-        B_t = observation['Inventory']
+        B_t = observation['inventory']
         price = self.price_function(X, self.alpha, self.beta)
         lagrangian = self.lagrangian(B_t)
         price = price + lagrangian
@@ -74,6 +74,7 @@ class IDPPolicy():
         avg_remaining_B = (2 * B_t) / (self.T - self.t +1) 
         lagrangian = (avg_remaining_B - np.dot(self.alpha, self.E_X)) / np.dot(self.beta, self.E_X)
         return lagrangian
+    
     def update_task(self, env):
         self.environment_info = env.mdp_info
         self.task = env.get_task()
@@ -85,6 +86,7 @@ class IDPPolicy():
         else:
             self.E_X = np.full(self.environment_info.observation_space['features'].shape[0], 1 / (2 * np.sqrt(self.environment_info.observation_space['features'].shape[0])))
         self.T = self.task["horizon"]
+        self.t = 0
         
         """TODO add change in price function"""
     def fit(self, X, Y, action):
