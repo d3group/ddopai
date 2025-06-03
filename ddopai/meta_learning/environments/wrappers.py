@@ -44,7 +44,7 @@ class VariBadWrapper(gym.Wrapper):
         if not hasattr(self.env.unwrapped, 'num_states'):
             self.env.unwrapped.num_states = None
         if not hasattr(self.env.unwrapped, '_max_episode_steps'):  # Meta-World ML10/ML45
-            self.env.unwrapped._max_episode_steps = env.max_path_length
+            self.env.unwrapped._max_episode_steps = env.horizon
 
         if episodes_per_task > 1:
             self.add_done_info = True

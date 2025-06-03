@@ -113,7 +113,7 @@ class PricingEnv(gym.Env):
             low=-self._BIG, high=self._BIG,
             shape=(self.task_dim,), dtype=np.float32
         )
-
+        self.seed()
         # -------- set latent task & episode ----------------------------------
         self.reset_task(task)
         self.reset()
@@ -192,7 +192,9 @@ class PricingEnv(gym.Env):
         }
         return obs, reward, done, info
 
-
+    def seed(self, seed=None):
+        self.np_random, seed = gym.utils.seeding.np_random(seed)
+        return [seed]
     # ===================================================================== #
     #                         internal helpers                               #
     # ===================================================================== #

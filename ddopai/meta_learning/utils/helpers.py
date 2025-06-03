@@ -18,93 +18,45 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-
+from ..environments.pricing_env.pricing_env import PricingEnv
+from ..environments.wrappers import PrevActRewWrapper
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # %% ../../../nbs/50_meta_learning/50_utils/20_helpers.ipynb 2
-def make_env(args, mode='train', train_task_override=None, **kwargs):
-    env_id = args.env_name
+# --------------------------------------------------------------------
+def make_env(args, mode='train', **kwargs):
+    """
+    Create **one** PricingEnv with the requested wrappers.
 
-    # NEW ENV: METAWORLD
-    if env_id.startswith('metaworld'):
+    Parameters
+    ----------
+    args  : argparse.Namespace  – needs at least
+            * env_name               (should be 'Pricing-v0' or similar)
+            * pricing_kwargs         (dict forwarded to PricingEnv)
+            * ar_in_state            (bool, adds PrevActRewWrapper)
+            * max_episode_length     (int, TimeLimit wrapper)
+    mode  : 'train' | 'test' – kept for API compatibility; ignored here.
+    """
+    assert args.env_name.lower().startswith('pricing'), \
+        "This trimmed helper only supports PricingEnv."
 
-        if args.mw_version == 1:
-            from environments.metaworld import metaworld
-        elif args.mw_version == 2:
-            from environments.metaworld_v2 import metaworld
+    # base env --------------------------------------------------------
+    env = PricingEnv(**args.pricing_kwargs)
 
-        env_type = 'metaworld'
+    # RL^2 needs (s_{t-1}, a_{t-1}, r_{t-1}) in the observation
+    if args.ar_in_state:
+        env = PrevActRewWrapper(env)
 
-        # --- ML1 ---
-        # import the right meta-world-environment
-        if env_id == 'metaworld_ml1':
-            env_name = f'{args.ml1_type}-v{args.mw_version}'
-            mworld = metaworld.ML1(env_name)  # Construct the benchmark, sampling tasks
-            # set up train/test env
-            if mode == 'train':
-                env = mworld.train_classes[env_name]()
-                if train_task_override is not None:
-                    env.reset_task = lambda: env.set_task(random.choice(train_task_override))
-                else:
-                    env.reset_task = lambda: env.set_task(random.choice(mworld.train_tasks))
-            elif mode == 'test':
-                env = mworld.test_classes[env_name]()
-                env.reset_task = lambda: env.set_task(random.choice(mworld.test_tasks))
 
-        # --- ML10 ---
-        elif env_id == 'metaworld_ml10':
-            ml10 = metaworld.ML10()
-            # if mode == 'train':
-            #     n_envs = 10
-            # elif mode == 'test':
-            #     n_envs = 5
-            # else:
-            #     raise ValueError
+    # optional obs normalisation (reuse Hyper’s wrapper if desired)
+    if getattr(args, "norm_obs", False):
+        from ddopai.meta_learning.environments.wrappers import NormaliseObservations
+        env = NormaliseObservations(env, clip=10.0, eps=1e-8,
+                                    training=(mode == 'train'))
 
-            # n_tasks = n_envs * 1  # Leo: This ensures 1 env of each is sampled.
-            from environments.garage.experiment.task_sampler import MetaWorldTaskSampler # Can't do this at top since it breaks MuJoCo131 needed for Walker
-            task_sampler = MetaWorldTaskSampler(ml10,
-                                                mode,  # train or test
-                                                wrapper=None,
-                                                # lambda env, _: normalize(env),  # TODO: not sure if we should use this
-                                                add_env_onehot=False)
-            # envs = [env_up() for env_up in task_sampler.sample(n_tasks)]
-            from environments.mw_wrapper import MetaWorldMultiEnvWrapper # Can't do this at top since it breaks MuJoCo131 needed for Walker
-            env = MetaWorldMultiEnvWrapper(task_sampler,
-                                           n_tasks_train=10,
-                                           n_tasks_test=5, # needed to make one-hot ids
-                                           mode='vanilla',
-                                           train=(mode=='train'))
-        else:
-            raise ValueError
-        env._max_episode_steps = env.max_path_length
-    elif env_id.startswith('T-') or env_id.startswith('MC-'):
-        env = gym.make(env_id, **kwargs)
-        env_type = "Maze"
-    # OTHERWISE WE ASSUME ITS A GYM ENV
-    else:
-        env_type = 'gym'
-        if args is not None and args.env_name == 'RoomNavi-v0':
-            env = gym.make(env_id,
-                           num_cells=args.num_cells,
-                           corridor_len=args.corridor_len,
-                           num_steps=args.horizon,
-                           **kwargs)
-        if args is not None and args.env_name == 'TreasureHunt-v0':
-            env = gym.make(env_id,
-                           max_episode_steps=args.max_episode_steps,
-                           mountain_height=args.mountain_height,
-                           treasure_reward=args.treasure_reward,
-                           timestep_penalty=args.timestep_penalty,
-                           **kwargs)
-        elif args is not None and args.env_name == 'AntGoalSparse-v0':
-            env = gym.make(env_id,
-                           level=args.level,
-                           **kwargs)
-        else:
-            env = gym.make(env_id, **kwargs)
 
-    return env, env_type
+    return env, "pricing"
+
 
 
 def reset_env(env, args, indices=None, state=None):
