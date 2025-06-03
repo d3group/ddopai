@@ -71,7 +71,7 @@ class GreedyPolicy():
     def fit(self, X, Y, action):
         assert self.mode == "train"
         self.t += 1
-        X = np.concat([X, X * action])
+        X = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, X])
         self.Y = np.vstack([self.Y, Y])
         self.parameter_update()
