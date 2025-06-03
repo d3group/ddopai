@@ -17,7 +17,7 @@ from .environments.parallel_envs import make_vec_envs
 from .models.policy import Policy
 from .utils import evaluation as utl_eval
 from .utils import helpers as utl
-from .utils.tb_logger import TBLogger
+from .utils.tb_logger import WandbLogger
 from .vae import VaribadVAE
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -38,18 +38,10 @@ class MetaLearner:
         self.iter_idx = 0
 
         # initialise tensorboard logger
-        self.logger = TBLogger(self.args, self.args.exp_label) if make_logger else None
+        self.logger = WandbLogger(self.args, self.args.exp_label) if make_logger else None
 
-        if args.env_name == 'metaworld_ml1':
-            if args.mw_version == 1:
-                from environments.metaworld import metaworld
-            elif args.mw_version == 2:
-                from environments.metaworld_v2 import metaworld
-            env_name = f'{args.ml1_type}-v{args.mw_version}'
-            mworld = metaworld.ML1(env_name)
-            self.train_tasks = mworld.train_tasks
-        else:
-            self.train_tasks = None
+        
+        self.train_tasks = None
 
         # initialise environments
         self.envs = make_vec_envs(env_name=args.env_name, seed=args.seed, num_processes=args.num_processes,
@@ -415,9 +407,6 @@ class MetaLearner:
 
             modes = ['train']
             num_episodes = None
-            if self.args.env_name.startswith('metaworld'):
-                modes.append('test')
-                num_episodes = 10
 
             for mode in modes:
 
@@ -433,9 +422,7 @@ class MetaLearner:
                                                         return_extra_dict=True,
                                                         )
                 grad_dict = {} # This feature of eval is not working yet
-                success_ret = extra_dict["success_ret"]
-                success_ret_avg = success_ret.mean(dim=0) # avg over tasks
-                success_in_ep = (success_ret > 0).float().mean(dim=0) # avg over tasks
+                
 
                 # log the return avg/std across tasks (=processes)
                 returns_avg = returns_per_episode.mean(dim=0)
@@ -447,8 +434,6 @@ class MetaLearner:
                     self.logger.add('return_std_per_iter'+mode_tag+'/episode_{}'.format(k + 1), returns_std[k], self.iter_idx)
                     self.logger.add('return_std_per_frame'+mode_tag+'/episode_{}'.format(k + 1), returns_std[k], self.frames)
                 self.logger.add('Meta-Episode Return'+mode_tag.replace("_", " "), returns_avg.sum(), self.frames)
-                self.logger.add('Meta-Episode Success Avg'+mode_tag.replace("_", " "), success_ret_avg.mean(), self.frames)
-                self.logger.add('Meta-Episode Success Frac'+mode_tag.replace("_", " "), success_in_ep.mean(), self.frames)
                 # grad norms
                 if grad_dict:
                     self.logger.add('Grad_Norm'+mode_tag, torch.tensor(grad_dict["all"]).mean(), self.frames)
