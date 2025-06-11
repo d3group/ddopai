@@ -73,7 +73,7 @@ class WandbLogger:
         try:
             log_dir = args.results_log_dir
         except AttributeError:
-            log_dir = args['results_log_dir']
+            log_dir = ".results"
 
         if log_dir is None:
             dir_path = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
@@ -98,9 +98,29 @@ class WandbLogger:
         # Start wandb
         wandb.init(project="hyper-meta-rl", name=self.output_name, config=config, dir=self.full_output_folder)
         print('Logging to Weights & Biases:', self.full_output_folder)
+        # Tell wandb we have *two* step metrics
+        wandb.define_metric("iter")
+        wandb.define_metric("frame")
+        # Any metric whose name starts with this prefix will use that step
+        wandb.define_metric("return_avg_per_iter/*",  step_metric="iter")
+        wandb.define_metric("return_std_per_iter/*",  step_metric="iter")
+        wandb.define_metric("return_avg_per_frame/*", step_metric="frame")
+        wandb.define_metric("return_std_per_frame/*", step_metric="frame")
+        wandb.define_metric("Meta-Episode Return",    step_metric="frame")
 
+    
+        self._iter_counter = 0
     def add(self, name, value, x_pos):
-        wandb.log({name: value}, step=x_pos)
+        # choose which step metric to log
+        if "iter" in name:
+            wandb.log({"iter": x_pos, name: value})
+        elif "frame" in name:
+            wandb.log({"frame": x_pos, name: value})
+        else:
+            # metrics that were already unique per-iteration can
+            # just use iter as the step axis
+            wandb.log({"iter": self._iter_counter, name: value})
+        self._iter_counter += 1
 
     def close(self):
         wandb.finish()

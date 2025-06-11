@@ -279,7 +279,7 @@ def run_test_episode(   env: BaseEnvironment, # Any environment inheriting from 
     step = 0
 
     horizon = env.mdp_info.horizon
-    episodes = env.get_n_tasks("val")
+    episodes = env.get_n_tasks("test")
     for episode in range(episodes):
         finished = False
         env.reset_episode(episode)
@@ -410,7 +410,65 @@ def run_experiment( agent: BaseAgent,
             log_figure_from_history(env.get_info(), episode, tracking, "test", commit=True)
             if ((episode+1) % print_freq) == 0:
                 logging.info(f"Episode {episode+1}: R={R}, J={J}")
+    elif agent.train_mode == "pretrained":
+        save_features = False
+        dataset = []
+        env.test()
+        env.set_return_truncation(True) # Set back to standard gynmasium behavior
+        episodes = env.get_n_tasks("test")
+        for episode in range(episodes):
+            finished = False
+            env.reset_episode(episode)
+            obs = env.reset()
+            processed_obs = obs
+            for p in agent.preprocessors:
+                processed_obs = p(processed_obs)
+            agent.start_episode(processed_obs)
+            episode_dataset = []
+            while not finished:
+                
+                # Sample action from agent
+                action = agent.draw_action(obs)
 
+                # Take a step in the environment
+
+                next_obs, reward, terminated, truncated, info = env.step(action)
+                processed_next_obs = next_obs
+                for p in agent.preprocessors:
+                    processed_next_obs = p(processed_next_obs)
+                agent.observe(processed_next_obs, action, reward, (terminated or truncated))
+                
+                logging.debug("##### STEP: %d #####", env.index)
+                logging.debug("reward: %s", reward)
+                logging.debug("info: %s", info)
+                logging.debug("next observation: %s", obs)
+                logging.debug("truncated: %s", truncated)
+
+                if save_features:
+                    sample = (obs, action, reward, next_obs, terminated, truncated) # unlike mushroom do not include policy_state
+                else:
+                    sample = (None, action, reward, None, terminated, truncated)
+
+                obs = next_obs
+
+                episode_dataset.append((sample, info))
+
+                finished = terminated or truncated
+
+                R, J = calculate_score(episode_dataset, env)
+            
+                if return_score:
+                    R_list.append(R)
+                    J_list.append(J)
+                if eval_step_info:
+                    step += 1
+                    sys.stdout.write(f"\rStep {step}")
+                    sys.stdout.flush()
+            wandb.log({f"test/R": R, f"test/J": J}, commit=False)
+            log_info_history([ep[1]for ep in episode_dataset], episode, tracking, "test", commit=False)
+            log_figure_from_history([ep[1]for ep in episode_dataset], episode, tracking, "test", commit=True)
+            dataset.append(episode_dataset)
+            
     elif agent.train_mode == "env_interaction":
 
         # save initial agent

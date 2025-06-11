@@ -44,8 +44,8 @@ def make_env(args, mode='train', **kwargs):
     env = PricingEnv(**args.pricing_kwargs)
 
     # RL^2 needs (s_{t-1}, a_{t-1}, r_{t-1}) in the observation
-    if args.ar_in_state:
-        env = PrevActRewWrapper(env)
+    # if args.ar_in_state:
+    #     env = PrevActRewWrapper(env)
 
 
     # optional obs normalisation (reuse Hyper’s wrapper if desired)

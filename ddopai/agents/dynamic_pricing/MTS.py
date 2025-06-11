@@ -24,115 +24,204 @@ from ...envs.actionprocessors import ClipAction
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 4
-class MTSPolicy():
-    def __init__(self,
-                 environment_info: MDPInfo, # Environment metadata including observation and action spaces
-                 sigma: float, # Known standard deviation of demand noise 
-                 lambda_e: float, # Regularization parameter for exploration
-                 exploration:float=1e-2, # Exploration parameter
-                 c_0:float = 1, # Regularization parameter for the price function
-                 c_2_const:float = 1, # Regularization parameter for the price function
-                 x_max:float = 1, # Maximum value of the state space
-                 N: int = 400, 
-                 obsprocessors: Optional[List[object]] = None, # Initial exploratory prices used in the first few epochs
-                 actionprocessors: Optional[List[object]] = None, 
-                 agent_name: str | None = None,
-                 ex_prices: np.ndarray | None = None,
-                 price_function = None, # Function that computes optimal prices given parameters and observations
-                 g=None):
-        self.env_info = environment_info
-        self.actionprocessors = actionprocessors if actionprocessors else []
-        self.obsprocessors = obsprocessors if obsprocessors else []
-        
-        self.price_function = price_function
-        self.sigma = sigma
-        self.lambda_e = lambda_e
-        self.p_min = environment_info.action_space.low
-        self.p_max = environment_info.action_space.high
-        self.c_0 = c_0
-        self.c_1 = c_0/(np.sqrt(1+self.p_max)**2*x_max)
-        self.c_2 = c_2_const/self.c_1
-        self.ex_prices = np.array(ex_prices) if ex_prices is not None else np.array([0, self.p_max])
-        self.T = environment_info.horizon
-        self.d = environment_info.observation_space['features'].shape[0]
-        self.N = N
-        self.g = g
+class _GaussianPosterior:
+    """Stores (μ, Σ) and supports sampling and rank‑1 Bayesian updates."""
+    def __init__(self, d: int, mu0: np.ndarray, Sigma0: np.ndarray, sigma: float, rng: np.random.Generator):
+        self.d = d                      # dimension
+        self.mu = mu0.astype(float).reshape(-1)
+        self.Sigma = Sigma0.astype(float)
+        self.sigma2 = sigma ** 2        # observation noise variance
+        self.rng = rng
+        # precision‑scaled mean f = Σ⁻¹ μ
+        self.f = np.linalg.solve(self.Sigma, self.mu)
 
-        self.th_hat_store = []
-        self.correction = np.zeros((2*self.d, 2*self.d))
+    # ---- API ----
+    def sample_theta(self) -> np.ndarray:
+        return self.rng.multivariate_normal(self.mu, self.Sigma)
 
-        self.th_hat = np.zeros(2*self.d)
-        self.sig_mpdp = np.eye(2*self.d)
-        self.f = np.zeros(2*self.d)
-        
-        self.X = np.empty((0, 2*self.d))
-        self.Y = np.empty((0, 1))
+    def update(self, m: np.ndarray, y: float):
+        """Rank‑1 Bayesian update for y = θᵗ m + ε,  ε ~ N(0, σ²)."""
+        m = m.reshape(-1)                    # ensure (2d,)
+        denom = (1.0 / self.sigma2) + m @ self.Sigma @ m / (self.sigma2 ** 2)
+        gain  = (self.Sigma @ m) / (self.sigma2 * denom)      # (2d,)
+        self.mu     = self.mu   + gain * (y - m @ self.mu)    # new mean
+        self.Sigma  = self.Sigma - np.outer(gain, m) @ self.Sigma
+        # numerical symmetrise + PSD guard
+        self.Sigma  = 0.5 * (self.Sigma + self.Sigma.T)
+        eigvals = np.linalg.eigvalsh(self.Sigma)
+        if eigvals.min() <= 0:
+            self.Sigma += (abs(eigvals.min()) + 1e-10) * np.eye(self.Sigma.shape[0])
+        self.f = np.linalg.solve(self.Sigma, self.mu)
 
-        self.t_e = max(int(np.ceil(4 * np.log(self.d * self.T * self.N ))), 2*self.lambda_e/self.c_0)
-        self.N_0 = int((self.c_2*self.d)**2/(self.lambda_e*2))
-        self.t = 0
-        self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
-        self.mode = "train"
-    
-    def draw_action(self, observation: np.ndarray):
-        if self.t < self.t_e:
-                price = self.ex_prices[self.t % len(self.ex_prices)]
-        else:
-            X = observation['features']
-
-            th_dot = np.random.multivariate_normal(self.th_hat, self.sig_mpdp)
-            price = self.price_function(X, th_dot[:self.d], th_dot[self.d:])
-                
-        for processor in self.actionprocessors:
-            price = processor(price)
-        
-        return np.array(price)
-    
-    def fit(self, X, Y, action):
-        self.t += 1
-        x_action = np.concatenate([X, X * action])
-        self.X = np.vstack([self.X, x_action])
-        self.Y = np.vstack([self.Y, Y])
-        self.parameter_update(x_action, Y)
-
-    def parameter_update(self, x_action, Y):
-        reward = Y.flatten()  # Assuming single reward per observation
-        vector = x_action.flatten()
-
-        if self.t >= self.t_e:
-            self.f += reward * vector
-            self.sig_mpdp -= (self.sig_mpdp @ np.outer(vector, vector) @ self.sig_mpdp) / (1 + vector.T @ self.sig_mpdp @ vector)
-            self.th_hat = self.sig_mpdp @ self.f
-
-    
-    def update_env(self, env):
-        if self.X.size > 0:
-            current_th_hat = np.linalg.inv(self.X.T @ self.X) @ self.X.T @ self.Y
-            self.th_hat_store.append(current_th_hat)
-            self.correction += np.linalg.pinv(self.X.T @ self.X)
-
-            i = len(self.th_hat_store)
-            if i >= self.N_0:
-                dumb = np.hstack(self.th_hat_store).T
-                self.th_hat = np.mean(dumb, axis=0)
-
-                cov_dumb = np.cov(dumb, rowvar=False)
-                self.sig_mpdp = ((i - 1) * cov_dumb / (i - 2) - 
-                                0.8 * self.sigma * self.correction / (i - 1) +
-                                0.5 * self.d * np.eye(2*self.d) / np.sqrt(i))
-
-                self.f = np.linalg.inv(self.sig_mpdp) @ self.th_hat
-
-        self.environment_info = env.mdp_info
-        self.X = np.empty((0, 2*self.d))
-        self.Y = np.empty((0, 1))
-        self.t = 0
-        
-    def reset(self):
-        pass
+    # reset (used when we drop in a new prior at epoch start)
+    def reset(self, mu: np.ndarray, Sigma: np.ndarray):
+        self.mu = mu.astype(float).reshape(-1)
+        self.Sigma = Sigma.astype(float)
+        self.f = np.linalg.solve(self.Sigma, self.mu)
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 5
+class MTSPolicy:
+    def __init__(
+        self,
+        environment_info,  # any object with .action_space, .observation_space, .horizon
+        sigma: float,
+        lambda_e: float,
+        exploration: float = 1e-2,
+        c_0: float = 1.0,
+        c_2_const: float = 1.0,
+        x_max: float = 1.0,
+        N: int = 400,
+        obsprocessors: Optional[List[object]] = None,
+        actionprocessors: Optional[List[object]] = None,
+        agent_name: Optional[str] = None,
+        ex_prices: Optional[np.ndarray] = None,
+        price_function: Optional[List[object]] = None,
+        g=None,
+        seed: Optional[int] = None,
+    ):
+        # Environment metadata
+        self.env_info = environment_info
+        self.actionprocessors = actionprocessors or []
+        self.obsprocessors    = obsprocessors or []
+        self.price_function   = price_function
+
+        # scalar hyper‑parameters
+        self.sigma     = float(sigma)
+        self.lambda_e  = float(lambda_e)
+        self.p_min     = float(environment_info.action_space.low)
+        self.p_max     = float(environment_info.action_space.high)
+        self.c_0       = float(c_0)
+        # ---- fixed constant correction (issue #1) ----
+        self.c_1       = self.c_0 / (np.sqrt(1 + self.p_max**2) * x_max)
+        self.c_2       = c_2_const / self.c_1
+
+        # burn‑in prices 0 / p_max cycling
+        self.ex_prices = np.asarray(ex_prices, dtype=float) if ex_prices is not None else np.asarray([0.0, self.p_max])
+
+        # environment dims
+        self.T      = int(environment_info.horizon)
+        self.d      = int(environment_info.observation_space['features'].shape[0])
+        self.N      = int(N)
+        self.g      = g
+
+        # derived constants
+        self.t_e = max(int(np.ceil(4 * np.log(self.d * self.T * self.N))), int(2 * self.lambda_e / self.c_0))
+        self.N_0 = int((self.c_2 * self.d) ** 2 / (2 * self.lambda_e))
+
+        # RNG
+        self.rng = np.random.default_rng(seed)
+
+        # storage across epochs
+        self.th_hat_store: List[np.ndarray] = []   # individual OLS vectors
+        self.V_inv_store:  List[np.ndarray] = []   # V_j^{-1} for precision weighting
+
+        # running correction term Σ V_j^{-1}   (for bias correction)
+        self.correction = np.zeros((2 * self.d, 2 * self.d))
+
+        # ----- per‑epoch posterior (initially prior‑free) -----
+        mu0   = np.zeros(2 * self.d)
+        Sigma0 = exploration * np.sqrt(2 * self.d) * self.sigma * np.eye(2 * self.d)
+        self.posterior = _GaussianPosterior(2 * self.d, mu0, Sigma0, self.sigma, self.rng)
+
+        # Observation buffer for OLS at epoch end
+        self.X_buf = np.empty((0, 2 * self.d))
+        self.Y_buf = np.empty((0, 1))
+        self.t = 0        # within‑epoch time counter
+
+        
+        self.mode = "train"
+        
+    # --------------------------------------------------
+    # Interaction with the environment
+    # --------------------------------------------------
+    def draw_action(self, observation: np.ndarray) -> np.ndarray:
+        """Called by the environment each step to obtain a price."""
+        if self.t < self.t_e:           # deterministic exploration spindle
+            price = self.ex_prices[self.t % len(self.ex_prices)]
+        else:
+            x_feat = observation['features'].astype(float).reshape(self.d)
+            theta_draw = self.posterior.sample_theta()
+            alpha = theta_draw[: self.d]
+            beta  = theta_draw[self.d :]
+            price = self.price_function(x_feat, alpha, beta)
+        for proc in self.actionprocessors:
+            price = proc(price)
+        return np.asarray([price], dtype=float)   # keep shape (1,)
+    
+    # --------------------------------------------------
+    # Online update after receiving (x, price, demand)
+    # --------------------------------------------------
+    def fit(self, X: np.ndarray, Y: np.ndarray, action: float):
+        """One training step.  X : features (d,),  Y : realised demand (scalar)."""
+        self.t += 1
+        m = np.concatenate([X, X * action]).astype(float)       # (2d,)
+        self.X_buf = np.vstack([self.X_buf, m])
+        self.Y_buf = np.vstack([self.Y_buf, [[Y]]])
+
+        # update posterior *after* burn‑in
+        if self.t >= self.t_e:
+            self.posterior.update(m, float(Y))
+
+    # --------------------------------------------------
+    # End of epoch – build OLS & possibly refresh meta‑prior
+    # --------------------------------------------------
+    def update_env(self, env):
+        """Call this after each product/epoch ends."""
+        # ---------- compute OLS (full‑rank guaranteed by burn‑in) ----------
+        V = self.X_buf.T @ self.X_buf               # (2d,2d)
+        V_inv = np.linalg.pinv(V)
+        theta_hat = (V_inv @ self.X_buf.T @ self.Y_buf).flatten()
+        self.th_hat_store.append(theta_hat)
+        self.V_inv_store.append(V_inv)
+
+        # bias‑correction term needed for Σ̂ (Meta‑DP++)
+        self.correction += V_inv
+
+        # ---------- decide if we have enough products to build meta‑prior ----------
+        i = len(self.th_hat_store)
+        if i >= self.N_0:
+            # precision‑weighted mean   μ̂ = (Σ V_j^{-1})^{-1} Σ V_j^{-1} θ̂_j
+            sum_prec = np.zeros_like(V_inv)
+            sum_prec_theta = np.zeros(2 * self.d)
+            for Vj_inv, thetaj in zip(self.V_inv_store, self.th_hat_store):
+                sum_prec += Vj_inv
+                sum_prec_theta += Vj_inv @ thetaj
+            mu_hat = np.linalg.solve(sum_prec, sum_prec_theta)
+
+            # sample covariance of θ̂_j  (unbiased)  then bias‑correct + widen
+            dumb = np.stack(self.th_hat_store, axis=1)  # (2d, i)
+            cov_emp = np.cov(dumb, bias=False)
+            noise_bias = self.sigma ** 2 * self.correction / i
+            widen_term = (128 * (self.lambda_e * self.lambda_e + 16 * self.sigma ** 2 * self.d) / (self.lambda_e ** 2)) * np.sqrt(5 * self.d * np.log(2 * self.N ** 2 * self.T) / i) * np.eye(2 * self.d)
+            Sigma_hat = cov_emp - noise_bias + widen_term
+            Sigma_hat = 0.5 * (Sigma_hat + Sigma_hat.T)  # symmetrise
+            eig = np.linalg.eigvalsh(Sigma_hat)
+            if eig.min() <= 0:
+                Sigma_hat += (abs(eig.min()) + 1e-10) * np.eye(2 * self.d)
+
+            # refresh posterior with the new prior
+            self.posterior.reset(mu_hat, Sigma_hat)
+
+        else:
+            # still in prior‑free exploration – reset to wide spherical prior
+            mu0 = np.zeros(2 * self.d)
+            Sigma0 = np.eye(2 * self.d) * np.sqrt(2 * self.d) * self.sigma
+            self.posterior.reset(mu0, Sigma0)
+
+        # ---------- prepare for next epoch ----------
+        self.env_info = env.mdp_info
+        self.X_buf = np.empty((0, 2 * self.d))
+        self.Y_buf = np.empty((0, 1))
+        self.t = 0
+
+    # --------------------------------------------------
+    def reset(self):
+        """Keeps interface – no‑op since we re‑initialise in update_env."""
+        pass
+
+
+# %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 6
 class MTSCoreAgent(Agent):
 
     """
@@ -169,7 +258,7 @@ class MTSCoreAgent(Agent):
         self.policy.update_env(env)
 
 
-# %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 6
+# %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 7
 class MTSAgent(PricingMushroomBaseAgent):
     """
     Wrapper class for TSCoreAgent to interact with MushroomRL.

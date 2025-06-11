@@ -68,9 +68,9 @@ class PricingEnv(gym.Env):
                  # feature & task-distribution settings
                  nb_features: int = 1,
                  horizon_choices: List[int] = (500,),
-                 mean_alpha: float = 1.2,
+                 mean_alpha: List[float] = (1.2,),
                  std_alpha: float = 0.0,
-                 mean_beta: float = -0.3,
+                 mean_beta: List[float] = (-0.3,),
                  std_beta: float = 0.0,
                  noise_std_choices: List[float] = (0.2,),
                  inv_ratio_mean: float = 0.5,
@@ -84,9 +84,9 @@ class PricingEnv(gym.Env):
         # -------- store hyper-parameters -------------------------------------
         self.nb_features       = nb_features
         self.horizon_choices   = tuple(horizon_choices)
-        self.mean_alpha        = mean_alpha
+        self.mean_alpha        = tuple(mean_alpha)
         self.std_alpha         = std_alpha
-        self.mean_beta         = mean_beta
+        self.mean_beta         = tuple(mean_beta)
         self.std_beta          = std_beta
         self.noise_std_choices = tuple(noise_std_choices)
         self.inv_ratio_mean    = inv_ratio_mean
@@ -201,8 +201,10 @@ class PricingEnv(gym.Env):
     # ---------- task sampler --------------------------------------------------
     def _sample_task(self) -> np.ndarray:
         F = self.nb_features
-        alpha = np.random.normal(self.mean_alpha, self.std_alpha,  size=F)
-        beta  = np.random.normal(self.mean_beta,  self.std_beta,   size=F)
+        mean_alpha = float(np.random.choice(self.mean_alpha))
+        mean_beta  = float(np.random.choice(self.mean_beta))
+        alpha = np.random.normal(mean_alpha, self.std_alpha,  size=F)
+        beta  = np.random.normal(mean_beta,  self.std_beta,   size=F)
         sigma = float(np.random.choice(self.noise_std_choices))
         inv_ratio = float(np.clip(
             np.random.normal(self.inv_ratio_mean, self.inv_ratio_std), 0.00, 1.0))
@@ -221,12 +223,12 @@ class PricingEnv(gym.Env):
 
     def _get_obs(self) -> np.ndarray:
         self._X = self._get_features()
-        return np.concatenate([[self.inv], self._X]).astype(np.float32)
+        return np.concatenate([self._X, [self.inv]]).astype(np.float32)
 
     # ---------- demand model --------------------------------------------------
     def _demand(self, price: float, noise: float) -> float:
         """Linear demand with additive noise; demand ≥ 0."""
-        mean = float(np.dot(self.alpha - self.beta * price, self._X))
+        mean = float(np.dot(self._X, self.alpha) + np.dot(self._X, self.beta) * price)
         return max(0.0, mean + noise)
 
     # ---------- visualisation stub -------------------------------------------

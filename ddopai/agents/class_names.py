@@ -40,5 +40,6 @@ AGENT_CLASSES = {
     "Clairvoyant": "ddopai.agents.dynamic_pricing.clairvoyant.ClairvoyantAgent",
     "MTS": "ddopai.agents.dynamic_pricing.MTS.MTSAgent",
     
-    "IDP": "ddopai.agents.dynamic_pricing.inventory_constrained.IDP.IDPAgent"
+    "IDP": "ddopai.agents.dynamic_pricing.inventory_constrained.IDP.IDPAgent",
+    "Hyper": "ddopai.agents.rl.hyper.HyperAgent",
 }
