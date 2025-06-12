@@ -86,11 +86,10 @@ class ILQXPolicy():
         self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
         self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
     
-    def update_env(self, env):
+    def update_task(self, env):
         self.environment_info = env.mdp_info
         self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
         self.Y = np.empty((0, 1))
-        self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
         self.M = [[np.power(x,2)+i for x in range(0, int(np.sqrt(self.environment_info.horizon)))] for i in range(0, 2)]
         self.t = 0 
         
@@ -127,8 +126,8 @@ class ILQXCoreAgent(Agent):
         action = dataset[0][1]
         self.policy.fit(X, Y, action)
 
-    def update_env(self, env):
-        self.policy.update_env(env)
+    def update_task(self, env):
+        self.policy.update_task(env)
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/11_ILQX_agent.ipynb 6
@@ -157,6 +156,6 @@ class ILQXAgent(PricingMushroomBaseAgent):
                                    price_function = price_function, 
                                    g = g)
         super().__init__(environment_info = environment_info, obsprocessors = obsprocessors, agent_name = agent_name)
-    def update_env(self, env: object):
+    def update_task(self, env: object):
         """ Update the environment specific parameters of the agent """
-        self.agent.update_env(env)
+        self.agent.update_task(env)

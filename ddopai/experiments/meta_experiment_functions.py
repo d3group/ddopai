@@ -223,7 +223,7 @@ def create_online_data(
             size = parameter["horizon"]
             noise_std = parameter["noise_std"]
             if nb_features > 1:
-                scale = 1 / np.sqrt(nb_features-1)
+                scale = 1 / np.sqrt(nb_features)
                 X = np.random.uniform(0, scale, size=(size, nb_features))
             else:
                 X = np.ones((size, 1))

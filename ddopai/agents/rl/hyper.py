@@ -118,7 +118,7 @@ class HyperAgent(BaseAgent):          # extend your own BaseAgent if you have on
                                         latent_logvar=self.latent_logvar)
 
         with torch.no_grad():
-            _, action, _ = self.policy.act(state=state_t.view(-1),
+            _, action, _ = self.policy.act(state=state_t,
                                            latent=latent,
                                            belief=None, task=None,
                                            deterministic=self.deterministic)

@@ -129,7 +129,27 @@ class SACBaseAgent(MushroomBaseAgent):
                                 dropout=self.dropout,)
                             
         critic_params = merge_dictionaries(critic_params, network_critic_params)
-
+        self.agent_params = {
+            "mdp_info": environment_info,
+            "actor_mu_params": actor_mu_params,
+            "actor_sigma_params": actor_sigma_params,
+            "actor_optimizer": actor_optimizer,
+            "critic_params": critic_params,
+            "batch_size": batch_size,
+            "initial_replay_size": initial_replay_size,
+            "max_replay_size": max_replay_size,
+            "warmup_transitions": warmup_transitions,
+            "tau": tau,
+            "lr_alpha": lr_alpha,
+            "use_log_alpha_loss": use_log_alpha_loss,
+            "log_std_min": log_std_min,
+            "log_std_max": log_std_max,
+            "target_entropy": target_entropy,
+            "critic_fit_params": None
+        }
+        self._obsprocessors = obsprocessors 
+        self.device = device
+        self.agent_name = agent_name
         self.agent = SAC(
             mdp_info=environment_info,
             actor_mu_params=actor_mu_params,
@@ -228,6 +248,33 @@ class SACBaseAgent(MushroomBaseAgent):
         action = action.cpu().detach().numpy()
 
         return action
+    
+    def update_task(self, env):
+        self.agent = SAC(
+            mdp_info=env.mdp_info,
+            actor_mu_params=self.agent_params["actor_mu_params"],
+            actor_sigma_params=self.agent_params["actor_sigma_params"],
+            actor_optimizer=self.agent_params["actor_optimizer"],
+            critic_params=self.agent_params["critic_params"],
+            batch_size=self.agent_params["batch_size"],
+            initial_replay_size=self.agent_params["initial_replay_size"],
+            max_replay_size=self.agent_params["max_replay_size"],
+            warmup_transitions=self.agent_params["warmup_transitions"],
+            tau=self.agent_params["tau"],
+            lr_alpha=self.agent_params["lr_alpha"],
+            use_log_alpha_loss=self.agent_params["use_log_alpha_loss"],
+            log_std_min=self.agent_params["log_std_min"],
+            log_std_max=self.agent_params["log_std_max"],
+            target_entropy=self.agent_params["target_entropy"],
+            critic_fit_params=self.agent_params["critic_fit_params"]
+        )
+        self.obsprocessors = self._obsprocessors
+        super().__init__(
+            environment_info=env.mdp_info,
+            obsprocessors=self._obsprocessors,
+            device=self.device,
+            agent_name=self.agent_name
+        )
 
 # %% ../../../nbs/30_agents/51_RL_agents/10_SAC_agents.ipynb 6
 class SACAgent(SACBaseAgent):

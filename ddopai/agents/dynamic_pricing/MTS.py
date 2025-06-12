@@ -147,7 +147,7 @@ class MTSPolicy:
             price = self.price_function(x_feat, alpha, beta)
         for proc in self.actionprocessors:
             price = proc(price)
-        return np.asarray([price], dtype=float)   # keep shape (1,)
+        return price   # keep shape (1,)
     
     # --------------------------------------------------
     # Online update after receiving (x, price, demand)
@@ -157,7 +157,7 @@ class MTSPolicy:
         self.t += 1
         m = np.concatenate([X, X * action]).astype(float)       # (2d,)
         self.X_buf = np.vstack([self.X_buf, m])
-        self.Y_buf = np.vstack([self.Y_buf, [[Y]]])
+        self.Y_buf = np.vstack([self.Y_buf, [Y]])
 
         # update posterior *after* burn‑in
         if self.t >= self.t_e:
@@ -166,7 +166,7 @@ class MTSPolicy:
     # --------------------------------------------------
     # End of epoch – build OLS & possibly refresh meta‑prior
     # --------------------------------------------------
-    def update_env(self, env):
+    def update_task(self, env):
         """Call this after each product/epoch ends."""
         # ---------- compute OLS (full‑rank guaranteed by burn‑in) ----------
         V = self.X_buf.T @ self.X_buf               # (2d,2d)
@@ -254,8 +254,8 @@ class MTSCoreAgent(Agent):
         Y = kwargs["demand"][0]
         action = dataset[0][1]
         self.policy.fit(X, Y, action)
-    def update_env(self, env):
-        self.policy.update_env(env)
+    def update_task(self, env):
+        self.policy.update_task(env)
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_MTS_agent.ipynb 7
@@ -284,7 +284,7 @@ class MTSAgent(PricingMushroomBaseAgent):
                                   agent_name=agent_name, ex_prices=ex_prices, price_function=price_function, g=g)
         super().__init__(environment_info=environment_info, obsprocessors=obsprocessors, agent_name=agent_name)
         
-    def update_env(self, env: object):
+    def update_task(self, env: object):
         """ Update the environment specific parameters of the agent """
-        self.agent.update_env(env)
+        self.agent.update_task(env)
 
