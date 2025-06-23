@@ -39,6 +39,7 @@ AGENT_CLASSES = {
     "UCB": "ddopai.agents.dynamic_pricing.UCB.UCBAgent",
     "Clairvoyant": "ddopai.agents.dynamic_pricing.clairvoyant.ClairvoyantAgent",
     "MTS": "ddopai.agents.dynamic_pricing.MTS.MTSAgent",
+    "PTS": "ddopai.agents.dynamic_pricing.PTS.PTSAgent",
     
     "IDP": "ddopai.agents.dynamic_pricing.inventory_constrained.IDP.IDPAgent",
     "Hyper": "ddopai.agents.rl.hyper.HyperAgent",

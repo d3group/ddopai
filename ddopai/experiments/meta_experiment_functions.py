@@ -359,13 +359,21 @@ def get_link(link: str = "linear"):
         def g_prime(x):
             return 1
         
-    if link=="log":
+    if link=="logit":
         def g(x):
-            return np.log(x)
+            return np.divide(np.exp(x), 1+np.exp(x))
         def g_inv(x):
-            return np.exp(x)
+            return np.log(np.divide(x, 1-x))
         def g_prime(x):
-            return 1/x
+            s = g(x)
+            return s * (1 - s)
+    if link=="exponential":
+        def g(x):
+            return np.exp(x)
+        def g_inv(x):
+            return np.log(x)
+        def g_prime(x):
+            return x
     glm_link = GLMLink(g=g, g_inv=g_inv, g_prime=g_prime, link=link) 
     price_function = get_price_function(link)
     return glm_link, price_function

@@ -178,18 +178,20 @@ class OnlineDataLoader(BaseDataLoader):
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
 
             return linear, alpha, beta
-        if function_form == 'log':
+        if function_form == 'logit':
             def log(X, action):
-                demand_no_noise = np.divide(np.exp(np.dot(alpha, X) + np.dot(beta, X) * action), 1 + np.exp(np.dot(alpha, X) + np.dot(beta, X) * action))
+                demand_no_noise = 3.5 * np.divide(np.exp(np.dot(alpha, X) + np.dot(beta, X) * action), 1 + np.exp(np.dot(alpha, X) + np.dot(beta, X) * action))
                 demand = demand_no_noise + epsilon
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
             return log, alpha, beta
-        if function_form == 'exp':
+        
+        if function_form == 'exponential':
             def exp(X, action):
-                demand_no_noise = np.exp(np.dot(alpha, X) + np.dot(beta, X) * action)
+                demand_no_noise = np.exp(np.multiply(np.dot(alpha, X),0.55) + np.dot(beta, X) * action)
                 demand = demand_no_noise + epsilon
                 return np.maximum(demand, 0), np.maximum(demand_no_noise, 0)
             return exp, alpha, beta
+        
         if function_form == 'probit': # TODO: think about this more 
             return NotImplementedError('Probit not implemented yet')
             def probit(X, action):

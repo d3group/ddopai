@@ -14,6 +14,7 @@ import numpy as np
 import joblib
 import os
 import torch 
+from scipy.optimize import root_scalar
 
 # %% ../../../nbs/30_agents/42_DP_agents/00_utils.ipynb 4
 class GLMLink:
@@ -54,8 +55,44 @@ def get_price_function(function_form="linear"):
             assert len(alpha) == len(x) and len(beta) == len(x)
             return np.array(-np.divide(np.dot(alpha, x), 2*np.dot(beta, x) + 1e-10))
         return price_function
-    if function_form == "log":
+    
+    if function_form == "logit":
+        
         def price_function(x, alpha, beta):
             assert len(alpha) == len(x) and len(beta) == len(x)
-            return np.array(-np.divide(np.dot(alpha, x), np.dot(beta, x)+ 1e-10))
+            M = 3.5
+            a = np.dot(alpha, x)
+            b = -np.dot(beta, x)
+                
+            def sigma(z):
+                return 1 / (1 + np.exp(-z))
+            def revenue_derivative(p):
+                z = a - b*p
+                s = sigma(z)
+                return M * (s - b * p * (1 - s) * s)
+            p_guess = 1.0 / b
+            if p_guess <= 0:
+                return np.array(0.0)
+            bracket = [max(1e-4, p_guess * 0.1), p_guess * 10]
+
+            # Ensure f(a) and f(b) have different signs
+            f_a = revenue_derivative(bracket[0])
+            f_b = revenue_derivative(bracket[1])
+            if f_a * f_b > 0:
+                return np.array(p_guess)
+
+            result = root_scalar(revenue_derivative, bracket=bracket, method='brentq', xtol=1e-8, maxiter=100)
+
+            if not result.converged:
+                raise RuntimeError(f"Logit optimal price solver did not converge for a={a}, b={b}, M={M}")
+
+            return np.array(result.root)
+        
         return price_function
+    
+    if function_form == "exponential":
+        def price_function(x, alpha, beta):
+            assert len(alpha) == len(x) and len(beta) == len(x)
+            return np.array(-np.divide(1, np.dot(beta, x)+ 1e-10))
+        return price_function
+    

@@ -75,6 +75,7 @@ class PricingEnv(gym.Env):
                  noise_std_choices: List[float] = (0.2,),
                  inv_ratio_mean: float = 0.5,
                  inv_ratio_std: float = 0.1,
+                 function_choices: List[int] = (0,), # 0: linear, 1: log
 
                  # optional fixed task (otherwise sampled)
                  task: Optional[np.ndarray] = None):
@@ -91,7 +92,7 @@ class PricingEnv(gym.Env):
         self.noise_std_choices = tuple(noise_std_choices)
         self.inv_ratio_mean    = inv_ratio_mean
         self.inv_ratio_std     = inv_ratio_std
-
+        self.function_choices     = tuple(function_choices)
         # -------- Gym spaces --------------------------------------------------
         # action: scalar price -------------------------------------------------
         self.action_space = gym.spaces.Box(
@@ -108,7 +109,7 @@ class PricingEnv(gym.Env):
         )
 
         # task vector (never actually sampled by the library code) ------------
-        self.task_dim = 2 * nb_features + 3
+        self.task_dim = 2 * nb_features + 4
         self.task_space = gym.spaces.Box(
             low=-self._BIG, high=self._BIG,
             shape=(self.task_dim,), dtype=np.float32
@@ -143,6 +144,7 @@ class PricingEnv(gym.Env):
         self.sigma     = float(task[2*F])
         self.inv_ratio = float(np.clip(task[2*F + 1], 0.00, 1.0))
         self.horizon   = int(task[2*F + 2])
+        self.function = int(task[2*F + 3])
 
     def get_task(self) -> np.ndarray:
         """Return **copy** of the current task vector (float32)."""
@@ -209,9 +211,9 @@ class PricingEnv(gym.Env):
         inv_ratio = float(np.clip(
             np.random.normal(self.inv_ratio_mean, self.inv_ratio_std), 0.00, 1.0))
         horizon = int(np.random.choice(self.horizon_choices))
-
+        function_choices = np.random.choice(self.function_choices)
         return np.concatenate([alpha, beta,
-                               [sigma, inv_ratio, horizon]]).astype(np.float32)
+                               [sigma, inv_ratio, horizon, function_choices]]).astype(np.float32)
 
     # ---------- observation helpers ------------------------------------------
     def _get_features(self) -> np.ndarray:
@@ -228,7 +230,15 @@ class PricingEnv(gym.Env):
     # ---------- demand model --------------------------------------------------
     def _demand(self, price: float, noise: float) -> float:
         """Linear demand with additive noise; demand ≥ 0."""
-        mean = float(np.dot(self._X, self.alpha) + np.dot(self._X, self.beta) * price)
+        if self.function == 1: # exp function
+            mean = float(np.exp(np.dot(self._X, self.alpha)* 0.55 + np.dot(self._X, self.beta) * price))
+        
+        elif self.function == 2: # logit function
+            zeta = np.exp(np.dot(self._X, self.alpha) + np.dot(self._X, self.beta) * price)
+            mean = float(3 * np.divide(zeta, 1 + zeta)) 
+            
+        else: # Linear function
+            mean = float(np.dot(self._X, self.alpha) + np.dot(self._X, self.beta) * price)
         return max(0.0, mean + noise)
 
     # ---------- visualisation stub -------------------------------------------
