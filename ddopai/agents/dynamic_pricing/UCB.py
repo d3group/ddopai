@@ -80,22 +80,29 @@ class UCBPolicy:
         self.Y = np.vstack([self.Y, Y])
         self.parameter_update()
 
-    def parameter_update(self):
-        if self.X.shape[0] < 2:
-            return
-        def loss(theta):
-            preds = self.g.g(self.X @ theta)
-            errors = preds - self.Y.flatten()
-            weights = 1 / self.g.v(preds)
-            return np.sum((errors**2) * weights) + self.reg * np.linalg.norm(theta)**2
+    def parameter_update(self, z, D_t):
+        """
+        One-step Sherman-Morrison update of the quasi-MLE for the *identity* link g(u)=u
+        (linear demand).  If you keep a general g, replace D_t by the *score* below.
+        """
+        if self.t == 0:
+            # first call: initialise
+            d = len(z)
+            self.M_inv = np.eye(d) / self.lam          # (λI)^{-1}
+            self.q = np.zeros(d)
 
-        theta0 = np.concatenate([self.alpha, self.beta])
-        res = minimize(loss, theta0, method='L-BFGS-B')
-        if res.success:
-            theta_hat = res.x
-            d = self.environment_info.observation_space['features'].shape[0]
-            self.alpha = theta_hat[:d]
-            self.beta = theta_hat[d:]
+        # rank-1 update of M_t^{-1}
+        Mz = self.M_inv @ z
+        self.M_inv -= np.outer(Mz, Mz) / (1.0 + z @ Mz)
+
+        # running first-order term
+        self.q += z * D_t
+
+        # new parameter
+        theta_hat = self.M_inv @ self.q
+        d = theta_hat.size // 2
+        self.alpha, self.beta = theta_hat[:d], theta_hat[d:]
+
 
     def sample_design_matrix(self):
         d = self.environment_info.observation_space['features'].shape[0]
@@ -113,11 +120,31 @@ class UCBPolicy:
         ])
         return np.linalg.inv(block_matrix @ np.linalg.inv(M) @ block_matrix.T)
 
-    def sample_from_confidence_region(self, theta_hat, M, N=50):
+    def sample_from_confidence_region(self, theta_hat, M, N=50, gamma=None):
+        """
+        Draw N points uniformly at random from
+            {theta : (theta - theta_hat)^T M^{-1} (theta - theta_hat) <= gamma}
+        """
+        d = len(theta_hat)                        # here d = 2·feature_dim
+        if gamma is None:
+            # Simple hard-coded radius like the authors’ demo: Γ = d / 20
+            # In production you would compute the analytic β_t²
+            gamma = d / 20.0
+
+        # Cholesky factor of M^{-1}
         L = np.linalg.cholesky(np.linalg.inv(M))
-        u = np.random.randn(len(theta_hat), N)
-        u /= np.linalg.norm(u, axis=0)
-        return (theta_hat[:, np.newaxis] + (1 / self.environment_info.observation_space['features'].shape[0]) * (L @ u)).T
+
+        # 1. Draw points *in* the unit ball (not only on the surface)
+        rng = np.random.default_rng()
+        u = rng.normal(size=(d, N))
+        u /= np.linalg.norm(u, axis=0)            # on the sphere
+        r = rng.random(N)**(1.0 / d)              # radii ∼ U[0,1]^{1/d}
+        u *= r                                    # now in the ball
+
+        # 2. Map ball → ellipsoid and 3. translate by theta_hat
+        samples = theta_hat[:, None] + np.sqrt(gamma) * (L @ u)
+        return samples.T                          # shape (N, d)
+
 
     def max_rev(self, samples, x):
         max_val = -np.inf
