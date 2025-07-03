@@ -74,11 +74,12 @@ class UCBPolicy:
         return np.array(price, dtype=np.float32)
 
     def fit(self, X, Y, action):
-        self.t += 1
+
         Z = np.concatenate([X, X * action])
         self.X = np.vstack([self.X, Z])
         self.Y = np.vstack([self.Y, Y])
-        self.parameter_update()
+        self.parameter_update(Z, Y)
+        self.t += 1
 
     def parameter_update(self, z, D_t):
         """
