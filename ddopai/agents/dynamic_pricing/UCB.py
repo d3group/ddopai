@@ -11,9 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Union, Optional, List
 import numpy as np
-import joblib
 import os
-import statsmodels.api as sm
 from .utils import GLMLink
 from ...envs.base import BaseEnvironment
 from .mushroom_rl import PricingMushroomBaseAgent
@@ -21,26 +19,26 @@ from mushroom_rl.core import Agent
 from ...utils import MDPInfo
 from ..obsprocessors import FlattenTimeDimNumpy
 from ...envs.actionprocessors import ClipAction
-
+from scipy.optimize import minimize
 
 # %% ../../../nbs/30_agents/42_DP_agents/13_UCB_agent.ipynb 4
-class UCBPolicy():
+class UCBPolicy:
     def __init__(self,
                  lam: float,
                  reg: float,
                  environment_info: MDPInfo,
-                 obsprocessors: Optional[List[object]] = None,
-                 actionprocessors: Optional[List[object]] = None,
-                 agent_name: str | None = None,
-                 ex_prices: np.ndarray | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
-                 price_function = None,
-                 g = None,
-                 ):
-        assert type(alpha) == type(beta), "alpha and beta must be of the same type"
+                 obsprocessors=None,
+                 actionprocessors=None,
+                 agent_name=None,
+                 ex_prices=None,
+                 alpha=None,
+                 beta=None,
+                 price_function=None,
+                 g=None):
+
         if alpha is None:
             alpha = np.zeros(environment_info.observation_space['features'].shape[0])
+        if beta is None:
             beta = np.zeros(environment_info.observation_space['features'].shape[0])
         if isinstance(ex_prices, list):
             ex_prices = np.array(ex_prices)
@@ -50,85 +48,100 @@ class UCBPolicy():
         self.ex_prices = ex_prices
         self.alpha = alpha
         self.beta = beta
-        self.actionprocessors = actionprocessors
-        self.price_function = price_function # Needs to return an np array
+        self.actionprocessors = actionprocessors or []
+        self.obsprocessors = obsprocessors or []
+        self.price_function = price_function
+        self.g = g
         self.lam = lam
         self.reg = reg
-        self.g = g
         self.t = 0
         self.X = np.empty((0, environment_info.observation_space['features'].shape[0] * 2))
         self.Y = np.empty((0, 1))
         self.mode = "train"
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
 
-    def draw_action(self, observation: np.ndarray):
+    def draw_action(self, observation):
+        x = observation['features']
         if self.t in [0, 1]:
-            prices = self.ex_prices[self.t]
+            price = self.ex_prices[self.t]
         else:
-            X = observation['features']
-            M = self.compute_uncertainty_M(X)
+            M = self.compute_uncertainty_M(x)
             samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
-            alpha, beta = self.max_rev(samples, X)
-            price = self.price_function(X, alpha, beta)
-            
+            alpha, beta = self.max_rev(samples, x)
+            price = self.price_function(x, alpha, beta)
         for processor in self.actionprocessors:
             price = processor(price)
-        
         return np.array(price, dtype=np.float32)
-    
+
+    def fit(self, X, Y, action):
+        self.t += 1
+        Z = np.concatenate([X, X * action])
+        self.X = np.vstack([self.X, Z])
+        self.Y = np.vstack([self.Y, Y])
+        self.parameter_update()
+
+    def parameter_update(self):
+        if self.X.shape[0] < 2:
+            return
+        def loss(theta):
+            preds = self.g.g(self.X @ theta)
+            errors = preds - self.Y.flatten()
+            weights = 1 / self.g.v(preds)
+            return np.sum((errors**2) * weights) + self.reg * np.linalg.norm(theta)**2
+
+        theta0 = np.concatenate([self.alpha, self.beta])
+        res = minimize(loss, theta0, method='L-BFGS-B')
+        if res.success:
+            theta_hat = res.x
+            d = self.environment_info.observation_space['features'].shape[0]
+            self.alpha = theta_hat[:d]
+            self.beta = theta_hat[d:]
+
     def sample_design_matrix(self):
-        I = np.identity(2*self.environment_info.observation_space['features'].shape[1])
-        I_lamdba = self.lam * I
+        d = self.environment_info.observation_space['features'].shape[0]
+        I = self.lam * np.identity(2 * d)
         if self.X.shape[0] == 0:
-            return I_lamdba
-        matrix = np.sum([np.outer(x, x.T) for x in self.X], axis=0)
-        return I_lamdba + matrix
-    
-    def sample_from_confidence_region(self, theta_hat, M, N=50):
-        L = np.linalg.cholesky(np.linalg.inv(M))
-        u = np.random.randn(len(theta_hat), N)
-        u /= np.linalg.norm(u, axis=0)
-        samples = theta_hat[:, np.newaxis] + 1/self.environment_info.observation_space['features'].shape[1] * L @ u
-        return samples.T
-    
+            return I
+        return I + self.X.T @ self.X
+
     def compute_uncertainty_M(self, x_t):
         M = self.sample_design_matrix()
+        d = x_t.shape[0]
         block_matrix = np.block([
             [x_t, np.zeros_like(x_t)],
             [np.zeros_like(x_t), x_t]
         ])
-        M_inverse = np.linalg.inv(M)
+        return np.linalg.inv(block_matrix @ np.linalg.inv(M) @ block_matrix.T)
 
-        projected_matrix = block_matrix @ M_inverse @ block_matrix.T
-        projected_matrix_inverse = np.linalg.inv(projected_matrix)
-        return projected_matrix_inverse
-    
-    def fit(self, X, Y, action):
-        assert self.mode == "train"
-        self.t += 1
-        X = np.concatenate([X, X * action])
-        self.X = np.vstack([self.X, X])
-        self.Y = np.vstack([self.Y, Y])
-        self.parameter_update()
-    
-    def parameter_update(self): 
-        if self.X.shape[0] < 2:
-            return
-        model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
-        results = model.fit()
-        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
-        self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
-    
+    def sample_from_confidence_region(self, theta_hat, M, N=50):
+        L = np.linalg.cholesky(np.linalg.inv(M))
+        u = np.random.randn(len(theta_hat), N)
+        u /= np.linalg.norm(u, axis=0)
+        return (theta_hat[:, np.newaxis] + (1 / self.environment_info.observation_space['features'].shape[0]) * (L @ u)).T
+
+    def max_rev(self, samples, x):
+        max_val = -np.inf
+        best_alpha, best_beta = None, None
+        for theta in samples:
+            alpha = theta[:x.shape[0]]
+            beta = theta[x.shape[0]:]
+            price = self.price_function(x, alpha, beta)
+            rev = price * self.g.g(np.dot(x, alpha) + price * np.dot(x, beta))
+            if rev > max_val:
+                max_val = rev
+                best_alpha, best_beta = alpha, beta
+        return best_alpha, best_beta
+
     def update_task(self, env):
         self.environment_info = env.mdp_info
-        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
+        d = self.environment_info.observation_space['features'].shape[0]
+        self.X = np.empty((0, 2 * d))
         self.Y = np.empty((0, 1))
         self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
-        self.M = [[np.power(x,2)+i for x in range(0, int(np.sqrt(self.environment_info.horizon)))] for i in range(0, 2)]
-        self.t = 0 
-        
+        self.t = 0
+
     def reset(self):
-        return
+        pass
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/13_UCB_agent.ipynb 5
