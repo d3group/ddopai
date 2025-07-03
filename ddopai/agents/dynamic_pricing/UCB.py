@@ -59,16 +59,16 @@ class UCBPolicy:
         self.Y = np.empty((0, 1))
         self.mode = "train"
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
-
+        self.d = environment_info.observation_space['features'].shape[0]
     def draw_action(self, observation):
         x = observation['features']
-        if self.t in [0, 1]:
-            price = self.ex_prices[self.t]
-        else:
-            M = self.compute_uncertainty_M(x)
-            samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
-            alpha, beta = self.max_rev(samples, x)
-            price = self.price_function(x, alpha, beta)
+        # if self.t in [0, 1]:
+        #     price = self.ex_prices[self.t]
+        # else:
+        M = self.sample_design_matrix()
+        samples = self.sample_from_confidence_region(np.concatenate([self.alpha, self.beta]), M)
+        alpha, beta = self.max_rev(samples, x)
+        price = self.price_function(x, alpha, beta)
         for processor in self.actionprocessors:
             price = processor(price)
         return np.array(price, dtype=np.float32)
@@ -89,7 +89,7 @@ class UCBPolicy:
         if self.t == 0:
             # first call: initialise
             d = len(z)
-            self.M_inv = np.eye(d) / self.lam          # (λI)^{-1}
+            self.M_inv = np.eye(d) / self.lam   if self.lam != 0 else np.eye(d)
             self.q = np.zeros(d)
 
         # rank-1 update of M_t^{-1}
@@ -97,8 +97,7 @@ class UCBPolicy:
         self.M_inv -= np.outer(Mz, Mz) / (1.0 + z @ Mz)
 
         # running first-order term
-        self.q += z * D_t
-
+        self.q += z * float(D_t)
         # new parameter
         theta_hat = self.M_inv @ self.q
         d = theta_hat.size // 2
@@ -106,20 +105,12 @@ class UCBPolicy:
 
 
     def sample_design_matrix(self):
-        d = self.environment_info.observation_space['features'].shape[0]
-        I = self.lam * np.identity(2 * d)
-        if self.X.shape[0] == 0:
-            return I
-        return I + self.X.T @ self.X
-
-    def compute_uncertainty_M(self, x_t):
-        M = self.sample_design_matrix()
-        d = x_t.shape[0]
-        block_matrix = np.block([
-            [x_t, np.zeros_like(x_t)],
-            [np.zeros_like(x_t), x_t]
-        ])
-        return np.linalg.inv(block_matrix @ np.linalg.inv(M) @ block_matrix.T)
+        # d = self.environment_info.observation_space['features'].shape[0]
+        # I = self.lam * np.identity(2 * d)
+        # if self.X.shape[0] == 0:
+        #     return I
+        # return I + self.X.T @ self.X
+        return np.linalg.inv(self.M_inv)
 
     def sample_from_confidence_region(self, theta_hat, M, N=50, gamma=None):
         """
@@ -153,8 +144,13 @@ class UCBPolicy:
         for theta in samples:
             alpha = theta[:x.shape[0]]
             beta = theta[x.shape[0]:]
-            price = self.price_function(x, alpha, beta)
-            rev = price * self.g.g(np.dot(x, alpha) + price * np.dot(x, beta))
+            a = np.dot(x, alpha)
+            b = np.dot(x, beta)
+            b = min(-0.01, b)
+            a = max( 0.01, a)
+            price = self.price_function(np.ones_like(x), a, b)
+
+            rev = price * self.g.g(a + price * b)
             if rev > max_val:
                 max_val = rev
                 best_alpha, best_beta = alpha, beta
@@ -162,8 +158,8 @@ class UCBPolicy:
 
     def update_task(self, env):
         self.environment_info = env.mdp_info
-        d = self.environment_info.observation_space['features'].shape[0]
-        self.X = np.empty((0, 2 * d))
+        self.d = self.environment_info.observation_space['features'].shape[0]
+        self.X = np.empty((0, 2 * self.d))
         self.Y = np.empty((0, 1))
         self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
         self.t = 0
