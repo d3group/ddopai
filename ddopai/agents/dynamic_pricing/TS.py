@@ -24,111 +24,107 @@ from ...envs.actionprocessors import ClipAction
 
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_TS_agent.ipynb 4
-class TSPolicy():
+class TSPolicy:
+    """
+    Minimal Thompson-Sampling agent for the linear-demand model
+        D = x⊤α + p · x⊤β + ε
+    – Gaussian prior  θ∼N(0,λ⁻¹I)
+    – Incremental ridge update of  M_t = λI + Σ z zᵀ  and  θ̂_t = M_t⁻¹ q_t
+    – One Gaussian posterior draw at each round, priced by  p* = -a / (2b)
+    """
+
+    # ---------- ctor ---------------------------------------------------------
     def __init__(self,
                  lam: float,
-                 reg: float,
                  environment_info: MDPInfo,
-                 obsprocessors: Optional[List[object]] = None,
-                 actionprocessors: Optional[List[object]] = None,
-                 agent_name: str | None = None,
-                 ex_prices: np.ndarray | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
-                 price_function = None,
-                 g = None,
-                 ):
-        assert type(alpha) == type(beta), "alpha and beta must be of the same type"
-        if alpha is None:
-            alpha = np.zeros(environment_info.observation_space['features'].shape[0])
-            beta = np.zeros(environment_info.observation_space['features'].shape[0])
-        if isinstance(ex_prices, list):
-            ex_prices = np.array(ex_prices)
-        assert ex_prices.shape[0] >= 2
+                 price_function,               # takes (x, a, b) ➜ price
+                 actionprocessors=None,
+                 warm_start_prices=None,
+                 init_scale=None):
+        """
+        lam      : ridge / prior precision λ
+        price_function(x, a, b) returns the quadratic-optimal price (usually -a/2b)
+        warm_start_prices : iterable of k ∈{0,1,2,…} initial prices; can be empty
+        init_scale        : exploration std-multiplier; default √d / 25
+        """
 
-        self.environment_info = environment_info
-        self.ex_prices = ex_prices
-        self.alpha = alpha
-        self.beta = beta
-        self.actionprocessors = actionprocessors
-        self.price_function = price_function # Needs to return an np array
-        self.lam = lam
-        self.reg = reg
-        self.g = g
-        self.t = 0
-        self.X = np.empty((0, environment_info.observation_space['features'].shape[0] * 2))
-        self.Y = np.empty((0, 1))
-        self.mode = "train"
-        self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
+        d_feat = environment_info.observation_space['features'].shape[0]
+        self.d_param  = 2 * d_feat
+        self.lam      = lam
+        self.scale    = init_scale or (np.sqrt(d_feat) / 25.0)
 
-    def draw_action(self, observation: np.ndarray):
-        if self.t in [0, 1]:
-            price = self.ex_prices[self.t]
+        # incremental posterior
+        self.M_inv = np.eye(self.d_param) / lam   if lam else np.eye(self.d_param)
+        self.q     = np.zeros(self.d_param)
+
+        # current point estimate
+        self.alpha = np.zeros(d_feat)
+        self.beta  = np.zeros(d_feat)
+
+        # misc
+        self.env_info   = environment_info
+        self.price_fn   = price_function
+        self.t          = 0
+        self.warm_p     = np.asarray(warm_start_prices) if warm_start_prices is not None else np.empty(0)
+
+        # processors (only clip)
+        self.actionprocessors = actionprocessors or []
+        self.actionprocessors.append(
+            ClipAction(environment_info.action_space.low,
+                       environment_info.action_space.high)
+        )
+
+    # ---------- draw_action ---------------------------------------------------
+    def draw_action(self, observation):
+        x = observation['features']
+
+        # warm-start if required
+        if self.t < self.warm_p.size:
+            p = self.warm_p[self.t]
         else:
-            X = observation['features']
-            M = self.compute_uncertainty_M(X)
-            noise = np.random.multivariate_normal(np.zeros(2), np.identity(2))         
-            M = np.linalg.inv(M)
-            M = np.linalg.cholesky(M).T
-            norm = M @ noise
-            norm = (1/self.environment_info.observation_space['features'].shape[0]) * norm
-            
-            alpha = self.alpha + norm[0]
-            beta = self.beta + norm[1]
-            price = self.price_function(X, alpha, beta)
-            
-                
-        for processor in self.actionprocessors:
-            price = processor(price)
-        
-        return np.array(price)
-    
-    def sample_design_matrix(self):
-        I = np.identity(2*self.environment_info.observation_space['features'].shape[0])
-        I_lamdba = self.lam * I
-        if self.X.shape[0] == 0:
-            return I_lamdba
-        matrix = np.sum([np.outer(x, x.T) for x in self.X], axis=0)
-        return I_lamdba + matrix
-    
-    def compute_uncertainty_M(self, x_t):
-        M = self.sample_design_matrix()
-        block_matrix = np.block([
-            [x_t, np.zeros_like(x_t)],
-            [np.zeros_like(x_t), x_t]
-        ])
-        M_inverse = np.linalg.inv(M)
+            # posterior sample
+            L    = np.linalg.cholesky(self.M_inv)
+            noise    = np.random.randn(self.d_param)
+            theta_hat    = self.M_inv @ self.q + self.scale * (L @ noise)
 
-        projected_matrix = block_matrix @ M_inverse @ block_matrix.T
-        projected_matrix_inverse = np.linalg.inv(projected_matrix)
-        return projected_matrix_inverse
-    
-    def fit(self, X, Y, action):
-        assert self.mode == "train"
+            a    = x @ theta_hat[:x.size]
+            b    = x @ theta_hat[x.size:]
+            b = np.minimum(np.array([-0.01]), b)
+            a = np.maximum(np.array([0.01]), a)
+
+            p    = self.price_fn(np.ones_like(a), a, b)         # usually -a / (2b)
+
+        for proc in self.actionprocessors:
+            p = proc(p)
+        return np.array(p, dtype=np.float32)
+
+    # ---------- fit -----------------------------------------------------------
+    def fit(self, X, D, price):
+        """Update posterior with (x,p,D)."""
+        z = np.concatenate([X, X * price])         # length 2d
+        Mz = self.M_inv @ z
+        self.M_inv -= np.outer(Mz, Mz) / (1.0 + z @ Mz)
+        self.q     += z * float(D)
+
+        θ_hat = self.M_inv @ self.q
+        split = θ_hat.size // 2
+        self.alpha, self.beta = θ_hat[:split], θ_hat[split:]
+
         self.t += 1
-        X = np.concatenate([X, X * action])
-        self.X = np.vstack([self.X, X])
-        self.Y = np.vstack([self.Y, Y])
-        self.parameter_update()
-    
-    def parameter_update(self):
-        if self.X.shape[0] < 2:
-            return
-        model = sm.GLM(self.Y, self.X, family=sm.families.Binomial())
-        results = model.fit()
-        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
-        self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
-    
-    def update_task(self, env):
-        self.environment_info = env.mdp_info
-        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
-        self.Y = np.empty((0, 1))
-        self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
-        self.M = [[np.power(x,2)+i for x in range(0, int(np.sqrt(self.environment_info.horizon)))] for i in range(0, 2)]
-        self.t = 0 
-        
+
+    # ---------- helpers -------------------------------------------------------
     def reset(self):
-        return
+        pass
+
+    def update_task(self, env):
+        """Start fresh on a new MDP / feature dimension."""
+        self.environment_info = env.mdp_info
+        self.d = self.environment_info.observation_space['features'].shape[0] * 2
+        self.M_inv = np.eye(self.d) / self.lam   if self.lam != 0 else np.eye(self.d)
+        self.q = np.zeros(self.d)
+        self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
+        self.t = 0
+
 
 # %% ../../../nbs/30_agents/42_DP_agents/12_TS_agent.ipynb 5
 class TSCoreAgent(Agent):

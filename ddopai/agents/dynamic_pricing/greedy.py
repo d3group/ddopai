@@ -23,76 +23,115 @@ from ..obsprocessors import FlattenTimeDimNumpy
 from ...envs.actionprocessors import ClipAction
 
 # %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 4
-class GreedyPolicy():
+class _OLSIncremental:
+    """
+    Maintains   M_t  = λ I + Σ z_s z_sᵀ
+           and   θ̂_t = M_t⁻¹ q_t      with q_t = Σ z_s D_s .
+    O(d²) memory, O(d²) time per step.
+    """
+    def __init__(self, d, lam=1e-6):          # tiny λ keeps M invertible
+        self.lam     = lam
+        self.M_inv   = np.eye(d) / lam        # (λI)⁻¹
+        self.q       = np.zeros(d)
+
+    def update(self, z, D):
+        z   = z.ravel().astype(float)
+        D   = float(D)
+
+        Mz      = self.M_inv @ z
+        denom   = 1.0 + z @ Mz
+        self.M_inv -= np.outer(Mz, Mz) / denom     # Sherman–Morrison rank-1
+        self.q     += D * z
+
+    @property
+    def theta_hat(self):
+        return self.M_inv @ self.q
+
+
+# %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 5
+class GreedyPolicy:
     def __init__(self,
                  environment_info: MDPInfo,
-                 obsprocessors: Optional[List[object]] = None,
-                 actionprocessors: Optional[List[object]] = None,
-                 agent_name: str | None = None,
-                 ex_prices: np.ndarray | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
-                 price_function = None,
-                 g = None,
-                 ):
-        assert type(alpha) == type(beta), "alpha and beta must be of the same type"
-        if type(alpha) == None:
-            alpha = np.zeros(environment_info.observation_space['features'].shape[0])   
-            beta = np.zeros(environment_info.observation_space['features'].shape[0])
+                 obsprocessors=None,
+                 actionprocessors=None,
+                 agent_name=None,
+                 ex_prices=None,
+                 alpha=None,
+                 beta=None,
+                 price_function=None,
+                 g=None):
+
+        d_feat = environment_info.observation_space['features'].shape[0]
+        if alpha is None:
+            alpha = np.zeros(d_feat)
+            beta  = np.zeros(d_feat)
         if isinstance(ex_prices, list):
             ex_prices = np.array(ex_prices)
         assert ex_prices.shape[0] >= 2
-        self.environment_info = environment_info
-        self.ex_prices = ex_prices
-        self.alpha = alpha
-        self.beta = beta
-        self.actionprocessors = actionprocessors
-        self.price_function = price_function # Needs to return an np array
-        self.g = g
-        self.t = 0
-        self.X = np.empty((0, environment_info.observation_space['features'].shape[0] * 2)) 
-        self.Y = np.empty((0, 1))
-        self.mode = "train"
-        self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
 
-    def draw_action(self, observation: np.ndarray):
+        # --- store -----------------------------------------------------------------
+        self.environment_info = environment_info
+        self.ex_prices        = ex_prices
+        self.alpha            = alpha
+        self.beta             = beta
+        self.price_function   = price_function
+        self.g                = g
+        self.t                = 0
+        self.mode             = "train"
+
+        # incremental OLS on 2d parameters
+        self._d_param   = 2 * d_feat
+        self.estimator  = _OLSIncremental(self._d_param, lam=1e-6)
+
+        # processors ----------------------------------------------------------------
+        self.actionprocessors = actionprocessors or []
+        self.actionprocessors.append(
+            ClipAction(environment_info.action_space.low,
+                       environment_info.action_space.high)
+        )
+
+    # --------------------------------------------------------------------- draw ---
+    def draw_action(self, observation):
         if self.t < self.ex_prices.shape[0]:
             price = self.ex_prices[self.t]
         else:
-            price = np.empty(0)
-            X = observation['features']
-            price = self.price_function(X, self.alpha, self.beta)
-            
-        for processor in self.actionprocessors:
-            price = processor(price)
-        
-        return np.array(price)
-    
+            x     = observation['features']
+            price = self.price_function(x, self.alpha, self.beta)
+
+        for proc in self.actionprocessors:
+            price = proc(price)
+        return np.array(price, dtype=np.float32)
+
+    # ----------------------------------------------------------------------- fit --
     def fit(self, X, Y, action):
         assert self.mode == "train"
-        self.t += 1
-        X = np.concatenate([X, X * action])
-        self.X = np.vstack([self.X, X])
-        self.Y = np.vstack([self.Y, Y])
-        self.parameter_update()
-    
-    def parameter_update(self):
-        model = sm.OLS(self.Y, self.X)
-        results = model.fit()
-        self.alpha = results.params[:self.environment_info.observation_space['features'].shape[0]]
-        self.beta = results.params[self.environment_info.observation_space['features'].shape[0]:]
-    
-    def update_task(self, env):
-        self.t = 0
-        self.environment_info = env.mdp_info
-        self.X = np.empty((0, self.environment_info.observation_space['features'].shape[0] * 2))
-        self.Y = np.empty((0, 1))
-        self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
-        
-    def reset(self):
-        return
 
-# %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 5
+        z = np.concatenate([X, X * action])      # length 2d
+        self.estimator.update(z, Y)              # incremental OLS
+        theta = self.estimator.theta_hat
+        d     = theta.size // 2
+        self.alpha, self.beta = theta[:d], theta[d:]
+
+        self.t += 1
+
+    # -------------------------------------------------------------- misc helpers --
+    def update_task(self, env):
+        self.environment_info = env.mdp_info
+        self.t        = 0
+        self._d_param = 2 * env.mdp_info.observation_space['features'].shape[0]
+        self.estimator = _OLSIncremental(self._d_param, lam=1e-6)
+        self.actionprocessors[-1] = ClipAction(
+            env.mdp_info.action_space.low,
+            env.mdp_info.action_space.high,
+        )
+
+    def reset(self):
+        """Reset internal counters between episodes."""
+        self.t = 0
+        self.estimator = _OLSIncremental(self._d_param, lam=1e-6)
+
+
+# %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 6
 class GreedyCoreAgent(Agent):
 
     """
@@ -125,7 +164,7 @@ class GreedyCoreAgent(Agent):
         self.policy.update_task(env)
         
 
-# %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 6
+# %% ../../../nbs/30_agents/42_DP_agents/10_greedy_agent.ipynb 7
 class GreedyAgent(PricingMushroomBaseAgent):
     """
     Wrapper class for GreedyCoreAgent to interact with MushroomRL.

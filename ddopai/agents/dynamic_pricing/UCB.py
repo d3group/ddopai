@@ -55,11 +55,13 @@ class UCBPolicy:
         self.lam = lam
         self.reg = reg
         self.t = 0
-        self.X = np.empty((0, environment_info.observation_space['features'].shape[0] * 2))
-        self.Y = np.empty((0, 1))
+        
         self.mode = "train"
         self.actionprocessors.append(ClipAction(environment_info.action_space.low, environment_info.action_space.high))
-        self.d = environment_info.observation_space['features'].shape[0]
+
+        self.d = environment_info.observation_space['features'].shape[0] * 2
+        self.M_inv = np.eye(self.d) / self.lam   if self.lam != 0 else np.eye(self.d)
+        self.q = np.zeros(self.d)
     def draw_action(self, observation):
         x = observation['features']
         # if self.t in [0, 1]:
@@ -76,8 +78,6 @@ class UCBPolicy:
     def fit(self, X, Y, action):
 
         Z = np.concatenate([X, X * action])
-        self.X = np.vstack([self.X, Z])
-        self.Y = np.vstack([self.Y, Y])
         self.parameter_update(Z, Y)
         self.t += 1
 
@@ -86,11 +86,6 @@ class UCBPolicy:
         One-step Sherman-Morrison update of the quasi-MLE for the *identity* link g(u)=u
         (linear demand).  If you keep a general g, replace D_t by the *score* below.
         """
-        if self.t == 0:
-            # first call: initialise
-            d = len(z)
-            self.M_inv = np.eye(d) / self.lam   if self.lam != 0 else np.eye(d)
-            self.q = np.zeros(d)
 
         # rank-1 update of M_t^{-1}
         Mz = self.M_inv @ z
@@ -105,11 +100,6 @@ class UCBPolicy:
 
 
     def sample_design_matrix(self):
-        # d = self.environment_info.observation_space['features'].shape[0]
-        # I = self.lam * np.identity(2 * d)
-        # if self.X.shape[0] == 0:
-        #     return I
-        # return I + self.X.T @ self.X
         return np.linalg.inv(self.M_inv)
 
     def sample_from_confidence_region(self, theta_hat, M, N=50, gamma=None):
@@ -146,9 +136,9 @@ class UCBPolicy:
             beta = theta[x.shape[0]:]
             a = np.dot(x, alpha)
             b = np.dot(x, beta)
-            b = min(-0.01, b)
-            a = max( 0.01, a)
-            price = self.price_function(np.ones_like(x), a, b)
+            b = np.minimum(np.array([-0.01]), b)
+            a = np.maximum(np.array([0.01]), a)
+            price = self.price_function(np.ones_like(a), a, b)
 
             rev = price * self.g.g(a + price * b)
             if rev > max_val:
@@ -158,9 +148,9 @@ class UCBPolicy:
 
     def update_task(self, env):
         self.environment_info = env.mdp_info
-        self.d = self.environment_info.observation_space['features'].shape[0]
-        self.X = np.empty((0, 2 * self.d))
-        self.Y = np.empty((0, 1))
+        self.d = self.environment_info.observation_space['features'].shape[0] * 2
+        self.M_inv = np.eye(self.d) / self.lam   if self.lam != 0 else np.eye(self.d)
+        self.q = np.zeros(self.d)
         self.actionprocessors[-1] = ClipAction(self.environment_info.action_space.low, self.environment_info.action_space.high)
         self.t = 0
 
