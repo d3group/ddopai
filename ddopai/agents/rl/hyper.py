@@ -57,11 +57,11 @@ class HyperAgent(BaseAgent):          # extend your own BaseAgent if you have on
                  environment_info: Optional[MDPInfo] = None,
                  obsprocessors: list | None = None):   # "cpu"/"cuda"/None
         self.device = torch.device(force_device) if force_device else device
-        mdl_dir     = os.path.join(run_dir, "models")
+        mdl_dir     = os.path.join("models", run_dir)
         self.preprocessors = obsprocessors if obsprocessors is not None else []
 
         # --- load config so we still have the flags ------------------
-        cfg_path = os.path.join(run_dir, "config.json")
+        cfg_path = os.path.join(mdl_dir, "config.json")
         with open(cfg_path, "r") as f:
             self.args = argparse.Namespace(**json.load(f))
 

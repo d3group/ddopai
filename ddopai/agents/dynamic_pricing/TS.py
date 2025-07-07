@@ -39,12 +39,12 @@ class TSPolicy:
                  environment_info: MDPInfo,
                  price_function,               # takes (x, a, b) ➜ price
                  actionprocessors=None,
-                 warm_start_prices=None,
+                 ex_prices=None,
                  init_scale=None):
         """
         lam      : ridge / prior precision λ
         price_function(x, a, b) returns the quadratic-optimal price (usually -a/2b)
-        warm_start_prices : iterable of k ∈{0,1,2,…} initial prices; can be empty
+        ex_prices : iterable of k ∈{0,1,2,…} initial prices; can be empty
         init_scale        : exploration std-multiplier; default √d / 25
         """
 
@@ -65,7 +65,7 @@ class TSPolicy:
         self.env_info   = environment_info
         self.price_fn   = price_function
         self.t          = 0
-        self.warm_p     = np.asarray(warm_start_prices) if warm_start_prices is not None else np.empty(0)
+        self.ex_prices     = np.asarray(ex_prices) if ex_prices is not None else np.empty(0)
 
         # processors (only clip)
         self.actionprocessors = actionprocessors or []
@@ -79,8 +79,8 @@ class TSPolicy:
         x = observation['features']
 
         # warm-start if required
-        if self.t < self.warm_p.size:
-            p = self.warm_p[self.t]
+        if self.t < self.ex_prices.size:
+            p = self.ex_prices[self.t]
         else:
             # posterior sample
             L    = np.linalg.cholesky(self.M_inv)
@@ -133,21 +133,16 @@ class TSCoreAgent(Agent):
     """
 
     def __init__(self,
-                    lam: float,
-                    reg: float,
-                    environment_info: MDPInfo,
-                    obsprocessors: Optional[List[object]] = [],
-                    actionprocessors: Optional[List[object]] = [],
-                    agent_name: str | None = None,
-                    ex_prices: np.ndarray | None = None,
-                    alpha: np.ndarray | None = None,
-                    beta: np.ndarray | None = None,
-                    price_function = None,
-                    g = None,
-                    ):
+                 lam: float,
+                 environment_info: MDPInfo,
+                 agent_name: str | None = None,
+                 price_function=None,               # takes (x, a, b) ➜ price
+                 actionprocessors=None,
+                 ex_prices=None,
+                 init_scale=None):
         
-        policy = TSPolicy(lam=lam, reg=reg, environment_info=environment_info, obsprocessors=obsprocessors, actionprocessors=actionprocessors, ex_prices=ex_prices, alpha=alpha, beta=beta, price_function=price_function, g=g)
-        self.agent_name = agent_name
+        policy = TSPolicy(lam=lam, environment_info=environment_info, actionprocessors=actionprocessors, ex_prices=ex_prices, price_function=price_function, init_scale=init_scale)
+        self.agent_name = "TS"
         super().__init__(environment_info, policy)
         
     def fit(self, dataset, **kwargs):
@@ -165,26 +160,20 @@ class TSAgent(PricingMushroomBaseAgent):
     """
     def __init__(self,
                  lam: float,
-                 reg: float,
                  environment_info: MDPInfo,
                  obsprocessors: Optional[List[object]] =[],
                  actionprocessors: Optional[List[object]] = [],
                  agent_name: str | None = None,
                  ex_prices: np.ndarray | None = None,
-                 alpha: np.ndarray | None = None,
-                 beta: np.ndarray | None = None,
                  price_function = None,
                  g = None,
                  ):
-        self.agent = TSCoreAgent(lam=lam, reg=reg, environment_info=environment_info,
-                                 obsprocessors=obsprocessors, 
+        self.agent = TSCoreAgent(lam=lam, environment_info=environment_info,
                                  actionprocessors=actionprocessors, 
                                  agent_name=agent_name, 
                                  ex_prices=ex_prices, 
-                                 alpha=alpha, 
-                                 beta=beta, 
                                  price_function=price_function, 
-                                 g=g)
+                                 )
         super().__init__(environment_info=environment_info, obsprocessors=obsprocessors, agent_name=agent_name)
     def update_task(self, env: object):
         """ Update the environment specific parameters of the agent """
