@@ -134,11 +134,12 @@ def log_info_history(info: list,
         wandb.log({f"{mode}/info_table": table}, commit=commit)
         
 def log_figure_from_history(info: list,
-                            episode: int,
-                     tracking: Literal["wandb"], # only wandb implemented so far
-                     mode: Literal["train", "val", "test"],
+                    episode: int,
+                    tracking: Literal["wandb"], # only wandb implemented so far
+                    mode: Literal["train", "val", "test"],
+                    env: BaseEnvironment,
                     commit: bool = True
-                     ):
+                    ):
     if tracking == "wandb":
         # Plot reward and true reward over time
         plt.figure(figsize=(10, 6))
@@ -155,6 +156,7 @@ def log_figure_from_history(info: list,
         # Plot action over time
         plt.figure(figsize=(10, 6))
         sns.lineplot(x=list(range(len(info))), y=[row["action"] for row in info], label="Action")
+        plt.ylim(env.action_space.low[0], env.action_space.high[0])  # Set y-limits based on action space
         plt.title("Action over time")
         plt.xlabel("T")
         plt.ylabel("Action")
@@ -253,7 +255,7 @@ def test_agent(agent: BaseAgent,
             mode = env.mode
             wandb.log({f"{mode}/Episode":episode,f"{mode}/R": R, f"{mode}/J": J}, commit=False)
             log_info_history([ep_d[1] for ep_d in episode_dataset], episode, tracking, mode, commit=False)
-            log_figure_from_history([ep_d[1] for ep_d in episode_dataset], episode, tracking, mode, commit=True)
+            log_figure_from_history([ep_d[1] for ep_d in episode_dataset], episode, tracking, mode, env, commit=True)
     if return_dataset:
         return np.mean(list_R), np.mean(list_J), dataset
     else:
@@ -407,7 +409,7 @@ def run_experiment( agent: BaseAgent,
                 J_list.append(J)
             wandb.log({f"test/R": R, f"test/J": J}, commit=False)
             log_info_history(env.get_info(), episode, tracking, "test", commit=False)
-            log_figure_from_history(env.get_info(), episode, tracking, "test", commit=True)
+            log_figure_from_history(env.get_info(), episode, tracking, "test", env, commit=True)
             if ((episode+1) % print_freq) == 0:
                 logging.info(f"Episode {episode+1}: R={R}, J={J}")
     elif agent.train_mode == "pretrained":
@@ -466,7 +468,7 @@ def run_experiment( agent: BaseAgent,
                     sys.stdout.flush()
             wandb.log({f"test/R": R, f"test/J": J}, commit=False)
             log_info_history([ep[1]for ep in episode_dataset], episode, tracking, "test", commit=False)
-            log_figure_from_history([ep[1]for ep in episode_dataset], episode, tracking, "test", commit=True)
+            log_figure_from_history([ep[1]for ep in episode_dataset], episode, tracking, "test", env, commit=True)
             dataset.append(episode_dataset)
             
     elif agent.train_mode == "env_interaction":
