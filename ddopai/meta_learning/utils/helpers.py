@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from ..environments.pricing_env.pricing_env import PricingEnv
+
 from ..environments.wrappers import PrevActRewWrapper
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -39,7 +39,7 @@ def make_env(args, mode='train', **kwargs):
     """
     assert args.env_name.lower().startswith('pricing'), \
         "This trimmed helper only supports PricingEnv."
-
+    from ddopai.meta_learning.environments.pricing_env.pricing_env import PricingEnv
     # base env --------------------------------------------------------
     env = PricingEnv(**args.pricing_kwargs)
 
