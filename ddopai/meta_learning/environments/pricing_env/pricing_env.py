@@ -259,21 +259,23 @@ class PricingEnv(gym.Env):
         Visualise behaviour in PricingEnv: plots price (action) and revenue (reward) per timestep.
         The environment passed to this method should be a vectorised env (DummyVecEnv or SubprocVecEnv).
         """
-        import matplotlib.pyplot as plt
-        import torch
-        import numpy as np
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         num_episodes = args.max_rollouts_per_task
         unwrapped_env = env.venv.unwrapped.envs[0]
 
+        episode_all_obs = [[] for _ in range(num_episodes)]
         episode_prev_obs = [[] for _ in range(num_episodes)]
         episode_next_obs = [[] for _ in range(num_episodes)]
         episode_actions = [[] for _ in range(num_episodes)]
         episode_rewards = [[] for _ in range(num_episodes)]
         episode_returns = []
+        episode_lengths = []
 
+        if args.pass_belief_to_policy and (encoder is None):
+            episode_beliefs = [[] for _ in range(num_episodes)]
+        else:
+            episode_beliefs = None
+            
         if encoder is not None:
             episode_latent_samples = [[] for _ in range(num_episodes)]
             episode_latent_means = [[] for _ in range(num_episodes)]
@@ -282,69 +284,101 @@ class PricingEnv(gym.Env):
             episode_latent_samples = episode_latent_means = episode_latent_logvars = None
 
         env.reset_task()
-        state, belief, task = utl.reset_env(env, args)
-        start_obs_raw = state.clone()
-        task = task.view(-1) if task is not None else None
+        [state, belief, task] = utl.reset_env(env, args)
+        start_obs = state.clone()
 
-        hidden_state = torch.zeros((1, args.hidden_size), device=device) if hasattr(args, 'hidden_size') else None
+        for episode_idx in range(num_episodes):
 
-        for ep_idx in range(num_episodes):
-            obs = env.reset()
             curr_rollout_rew = []
 
-            if ep_idx == 0 and encoder is not None:
-                curr_latent_sample, curr_latent_mean, curr_latent_logvar, hidden_state = encoder.prior(1)
-                curr_latent_sample = curr_latent_sample[0].to(device)
-                curr_latent_mean = curr_latent_mean[0].to(device)
-                curr_latent_logvar = curr_latent_logvar[0].to(device)
+            
 
             if encoder is not None:
-                episode_latent_samples[ep_idx].append(curr_latent_sample[0].clone())
-                episode_latent_means[ep_idx].append(curr_latent_mean[0].clone())
-                episode_latent_logvars[ep_idx].append(curr_latent_logvar[0].clone())
+                
+                if ep_idx == 0 and encoder is not None:
+                    # reset to prior
+                    curr_latent_sample, curr_latent_mean, curr_latent_logvar, hidden_state = encoder.prior(1)
+                    curr_latent_sample = curr_latent_sample[0].to(device)
+                    curr_latent_mean = curr_latent_mean[0].to(device)
+                    curr_latent_logvar = curr_latent_logvar[0].to(device)
+                    
+                episode_latent_samples[episode_idx].append(curr_latent_sample[0].clone())
+                episode_latent_means[episode_idx].append(curr_latent_mean[0].clone())
+                episode_latent_logvars[episode_idx].append(curr_latent_logvar[0].clone())
 
-            for t in range(env._max_episode_steps):
-                prev_obs = torch.as_tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
-                episode_prev_obs[ep_idx].append(prev_obs.squeeze(0).clone())
-
-                latent = utl.get_latent_for_policy(args, curr_latent_sample, curr_latent_mean, curr_latent_logvar)
-                _, action, _ = policy.act(prev_obs, latent, belief=None, task=task, deterministic=True)
-
-                obs, reward, done, info = env.step(action.cpu().numpy())
-                obs = torch.as_tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
-
-                episode_next_obs[ep_idx].append(obs.squeeze(0).clone())
-                episode_actions[ep_idx].append(action.squeeze(0).clone())
-                episode_rewards[ep_idx].append(torch.tensor(reward, dtype=torch.float32, device=device).clone())
-                curr_rollout_rew.append(reward)
+            episode_all_obs[episode_idx].append(start_obs.clone())
+            if args.pass_belief_to_policy and (encoder is None):
+                episode_beliefs[episode_idx].append(belief)
+                
+            for step_idx in range(env._max_episode_steps):
+                
+                if step_idx == 1:
+                    prev_obs = start_obs.clone()
+                else:
+                    prev_obs = state.clone()
+                    
+                episode_prev_obs[episode_idx].append(prev_obs)
+                
+                                # act
+                _, action, _ = utl.select_action(args=args,
+                                                 policy=policy,
+                                                 state=state.view(-1),
+                                                 belief=belief,
+                                                 task=task,
+                                                 deterministic=True,
+                                                 latent_sample=curr_latent_sample.view(-1) if (curr_latent_sample is not None) else None,
+                                                 latent_mean=curr_latent_mean.view(-1) if (curr_latent_mean is not None) else None,
+                                                 latent_logvar=curr_latent_logvar.view(-1) if (curr_latent_logvar is not None) else None,
+                                                 )
+                
+                # observe reward and next obs
+                [state, belief, task], (rew_raw, rew_normalised), done, infos = utl.env_step(env, action, args)
 
                 if encoder is not None:
+                    # update task embedding
                     curr_latent_sample, curr_latent_mean, curr_latent_logvar, hidden_state = encoder(
-                        action.reshape(1, -1).float().to(device),
-                        obs,
-                        torch.tensor([reward], dtype=torch.float32, device=device).unsqueeze(0),
+                        action.float().to(device),
+                        state,
+                        rew_raw.reshape((1, 1)).float().to(device),
                         prev_obs,
                         hidden_state,
-                        return_prior=False,
-                    )
-                    episode_latent_samples[ep_idx].append(curr_latent_sample[0].clone())
-                    episode_latent_means[ep_idx].append(curr_latent_mean[0].clone())
-                    episode_latent_logvars[ep_idx].append(curr_latent_logvar[0].clone())
+                        return_prior=False)
 
-                if done:
+                    episode_latent_samples[episode_idx].append(curr_latent_sample[0].clone())
+                    episode_latent_means[episode_idx].append(curr_latent_mean[0].clone())
+                    episode_latent_logvars[episode_idx].append(curr_latent_logvar[0].clone())
+
+                episode_all_obs[episode_idx].append(state.clone())
+                episode_next_obs[episode_idx].append(state.clone())
+                episode_rewards[episode_idx].append(rew_raw.clone())
+                episode_actions[episode_idx].append(action.clone())
+
+                curr_rollout_rew.append(rew_raw.clone())
+                
+
+                if args.pass_belief_to_policy and (encoder is None):
+                    episode_beliefs[episode_idx].append(belief)
+
+                if infos[0]['done_mdp'] and not done:
+                    start_obs = infos[0]['start_state']
+                    start_obs = torch.from_numpy(start_obs).float().reshape((1, -1)).to(device)
                     break
 
             episode_returns.append(sum(curr_rollout_rew))
+            episode_lengths.append(step_idx)
 
-        # Stack episode data
-        episode_prev_obs = [torch.stack(e) for e in episode_prev_obs]
-        episode_next_obs = [torch.stack(e) for e in episode_next_obs]
-        episode_actions = [torch.stack(e) for e in episode_actions]
-        episode_rewards = [torch.stack(e) for e in episode_rewards]
+
+        # clean up
 
         if encoder is not None:
             episode_latent_means = [torch.stack(e) for e in episode_latent_means]
             episode_latent_logvars = [torch.stack(e) for e in episode_latent_logvars]
+
+        episode_prev_obs = [torch.cat(e) for e in episode_prev_obs]
+        episode_next_obs = [torch.cat(e) for e in episode_next_obs]
+        episode_actions = [torch.cat(e) for e in episode_actions]
+        episode_rewards = [torch.cat(e) for e in episode_rewards]
+
 
         # Plot price and reward trajectories
         import matplotlib.pyplot as plt
