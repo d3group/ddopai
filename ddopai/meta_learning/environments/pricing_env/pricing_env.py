@@ -295,7 +295,7 @@ class PricingEnv(gym.Env):
 
             if encoder is not None:
                 
-                if ep_idx == 0 and encoder is not None:
+                if episode_idx == 0 and encoder is not None:
                     # reset to prior
                     curr_latent_sample, curr_latent_mean, curr_latent_logvar, hidden_state = encoder.prior(1)
                     curr_latent_sample = curr_latent_sample[0].to(device)
